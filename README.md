@@ -305,7 +305,7 @@ USE_STREAM_LISTENER="true"
 HASH_ID_KEY="0123456789abcdefghijklmnopqrstuvwxyz_,0,0"
 ```
 
-> **Important:** Unlike ap-login and ap-market, the sfs-game-1 [`compose.yaml`](server/deploy/compose.yaml) mounts this `.env` file directly into the container. The values here are used as-is — use Docker hostnames (`postgres`, `redis`, `ap-login`, etc.) instead of `localhost`.
+> **Note:** Like ap-login and ap-market, [`compose.yaml`](server/deploy/compose.yaml) loads this `.env` file via `env_file` and can override specific values in its `environment` section (e.g., `MAX_CONNECTIONS_PER_IP`, `MAX_CCU`, `SERVER_NAME`). Use Docker hostnames (`postgres`, `redis`, `ap-login`, etc.) instead of `localhost`.
 
 > **Note:** `AP_LOGIN_TOKEN` must be a valid JWT signed with ap-login's `JWT_BEARER_SECRET`.
 

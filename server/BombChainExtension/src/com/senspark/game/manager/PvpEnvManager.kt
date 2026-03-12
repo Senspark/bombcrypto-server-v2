@@ -2,7 +2,6 @@ package com.senspark.game.manager
 
 import com.senspark.common.utils.AppStage
 import com.senspark.common.utils.RemoteLoggerInitData
-import io.github.cdimascio.dotenv.Dotenv
 import java.time.Instant
 
 class PvpEnvManager : IPvpEnvManager {
@@ -27,13 +26,6 @@ class PvpEnvManager : IPvpEnvManager {
         stage = appStage,
         remoteHost = getEnv("LOG_REMOTE_HOST", "localhost:10002")
     )
-
-    init {
-        if (!isGke) {
-            // load .env file into system properties
-            Dotenv.configure().systemProperties().load()
-        }
-    }
 
     override fun initialize() {
     }

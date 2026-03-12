@@ -93,8 +93,6 @@ dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
     implementation("com.google.code.gson:gson:2.10") // FIXME: remove.
     implementation("com.slack.api:slack-api-client:1.39.0")
-    implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
-    
     testImplementation(kotlin("test"))
     testImplementation(project(":SmartFoxLibs"))
     testImplementation(project(":Common"))

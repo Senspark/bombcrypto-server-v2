@@ -2,10 +2,6 @@
 
 echo "SERVER_NAME=$SERVER_NAME"
 
-set -o allexport
-source .env
-set +o allexport
-
 echo "Patch"
 cp -rf /opt/SmartFoxServer_2X_Patch/"$GCS_PATH"* /opt/SmartFoxServer_2X
 

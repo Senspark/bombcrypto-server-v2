@@ -3,7 +3,6 @@ package com.senspark.game.manager
 import com.senspark.common.utils.AppStage
 import com.senspark.common.utils.RemoteLoggerInitData
 import com.smartfoxserver.v2.extensions.ExtensionLogLevel
-import io.github.cdimascio.dotenv.Dotenv
 import java.time.Instant
 
 class PropertyEnvManager : IEnvManager {
@@ -97,12 +96,6 @@ class PropertyEnvManager : IEnvManager {
     override val useStreamListener = getEnv("USE_STREAM_LISTENER", "true").toBoolean()
     override val saveClientLogPath = getEnv("SAVE_CLIENT_LOG_PATH", "./clientLogs/")
     override val hashIdKey = getEnv("HASH_ID_KEY")
-    init {
-        if (!isGke) {
-            // (for local server only) load .env file into system properties
-            Dotenv.configure().systemProperties().load()
-        }
-    }
 
     override fun initialize() {
     }

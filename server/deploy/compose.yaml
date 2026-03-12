@@ -8,6 +8,7 @@ services:
   sfs-game-1:
     image: smartfox
     container_name: sfs-game-1
+    env_file: ../.env
     ports:
       - "8080:8080"
       - "8443:8443"
@@ -23,13 +24,12 @@ services:
       MAX_CCU: 100
       HTTP_PORT: 8080
       HTTPS_PORT: 8443
-      MAX_CONNECTIONS_PER_IP: 1
+      MAX_CONNECTIONS_PER_IP: 2
       SERVER_NAME: 'sfs-game-1'
       LICENSE_CODE: ''
       CREDENTIALS: 'bombcryptodev,123456'
     restart: always
     volumes:
-      - ../.env:/opt/SmartFoxServer_2X/SFS2X/.env:ro
       - ./SmartFoxServer_2X:/opt/SmartFoxServer_2X_Patch:ro
       - ./client_logs:/opt/SmartFoxServer_2X/SFS2X/clientLogs:rw
       - ./extensions_volume:/opt/SmartFoxServer_2X/SFS2X/extensions:rw
