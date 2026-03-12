@@ -1,0 +1,3 @@
+package com.senspark.game.service
+
+interface IPvPChestSpawnRadiusManager

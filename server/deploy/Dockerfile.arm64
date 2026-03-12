@@ -1,0 +1,50 @@
+FROM debian:bullseye-slim
+
+# Forward ports.
+EXPOSE 8080 8443 9933/tcp 9933/udp 9898
+
+ARG GCSFUSE_VERSION=2.9.1
+ARG SMARTFOX_VERSION=2_19_0
+ARG SMARTFOX_PATCH_VERSION=2.20.5
+
+RUN apt-get update
+
+RUN apt-get install -y  \
+    unzip \
+    default-jdk \
+    wget xmlstarlet
+
+# Change timezone to GMT +7
+RUN echo Asia/Ho_Chi_Minh >/etc/timezone && \
+    ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
+
+# Copy all files from installer folder to /opt/installer
+COPY ./installer /opt/installer
+
+# Extract the SmartFoxServer into /opt folder -> Result: /opt/SmartFoxServer_2X/SFS2x/...
+RUN tar -C /opt -xzvf /opt/installer/SFS2X_unix_${SMARTFOX_VERSION}.tar.gz
+
+# Patch the SmartFoxServer
+WORKDIR /opt
+RUN unzip ./installer/SFS2X-Patch-${SMARTFOX_PATCH_VERSION}.zip -d ./SmartFoxServer_2X/
+WORKDIR /opt/SmartFoxServer_2X/SFS2X-Patch-${SMARTFOX_PATCH_VERSION}
+# Bundled JRE is amd64, use system Java instead
+RUN java -jar patcher.jar "SFS2X ${SMARTFOX_PATCH_VERSION} Patch Installer"
+
+# Copy the run bash script
+WORKDIR /opt
+RUN cp ./installer/run.sh ./SmartFoxServer_2X/SFS2X
+RUN cp ./installer/sfs2x_debug.sh ./SmartFoxServer_2X/SFS2X
+
+# Remove bundled amd64 JRE so startup scripts fall back to system arm64 Java
+RUN rm -Rf /opt/SmartFoxServer_2X/jre
+
+# Cleanup
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN rm -Rf /opt/installer
+RUN rm -Rf /opt/SmartFoxServer_2X/SFS2X-Patch-${SMARTFOX_PATCH_VERSION}
+
+WORKDIR /opt/SmartFoxServer_2X/SFS2X
+
+CMD ["bash", "run.sh"]

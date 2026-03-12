@@ -1,0 +1,53 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  sfs-game-1:
+    image: smartfox
+    container_name: sfs-game-1
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+      - "9933:9933/tcp"
+      - "9933:9933/udp"
+      - "9898:9898"
+    networks:
+      - base_default
+    environment:
+      IS_DEBUG: 0
+      IS_PVP_SERVER: 0
+      IS_GAME_SERVER: 1
+      MAX_CCU: 100
+      HTTP_PORT: 8080
+      HTTPS_PORT: 8443
+      MAX_CONNECTIONS_PER_IP: 1
+      SERVER_NAME: 'sfs-game-1'
+      LICENSE_CODE: ''
+      CREDENTIALS: 'bombcryptodev,123456'
+    restart: always
+    volumes:
+      - ../.env:/opt/SmartFoxServer_2X/SFS2X/.env:ro
+      - ./SmartFoxServer_2X:/opt/SmartFoxServer_2X_Patch:ro
+      - ./client_logs:/opt/SmartFoxServer_2X/SFS2X/clientLogs:rw
+      - ./extensions_volume:/opt/SmartFoxServer_2X/SFS2X/extensions:rw
+
+#  postgres:
+#    image: postgres:17
+#    container_name: postgres
+#    environment:
+#      POSTGRES_USER: postgres
+#      POSTGRES_PASSWORD: 123456
+#      POSTGRES_DB: postgres
+#    volumes:
+#      - ./postgres_data:/var/lib/postgresql/data/
+#    ports:
+#      - 5432:5432
+
+#  redis:
+#    image: redis:8
+#    container_name: redis
+#    ports:
+#      - "6379:6379"

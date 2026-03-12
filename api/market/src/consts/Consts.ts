@@ -1,0 +1,4 @@
+export const RedisKeys = {
+    MARKET_MIN_PRICE: "MARKET:MIN_PRICE",
+    MARKET_FIXED_POOL: "MARKET:FIXED_POOL",
+}

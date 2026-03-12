@@ -1,0 +1,6 @@
+client_logs/
+extensions_volume/
+SmartFoxServer_2X/
+compose.yaml
+README.md
+.env

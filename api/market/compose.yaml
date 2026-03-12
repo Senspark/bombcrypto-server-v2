@@ -1,0 +1,23 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  ap-market:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ap-market
+    ports:
+      - "9120:80"
+    networks:
+      - base_default
+    env_file:
+      - .env
+    environment:
+      TZ: 'Asia/Bangkok'
+      PORT: '80'
+      REDIS_CONNECTION_STRING: 'redis://@redis:6379/0'
+      POSTGRES_CONNECTION_STRING: 'postgres://postgres:123456@postgres:5432/bombcrypto'

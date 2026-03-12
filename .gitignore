@@ -1,0 +1,17 @@
+build/
+dist/
+node_modules/
+
+.idea/
+.kotlin/
+
+.DS_Store
+.env
+gradlew
+gradlew.bat
+gradle/
+.gradle/
+third-party-licenses/
+.claude/
+
+server/deploy/extensions_volume/
