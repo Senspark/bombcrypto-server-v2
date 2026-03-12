@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package com.senspark.game.data.model.user
 
 import com.senspark.game.constant.ItemType
@@ -8,7 +10,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-class UserItem @OptIn(ExperimentalSerializationApi::class) constructor(
+class UserItem(
     val id: Int,
     val type: ItemType,
     @SerialName("item_id")

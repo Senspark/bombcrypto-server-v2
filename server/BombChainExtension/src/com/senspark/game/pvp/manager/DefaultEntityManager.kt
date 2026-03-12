@@ -62,6 +62,7 @@ class DefaultEntityManager(
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun <T : IEntity> findEntities(clazz: KClass<T>): List<T> {
         return _entities
             .filter { it::class.isSubclassOf(clazz) }

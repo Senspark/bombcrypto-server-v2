@@ -22,7 +22,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 
 class RewardDataAccessPostgreSql(
@@ -154,7 +154,7 @@ class RewardDataAccessPostgreSql(
 
     override fun checkBillTokenExist(billToken: String): Boolean {
         return transaction {
-            !TableBuyGemTransaction.select { TableBuyGemTransaction.billToken eq billToken }.empty()
+            !TableBuyGemTransaction.selectAll().where { TableBuyGemTransaction.billToken eq billToken }.empty()
         }
     }
 

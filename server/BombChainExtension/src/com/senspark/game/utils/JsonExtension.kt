@@ -23,7 +23,7 @@ private fun Any.parseArg(): JsonElement {
         is Float -> JsonPrimitive(this)
         is Int -> JsonPrimitive(this)
         is List<*> -> JsonArray(this.map { (it ?: throw Exception("Must be not null")).parseArg() })
-        is Map<*, *> -> (this as Map<String, Any>).toJObject()
+        is Map<*, *> -> @Suppress("UNCHECKED_CAST") (this as Map<String, Any>).toJObject()
         is String -> JsonPrimitive(this)
         is Boolean -> JsonPrimitive(this)
         else -> throw Exception("Could not find type: ${this::class.simpleName}")

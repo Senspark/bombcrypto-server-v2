@@ -8,7 +8,7 @@ import com.senspark.game.schema.TableUserGachaChest
 import com.senspark.game.user.IGachaChestManager
 import com.senspark.lib.db.BaseDataAccess
 import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.time.Instant
@@ -54,7 +54,7 @@ class GachaChestDataAccess(
     override fun getUserGachaChests(uid: Int, gachaChestManager: IGachaChestManager): List<UserGachaChest> {
         val result = mutableListOf<UserGachaChest>()
         transaction {
-            val select = TableUserGachaChest.select {
+            val select = TableUserGachaChest.selectAll().where {
                 (TableUserGachaChest.userId eq uid)
                     .and(TableUserGachaChest.isDeleted eq 0)
             }.orderBy(TableUserGachaChest.chestId)

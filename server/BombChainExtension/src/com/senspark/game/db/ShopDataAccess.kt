@@ -34,7 +34,6 @@ import com.senspark.lib.db.BaseDataAccess
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.Timestamp
@@ -446,7 +445,7 @@ class ShopDataAccess(
 
     override fun getConfigItem(): Map<Int, Item> {
         return transaction {
-            TableConfigItem.select(
+            TableConfigItem.selectAll().where(
                 TableConfigItem.active eq true
             )
                 .filter { ItemType.hasValue(it[TableConfigItem.type]) }
@@ -475,7 +474,7 @@ class ShopDataAccess(
 
     override fun loadLuckyWheelReward(configItemManager: IConfigItemManager): List<LuckyWheelReward> {
         return transaction {
-            TableConfigLuckyWheelReward.select {
+            TableConfigLuckyWheelReward.selectAll().where {
                 TableConfigLuckyWheelReward.active eq true
             }.sortedBy {
                 TableConfigLuckyWheelReward.sort
@@ -522,7 +521,7 @@ class ShopDataAccess(
     override fun loadNewUserGift(configItemManager: IConfigItemManager): List<NewUserGift> {
         return transaction {
             TableNewUserGift
-                .select(where = TableNewUserGift.active eq true)
+                .selectAll().where(TableNewUserGift.active eq true)
                 .map { NewUserGift.fromResultRow(it, configItemManager) }
         }
     }

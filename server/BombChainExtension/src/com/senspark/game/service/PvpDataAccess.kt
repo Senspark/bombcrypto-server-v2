@@ -179,8 +179,8 @@ class PvpDataAccess(
     override fun queryPvPItemDropRate(): Map<BlockType, Float> {
         if (!::_pvpItemDropRate.isInitialized) {
             _pvpItemDropRate = transaction {
-                val execute = TableConfigDropRate.slice(TableConfigDropRate.dropRate)
-                    .select { TableConfigDropRate.name eq DropRate.PVP_ITEM.name }
+                val execute = TableConfigDropRate.select(TableConfigDropRate.dropRate)
+                    .where { TableConfigDropRate.name eq DropRate.PVP_ITEM.name }
                     .first()[TableConfigDropRate.dropRate]
                 val dropRate = deserializeList<Float>(execute)
                 mapOf(
@@ -266,7 +266,7 @@ class PvpDataAccess(
     override fun querySkinChestDropRate(): List<SkinChestDropRateData> {
         if (!::_skinChestDropRate.isInitialized) {
             _skinChestDropRate = transaction {
-                TableSkinChestDropRate.slice(TableSkinChestDropRate.value).selectAll().map {
+                TableSkinChestDropRate.select(TableSkinChestDropRate.value).map {
                     SkinChestDropRateData(
                         deserializeList(it[TableSkinChestDropRate.value])
                     )
@@ -327,7 +327,7 @@ class PvpDataAccess(
                             .and(TableUserSkin.itemId eq TableUserItemStatus.itemId)
                             .and(TableUserSkin.id eq TableUserItemStatus.id)
                     })
-                .slice(
+                .select(
                     TableUserSkin.itemId,
                     TableUserSkin.id,
                     TableUserSkin.type,
@@ -337,7 +337,7 @@ class PvpDataAccess(
                     TableUserSkin.expirationAfter,
                     TableUserItemStatus.expiryDate,
                 )
-                .select { (TableUserSkin.id eq id) and (TableUserSkin.uid eq userId) }
+                .where { (TableUserSkin.id eq id) and (TableUserSkin.uid eq userId) }
                 .firstOrNull() ?: throw Exception("Could not find skin chest instant id: $id")
             if (skinChest[TableUserItemStatus.status] == TableUserItemStatus.STATUS_SELLING)
                 throw Exception("Item's selling, could not equip")
@@ -377,7 +377,7 @@ class PvpDataAccess(
                             .and(TableUserSkin.itemId eq TableUserItemStatus.itemId)
                             .and(TableUserSkin.id eq TableUserItemStatus.id)
                     })
-                .slice(
+                .select(
                     TableUserSkin.itemId,
                     TableUserSkin.id,
                     TableUserSkin.type,
@@ -387,7 +387,7 @@ class PvpDataAccess(
                     TableUserSkin.expirationAfter,
                     TableUserItemStatus.expiryDate,
                 )
-                .select { (TableUserSkin.id inList activeSkinIds) and (TableUserSkin.uid eq userId) }
+                .where { (TableUserSkin.id inList activeSkinIds) and (TableUserSkin.uid eq userId) }
                 .toList()
             require(skins.size == activeSkinIds.size) { "userSkinIds contain invalid skin" }
             if (skins.any { it[TableUserItemStatus.status] == TableUserItemStatus.STATUS_SELLING })

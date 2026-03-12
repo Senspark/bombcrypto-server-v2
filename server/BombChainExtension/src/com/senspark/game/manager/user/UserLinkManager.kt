@@ -3,7 +3,7 @@ package com.senspark.game.manager.user
 import com.senspark.game.schema.TableUser
 import com.senspark.game.schema.TableUserLink
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 
 class UserLinkManager : IUserLinkManager {
@@ -15,15 +15,15 @@ class UserLinkManager : IUserLinkManager {
         require(userId != linkedUserId) { "Cannot link to the same user ID" }
         transaction {
             val userExisted = TableUser
-                .select { TableUser.userId eq linkedUserId }
+                .selectAll().where { TableUser.userId eq linkedUserId }
                 .count() > 0
             require(!userExisted) { "Account $linkedUserId already existed" }
             val existedUserIds = TableUserLink
-                .select { TableUserLink.userId eq userId }
+                .selectAll().where { TableUserLink.userId eq userId }
                 .map { it[TableUserLink.linkedUserId] }
             require(existedUserIds.isEmpty()) { "Account $userId already linked to ${existedUserIds[0]}" }
             val existedLinkedUserIds = TableUserLink
-                .select { TableUserLink.linkedUserId eq userId }
+                .selectAll().where { TableUserLink.linkedUserId eq userId }
                 .map { it[TableUserLink.userId] }
             require(existedLinkedUserIds.isEmpty()) { "Account $userId already linked to ${existedLinkedUserIds[0]}" }
             TableUserLink.insert {
@@ -36,7 +36,7 @@ class UserLinkManager : IUserLinkManager {
     override fun getLinkedUserId(userId: Int): List<Int> {
         val items = mutableListOf<Int>()
         transaction {
-            val result = TableUserLink.select {
+            val result = TableUserLink.selectAll().where {
                 TableUserLink.userId eq userId
             }
             items.addAll(result.map { it[TableUserLink.linkedUserId] })
@@ -47,7 +47,7 @@ class UserLinkManager : IUserLinkManager {
     override fun getLinkedToUserId(userId: Int): Int {
         val items = mutableListOf<Int>()
         transaction {
-            val result = TableUserLink.select {
+            val result = TableUserLink.selectAll().where {
                 TableUserLink.linkedUserId eq userId
             }.forUpdate()
             items.addAll(result.map { it[TableUserLink.userId] })

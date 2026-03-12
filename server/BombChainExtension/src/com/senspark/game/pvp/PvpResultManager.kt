@@ -26,7 +26,7 @@ import com.senspark.game.user.IGachaChestManager
 import com.senspark.game.user.ITrGameplayManager
 import com.senspark.game.utils.IUserFinder
 import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
 
 class PvpResultManager(
     private val _envManager: IEnvManager,
@@ -187,7 +187,7 @@ class PvpResultManager(
             controller.masterUserManager.userPvPBoosterManager.saveUsedBooster()
         } else {
             val boosterIds = mutableListOf<Int>()
-            val select = TableUserBooster.select {
+            val select = TableUserBooster.selectAll().where {
                 (TableUserBooster.uid eq userId) and (TableUserBooster.itemId inList usedBoosters.map { it.key })
             }
             usedBoosters.forEach { entry ->

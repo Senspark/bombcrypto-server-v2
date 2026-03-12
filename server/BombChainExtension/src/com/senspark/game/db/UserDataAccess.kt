@@ -344,7 +344,7 @@ class UserDataAccess(
 
     override fun isLoadDataManager(schedule: String, season: Int): Boolean {
         return transaction {
-            TableScheduleStatus.slice(TableScheduleStatus.schedule).select(
+            TableScheduleStatus.select(TableScheduleStatus.schedule).where(
                 (TableScheduleStatus.schedule eq schedule)
                         and (TableScheduleStatus.season eq season)
                         and (TableScheduleStatus.status eq 0)
@@ -539,7 +539,7 @@ class UserDataAccess(
                             .and(TableUserSkin.itemId eq TableUserItemStatus.itemId)
                             .and(TableUserSkin.id eq TableUserItemStatus.id)
                     })
-                .slice(
+                .select(
                     TableUserSkin.id,
                     TableUserSkin.type,
                     TableUserSkin.itemId,
@@ -549,7 +549,7 @@ class UserDataAccess(
                     TableUserSkin.expirationAfter,
                     TableUserItemStatus.expiryDate,
                 )
-                .select {
+                .where {
                     (TableUserSkin.uid eq uid)
                         .and(TableUserSkin.status neq 2)
                         .and(
@@ -601,7 +601,7 @@ class UserDataAccess(
                             .and(TableUserBooster.itemId eq TableUserItemStatus.itemId)
                             .and(TableUserBooster.id eq TableUserItemStatus.id)
                     })
-                .slice(
+                .select(
                     TableUserBooster.id,
                     TableUserBooster.type,
                     TableUserItemStatus.status,
@@ -609,7 +609,7 @@ class UserDataAccess(
                     TableUserBooster.create,
                     TableUserBooster.status
                 )
-                .select {
+                .where {
                     (TableUserBooster.uid eq uid)
                         .and(TableUserItemStatus.status neq 2)
                 }

@@ -9,6 +9,7 @@ class ComponentContainer {
         _components[component::class] = component
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun <T : IEntityComponent> getComponent(clazz: KClass<T>): T? {
         return _components[clazz] as T?
     }

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package com.senspark.game.data.model.nft
 
 import kotlinx.serialization.EncodeDefault
@@ -6,7 +8,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-class HeroTraditional @OptIn(ExperimentalSerializationApi::class) constructor(
+class HeroTraditional(
     val id: Int,
     val level: Int,
     @SerialName("item_id")
