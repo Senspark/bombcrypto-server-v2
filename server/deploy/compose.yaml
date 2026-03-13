@@ -18,7 +18,7 @@ services:
     networks:
       - base_default
     environment:
-      IS_DEBUG: 0
+      IS_DEBUG: 1
       IS_PVP_SERVER: 0
       IS_GAME_SERVER: 1
       MAX_CCU: 100

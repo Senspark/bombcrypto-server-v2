@@ -39,6 +39,7 @@ xmlstarlet ed -L -P \
 
 echo "Update apache config"
 xmlstarlet ed -L -P \
+    -u "//Server/@port" -v "-1" \
     -u "//Connector[@name='sfs-http']/@port" -v "$HTTP_PORT" \
     -u "//Connector[@name='sfs-https']/@port" -v "$HTTPS_PORT" \
     -u //Connector/@maxConnections -v "$MAX_CCU" \
@@ -81,7 +82,14 @@ echo "Start server"
 if [ "$IS_DEBUG" -eq 1 ]; then
   # https://smartfoxserver.com/blog/how-to-debug-your-extensions/
   echo "Run debug mode"
-  sh sfs2x_debug.sh
+  SFS_SCRIPT="sfs2x_debug.sh"
 else
-  sh sfs2x.sh
+  SFS_SCRIPT="sfs2x.sh"
 fi
+
+while true; do
+  sh "$SFS_SCRIPT" &
+  wait $!
+  echo "SFS exited, restarting in 2s..."
+  sleep 2
+done

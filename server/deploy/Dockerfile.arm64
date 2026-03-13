@@ -3,7 +3,6 @@ FROM debian:bullseye-slim
 # Forward ports.
 EXPOSE 8080 8443 9933/tcp 9933/udp 9898
 
-ARG GCSFUSE_VERSION=2.9.1
 ARG SMARTFOX_VERSION=2_19_0
 ARG SMARTFOX_PATCH_VERSION=2.20.5
 
@@ -12,7 +11,7 @@ RUN apt-get update
 RUN apt-get install -y  \
     unzip \
     default-jdk \
-    wget xmlstarlet
+    wget xmlstarlet procps
 
 # Change timezone to GMT +7
 RUN echo Asia/Ho_Chi_Minh >/etc/timezone && \
@@ -36,6 +35,7 @@ RUN java -jar patcher.jar "SFS2X ${SMARTFOX_PATCH_VERSION} Patch Installer"
 WORKDIR /opt
 RUN cp ./installer/run.sh ./SmartFoxServer_2X/SFS2X
 RUN cp ./installer/sfs2x_debug.sh ./SmartFoxServer_2X/SFS2X
+RUN cp ./installer/reload.sh ./SmartFoxServer_2X/SFS2X
 
 # Remove bundled amd64 JRE so startup scripts fall back to system arm64 Java
 RUN rm -Rf /opt/SmartFoxServer_2X/jre

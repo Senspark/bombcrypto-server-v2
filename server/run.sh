@@ -15,5 +15,5 @@ cp server/BombChainExtension/build/libs/BombChainExtension.jar server/deploy/ext
 cp server/BombChainExtension/build/libs/BombChainExtension.jar server/deploy/extensions_volume/PVPZoneExtension
 cp server/BombChainExtension/build/dependencies/*.jar server/deploy/extensions_volume/__lib__
 
-echo "Run Game server"
-docker restart sfs-game-1
+echo "Reloading SFS server..."
+docker exec sfs-game-1 bash reload.sh

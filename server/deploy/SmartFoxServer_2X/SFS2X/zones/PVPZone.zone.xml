@@ -129,7 +129,7 @@
     <type>JAVA</type>
     <file>com.senspark.game.extension.PvpZoneExtension</file>
     <propertiesFile>conf/configs.properties</propertiesFile>
-    <reloadMode>AUTO</reloadMode>
+    <reloadMode>NONE</reloadMode>
   </extension>
   <buddyList active="false">
     <allowOfflineBuddyVariables>true</allowOfflineBuddyVariables>
