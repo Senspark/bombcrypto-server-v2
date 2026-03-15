@@ -1,6 +1,16 @@
 # BombCrypto Server V2
 
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Version](https://img.shields.io/badge/version-v2.0-blue)
+![License](https://img.shields.io/badge/license-AGPLv3-blue)
+
 Open-source game server backend for BombCrypto V2, featuring Treasure Hunt and Adventure game modes. The backend consists of three microservices that communicate over a shared Docker network.
+
+## 📚 Documentation
+- **[Architecture Maps](docs/architecture/c4-model.md)**: Explore the system context and container diagrams.
+- **[Database Schemas](docs/architecture/database-schema.md)**: View the entity-relationship models.
+- **[API Reference](docs/api/login-api.md)**: Endpoints for authentication and marketplace.
+- **[Developer Manual](docs/manuals/developer-guide.md)**: Learn how to set up, build, and contribute.
 
 ## Overview
 
