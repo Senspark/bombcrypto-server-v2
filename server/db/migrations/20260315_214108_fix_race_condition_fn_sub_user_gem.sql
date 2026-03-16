@@ -58,7 +58,7 @@ BEGIN
         INTO _new_gem_locked_amount
         FROM reward;
 
-        INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed,
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
                                                           values_new, reason)
         VALUES (_uid, 'GEM_LOCKED', _dataType, _gem_locked_amount, -_sub_gem_locked_amount, _new_gem_locked_amount,
                 _reason);
@@ -77,7 +77,7 @@ BEGIN
         INTO _new_gem_amount
         FROM reward;
 
-        INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed,
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
                                                           values_new, reason)
         VALUES (_uid, 'GEM', _dataType, _gem_amount, -_sub_amount, _new_gem_amount, _reason);
     END IF;

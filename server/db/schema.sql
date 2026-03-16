@@ -1181,7 +1181,7 @@ DECLARE
     result             DOUBLE PRECISION;
     _claim_value       DOUBLE PRECISION;
     _claim_fee_percent DOUBLE PRECISION;
-    _reward_gift       json;
+    _reward_gift       json := '[]';
 BEGIN
 
     IF NOT _claim_confirmed
@@ -1217,19 +1217,11 @@ BEGIN
                 AND reward_type = _reward_type
                 AND type = _data_type);
 
-    SELECT COALESCE(JSON_AGG(ROW_TO_JSON(g)), '[]'::json)
-    INTO _reward_gift
-    FROM user_block_reward_gift AS g
-    WHERE uid = _uid
-      AND reward_type = _reward_type
-      AND data_type = _data_type
-      AND status = 'PENDING';
-
-
-    RETURN JSON_BUILD_OBJECT('value', result,
-                             'received', _claim_value - (_claim_value * _claim_fee_percent / 100),
-                             'gifts', _reward_gift
-           )::text;
+    RETURN
+        JSON_BUILD_OBJECT('value', result,
+                          'received', _claim_value - (_claim_value * _claim_fee_percent / 100),
+                          'gifts', _reward_gift
+        )::text;
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -1326,7 +1318,7 @@ BEGIN
         INTO _new_gem_locked_amount
         FROM reward;
 
-        INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed,
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
                                                           values_new, reason)
         VALUES (_uid, 'GEM_LOCKED', _dataType, _gem_locked_amount, -_sub_gem_locked_amount, _new_gem_locked_amount,
                 _reason);
@@ -1345,7 +1337,7 @@ BEGIN
         INTO _new_gem_amount
         FROM reward;
 
-        INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed,
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
                                                           values_new, reason)
         VALUES (_uid, 'GEM', _dataType, _gem_amount, -_sub_amount, _new_gem_amount, _reason);
     END IF;
@@ -1402,7 +1394,7 @@ BEGIN
     INTO rewardNew
     FROM reward;
 
-    INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed, values_new,
+    INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new,
                                                       reason)
     VALUES (_uid, _rewardtype, _networktype, rewardAmount, -_amount, rewardNew, _reason);
 
@@ -2916,10 +2908,15 @@ BEGIN
 
     UPDATE user_block_reward
     SET claim_synced = _api_synced_value,
-        modify_date  = now()
+        modify_date  = NOW() AT TIME ZONE 'utc'
     WHERE uid = _uid
       AND reward_type = _reward_type
       AND type = _data_type;
+
+    INSERT INTO logs.user_block_reward (uid, reward_type, network, claim_synced, claim_synced_changed,
+                                        claim_synced_new, reason)
+    VALUES (_uid, _reward_type, _data_type, _synced_value, _api_synced_value - _synced_value, _api_synced_value,
+            'Fix user claim reward data');
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -3289,11 +3286,15 @@ CREATE PROCEDURE public.sp_save_user_claim_reward_data(IN _uid integer, IN _data
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_value           FLOAT;
-    _pending_value           DECIMAL;
-    _claim_value             DECIMAL;
-    _synced_value            DECIMAL;
+    _current_value           FLOAT   := 0;
+    _pending_value           DECIMAL := 0;
+    _claim_value             DECIMAL := 0;
+    _synced_value            DECIMAL := 0;
     _last_time_claim_success TIMESTAMP;
+    _old_value               FLOAT   := 0;
+    _old_pending_value       DECIMAL := 0;
+    _old_synced_value        DECIMAL := 0;
+    _reason                  VARCHAR := 0;
 BEGIN
 
     SELECT values,
@@ -3309,34 +3310,25 @@ BEGIN
       AND reward_type = _reward_type
       AND type = _data_type;
 
+    _old_value = _current_value;
+    _old_pending_value = _pending_value;
+    _old_synced_value = _synced_value;
 
     IF _claim_value < _min_claim
     THEN
         RAISE EXCEPTION '%,%','Not enough reward to claim',1019;
     END IF;
 
-
     IF ROUND(_synced_value) >= ROUND(_api_synced_value)
     THEN
         _current_value = 0;
         _pending_value = _claim_value;
-
--- set status là pending(dã claim mà chưa thành công
-        UPDATE user_block_reward_gift
-        SET status = 'PENDING'
-        WHERE uid = _uid
-          AND status = 'WAITING';
+        _reason = 'Claim';
     ELSE
         _synced_value = _api_synced_value;
         _pending_value = 0;
-        _current_value = 0;
         _last_time_claim_success = CURRENT_TIMESTAMP;
-
---         Set trạng thái claimed (đã claim thành công)
-        UPDATE user_block_reward_gift
-        SET status = 'CLAIMED'
-        WHERE uid = _uid
-          AND status = 'PENDING';
+        _reason = 'Claim successful';
 
         INSERT INTO log_user_claim_reward(uid, claim_date, value, reward_type, data_type)
         VALUES (_uid, CURRENT_TIMESTAMP, _claim_value - (_claim_value * _claim_fee_percent / 100), _reward_type,
@@ -3348,12 +3340,18 @@ BEGIN
     SET values                  = _current_value,
         claim_pending           = _pending_value,
         claim_synced            = _synced_value,
-        modify_date             = CURRENT_TIMESTAMP,
+        modify_date             = NOW() AT TIME ZONE 'utc',
         last_time_claim_success = COALESCE(_last_time_claim_success, user_block_reward.last_time_claim_success)
     WHERE uid = _uid
       AND reward_type = _reward_type
       AND type = _data_type;
---
+
+    INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new,
+                                        claim_pending_old, claim_pending_changed, claim_pending_new,
+                                        claim_synced, claim_synced_changed, claim_synced_new, reason)
+    VALUES (_uid, _reward_type, _data_type, _old_value, _current_value - _old_value, _current_value, _old_pending_value,
+            _pending_value - _old_pending_value, _pending_value, _old_synced_value, _synced_value - _old_synced_value,
+            _synced_value, _reason);
 
 EXCEPTION
     WHEN OTHERS THEN

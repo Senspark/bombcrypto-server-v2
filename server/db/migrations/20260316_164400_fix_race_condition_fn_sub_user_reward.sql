@@ -47,7 +47,7 @@ BEGIN
     INTO rewardNew
     FROM reward;
 
-    INSERT INTO logs.logs_user_block_reward_template (uid, reward_type, network, values_old, values_changed, values_new,
+    INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new,
                                                       reason)
     VALUES (_uid, _rewardtype, _networktype, rewardAmount, -_amount, rewardNew, _reason);
 
