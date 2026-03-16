@@ -1288,6 +1288,13 @@ DECLARE
     _new_gem_amount        DOUBLE PRECISION;
 BEGIN
 
+    PERFORM 1
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type IN ('GEM_LOCKED', 'GEM')
+      AND "type" = _dataType
+    FOR UPDATE;
+
     SELECT COALESCE(SUM(CASE WHEN reward_type = 'GEM_LOCKED' THEN values ELSE 0 END), 0),
            COALESCE(SUM(CASE WHEN reward_type = 'GEM' THEN values ELSE 0 END), 0)
     INTO _gem_locked_amount,
