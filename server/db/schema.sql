@@ -1371,6 +1371,13 @@ DECLARE
     message      TEXT;
     rewardNew    FLOAT;
 BEGIN
+    PERFORM 1
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type = _rewardType
+      AND type = _networktype
+    FOR UPDATE;
+
     SELECT COALESCE(SUM(CASE WHEN reward_type = _rewardType THEN "values" ELSE 0 END), 0)
     INTO rewardAmount
     FROM user_block_reward
@@ -1424,6 +1431,13 @@ DECLARE
     newRrewardAmount       FLOAT;
     newDepositRewardAmount FLOAT;
 BEGIN
+    PERFORM 1
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type IN (_rewardType, _depositRewardType)
+      AND type = _networktype
+    FOR UPDATE;
+
     SELECT COALESCE(SUM(CASE WHEN reward_type = _rewardType THEN "values" ELSE 0 END), 0),
            COALESCE(SUM(CASE WHEN reward_type = _depositRewardType THEN "values" ELSE 0 END), 0)
     INTO rewardAmount, depositRewardAmount
