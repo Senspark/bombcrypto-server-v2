@@ -20,7 +20,7 @@ class BlockchainHeroDetails(override val details: String, override val dataType:
     override val bombRange = extractor.extract(85, 5)
     override val abilityList = HeroAbilityList(extractor.extractArray(90, 5, 5))
     override val abilityHeroSList = HeroAbilityList(extractor.extractArray(180, 5, 5))
-    override val resetShieldCounter = extractor.extract(240, 5)
+    override val resetShieldCounter = extractor.extract(240, 10)
     override val shieldLevel = extractor.extract(235, 5)
     override val type = HeroType.FI
     override val maxSpeed = speed
