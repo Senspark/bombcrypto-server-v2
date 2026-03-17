@@ -109,3 +109,6 @@ dependencies {
 
 //    testImplementation(project(":simple-rest-api")) // for open a simple REST API to write Test cases
 }
+tasks.withType<Test> {
+    maxHeapSize = "2g"
+}
