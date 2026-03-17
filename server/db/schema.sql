@@ -3112,6 +3112,12 @@ DECLARE
     rewardAmount FLOAT;
     message TEXT;
 BEGIN
+    PERFORM 1
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type = _reward_type
+    FOR UPDATE;
+
     SELECT COALESCE(SUM(CASE WHEN reward_type = _reward_type THEN "values" ELSE 0 END), 0)
     INTO rewardAmount
     FROM user_block_reward
