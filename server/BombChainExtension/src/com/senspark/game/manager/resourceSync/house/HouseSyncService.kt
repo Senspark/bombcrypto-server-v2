@@ -90,7 +90,7 @@ class HouseSyncService(
 
         // Để sync house offline
         //B1: Load toàn bộ house của user này trong db lên
-        val houseInDb = gameDataAccess.loadUserHouse(dataType, uid)
+        val houseInDb = gameDataAccess.loadUserHouse(dataType, uid, 1000000, 0)
 
         //B2: Kiểm tra và xoá các house ko còn tồn tại trong dữ liệu từ blockchain
         for (house in houseInDb) {
@@ -118,7 +118,7 @@ class HouseSyncService(
         val currentActiveHouse: House? = houseInDb.values.firstOrNull { it.isActive }
         if (currentActiveHouse != null && houseNeedDelete.any { it == currentActiveHouse.houseId }) {
             // Load tất cả hero của user này trong nhà để set trạng thái sang sleep
-            val allHero = heroBuilder.getFiHeroes(uid, dataType).values.toList()
+            val allHero = heroBuilder.getFiHeroes(uid, dataType, 1000000, 0).values.toList()
             val bombermanRest = allHero.filter { it.stage == GameConstants.BOMBER_STAGE.HOUSE }
             bombermanRest.forEach {
                 it.stage = GameConstants.BOMBER_STAGE.SLEEP

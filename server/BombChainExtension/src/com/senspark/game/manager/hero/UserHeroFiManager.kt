@@ -58,6 +58,7 @@ class UserHeroFiManager(
     private val _heroBuilder = _mediator.svServices.get<IHeroBuilder>()
     private val treasureHuntDataManager = _mediator.services.get<ITreasureHuntConfigManager>()
 
+    private val PAGE_LIMIT = 100
 
     private val _locker = Any()
 
@@ -100,7 +101,7 @@ class UserHeroFiManager(
                 }
                 _heroBuilder.getTonHeroes(_mediator.userId, limit)
             } else {
-                _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType)
+                _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType, PAGE_LIMIT, 0)
             }
             val maxActive = _gameConfigManager.maxBomberActive
             var activeCount = 0
@@ -124,6 +125,38 @@ class UserHeroFiManager(
         }
     }
 
+    override fun loadMoreHeroes(offset: Int, limit: Int) {
+        synchronized(_locker) {
+            val data = if (_mediator.dataType == DataType.TON) {
+                // Ignore for TON for now, as it's handled differently and already has limit.
+                // Alternatively, could implement if ton also uses pgsql limits.
+                // Assuming it's using pgsql but `getTonHeroes` uses `limit` parameter.
+                // We'll just pass limit if we had offset, but getTonHeroes doesn't take offset currently.
+                // Keeping as is or returning empty map. To keep it safe, returning empty or not appending.
+                emptyMap()
+            } else {
+                _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType, limit, offset)
+            }
+
+            val maxActive = _gameConfigManager.maxBomberActive
+            var activeCount = activeHeroCount
+            data.forEach {
+                if (it.value.isActive) {
+                    if (activeCount >= maxActive) {
+                        it.value.isActive = false
+                        it.value.stage = GameConstants.BOMBER_STAGE.SLEEP
+                        _listHeroChange.add(it.value)
+                    } else {
+                        activeCount += 1
+                    }
+                }
+            }
+            if (_listHeroChange.isNotEmpty()) {
+                updateHeroes(_listHeroChange)
+            }
+            _items.putAll(data)
+        }
+    }
 
     override fun getBombermans(): Map<Int, Hero> {
         return getItems()
@@ -348,7 +381,7 @@ class UserHeroFiManager(
 
         _mediator.logger.log("[SYNC_BOMBERMAN_V3] call api with result = $callApiSuccess")
 
-        val heroesMap = _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType)
+        val heroesMap = _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType, 1000000, 0) // V3 sync gets all or limit logic should be applied? Actually V3 might need to just return what's in cache or all. Let's use getItems() or fetch all if really needed. Keeping max limit for sync.
         val data: ISFSObject = SFSObject()
 
         val heroes = heroesMap.values.filter { it.type == HeroType.FI }

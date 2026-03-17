@@ -36,6 +36,7 @@ interface IUserHeroFiManager {
     fun addBomberman(hero: Hero)
     fun removeBomberman(id: Int)
     fun removeTrialBomberman()
+    fun loadMoreHeroes(offset: Int, limit: Int)
 
     /**
      * set hero go sleep và tính lại năng lượng

@@ -24,13 +24,15 @@ data class InsertNewBombermanResult(
 )
 
 interface IGameDataAccess : IGlobalService {
-    fun getFiHeroes(uid: Int, dataType: DataType): ISFSArray
+    fun getFiHeroes(uid: Int, dataType: DataType, limit: Int, offset: Int): ISFSArray
     fun getFiHeroes(
         uid: Int,
         dataTypes: List<DataType>,
         lstBbmId: List<Int>,
         type: HeroType,
-        listItemIds: List<Int>
+        listItemIds: List<Int>,
+        limit: Int,
+        offset: Int
     ): ISFSArray
 
     fun getTonHeroes(uid: Int, limit: Int): ISFSArray
@@ -86,7 +88,7 @@ interface IGameDataAccess : IGlobalService {
         energy: Int
     ): Boolean
 
-    fun loadUserHouse(dataType: DataType, uid: Int): Map<Int, House>
+    fun loadUserHouse(dataType: DataType, uid: Int, limit: Int, offset: Int): Map<Int, House>
     fun loadHeroInHouseRent(dataType: DataType, uid: Int): Map<Int, Int>
     fun getAllHouseOldSeason(uid: Int, dataType: DataType): List<House>
     fun updateUserHouseStage(dataType: DataType, uid: Int, houses: List<House>)
