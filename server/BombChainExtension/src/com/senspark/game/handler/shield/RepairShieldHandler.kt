@@ -13,6 +13,18 @@ class RepairShieldHandler : BaseEncryptRequestHandler() {
     override val serverCommand = SFSCommand.REPAIR_SHIELD_V2
 
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
+        val user = controller.user
+            ?: return sendError(controller, requestId, ErrorCode.SERVER_ERROR, "User not found")
+
+        val currentTime = System.currentTimeMillis()
+        val lastRepairTime = user.getProperty("last_repair_time") as? Long ?: 0L
+        val cooldownMs = 2000L
+
+        if (currentTime - lastRepairTime < cooldownMs) {
+            throw com.senspark.game.exception.CustomException("Request too fast. Please wait.", ErrorCode.SERVER_ERROR)
+        }
+        user.setProperty("last_repair_time", currentTime)
+
         controller as LegacyUserController
         if (controller.disableWhileLoginByAccount()) {
             return sendError(controller, requestId, ErrorCode.PERMISSION_DENIED, null)
