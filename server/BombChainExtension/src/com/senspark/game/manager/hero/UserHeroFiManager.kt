@@ -461,6 +461,17 @@ class UserHeroFiManager(
         )
 
         val config = _heroRepairShieldDataManager.getPrice(hero.rarity, hero.shield.level)
+
+        if (rewardType == BLOCK_REWARD_TYPE.ROCK) {
+            if (config.priceRock <= 0) {
+                throw CustomException("Invalid price configuration", ErrorCode.SERVER_ERROR)
+            }
+        } else {
+            if (config.price <= 0) {
+                throw CustomException("Invalid price configuration", ErrorCode.SERVER_ERROR)
+            }
+        }
+
         hero.resetShieldToFull(GameConstants.BOMBER_ABILITY.AVOID_THUNDER)
         try {
             if (rewardType == BLOCK_REWARD_TYPE.ROCK) {
