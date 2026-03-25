@@ -12,7 +12,7 @@ interface ILoginManager : IServerService {
      * @param dataType TR/BSC/POLYGON.
      * @param deviceType MOBILE/WEB.
      */
-    fun loginAccount(
+    suspend fun loginAccount(
         username: String,
         authorizationToken: String,
         dataType: EnumConstants.DataType?,
@@ -23,30 +23,30 @@ interface ILoginManager : IServerService {
      * Logs in as a guest user.
      * @param username Guest username.
      */
-    fun loginGuest(username: String, token: String): IUserInfo
+    suspend fun loginGuest(username: String, token: String): IUserInfo
 
     /**
      * Login dành riêng cho user TON (Telegram)
      */
-    fun loginTon(userName: String, loginTokenData: String, deviceType: DeviceType): IUserInfo
+    suspend fun loginTon(userName: String, loginTokenData: String, deviceType: DeviceType): IUserInfo
 
     /**
      * Login dành riêng cho Solana
      */
-    fun loginSol(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
+    suspend fun loginSol(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
 
     /**
      * Login dành riêng cho Ron (Ronin)
      */
-    fun loginRon(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
+    suspend fun loginRon(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
     
     /**
      * Login dành riêng cho Bas (Base)
      */
-    fun loginBas(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
+    suspend fun loginBas(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
 
     /**
      * Login dành riêng cho Vic (Viction)
      */
-    fun loginVic(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
+    suspend fun loginVic(walletAddress: String, loginData: String, deviceType: DeviceType): IUserInfo
 }

@@ -21,7 +21,7 @@ class BnbLoginManager(
     override fun initialize() {
     }
     
-    override fun loginAccount(
+    override suspend fun loginAccount(
         username: String,
         authorizationToken: String,
         dataType: EnumConstants.DataType?,
@@ -62,7 +62,7 @@ class BnbLoginManager(
         } else {
             _userDataAccess.getUserInfo(linkedInfo, deviceType)
         }
-        // Đây là account guest link qua TR rồi link Wallet
+        // Đây é account guest link qua TR rồi link Wallet
         if(userInfo.type != userLoginInfo.userType && userLoginInfo.userType == EnumConstants.UserType.FI) {
             // Do cách link account guest trong db vẫn giữ userType là guest nên cần update lại ở đây để
             // đảm bảo user này vẫn đúng userType dù có lấy profile của acc Guest link qua
@@ -80,7 +80,7 @@ class BnbLoginManager(
         return userInfo
     }
 
-    override fun loginGuest(username: String, token: String): IUserInfo {
+    override suspend fun loginGuest(username: String, token: String): IUserInfo {
         val info = _authApi.verifyMobileUser(username, token)
         val userLoginInfo = UserLoginInfo(
             info.userId,
@@ -100,15 +100,15 @@ class BnbLoginManager(
         return user
     }
 
-    override fun loginTon(userName: String, loginTokenData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
+    override suspend fun loginTon(userName: String, loginTokenData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
         throw Exception("Not supported")
     }
 
-    override fun loginSol(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
+    override suspend fun loginSol(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
         throw Exception("Not supported")
     }
 
-    override fun loginRon(
+    override suspend fun loginRon(
         walletAddress: String,
         loginData: String,
         deviceType: EnumConstants.DeviceType
@@ -116,7 +116,7 @@ class BnbLoginManager(
         throw Exception("Not supported");
     }
     
-    override fun loginBas(
+    override suspend fun loginBas(
         walletAddress: String,
         loginData: String,
         deviceType: EnumConstants.DeviceType
@@ -124,7 +124,7 @@ class BnbLoginManager(
         throw Exception("Not supported")
     }
 
-    override fun loginVic(
+    override suspend fun loginVic(
         walletAddress: String,
         loginData: String,
         deviceType: EnumConstants.DeviceType

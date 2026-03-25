@@ -13,13 +13,13 @@ class LoginStrategyTon(services: GlobalServices) : ILoginStrategy {
     private val _loginManager = _netServices.get<ILoginManager>()
     private val _referralManager = _netServices.get<IReferralManager>()
 
-    override fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo {
+    override suspend fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo {
         val u = _loginManager.loginTon(userName, loginToken, extra.deviceType)
         u.serverType = _serverType
         return u
     }
 
-    override fun postLogin(userInfo: IUserInfo, extra: LoginExtraData) {
+    override suspend fun postLogin(userInfo: IUserInfo, extra: LoginExtraData) {
         if (extra.referralCode != null) {
             _referralManager.createReferral(userInfo, extra.referralCode)
         }

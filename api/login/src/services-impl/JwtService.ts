@@ -12,7 +12,7 @@ export default class JwtService {
 
     readonly #logger: ILogger;
 
-    public createAuthToken = this.buildCreateToken<AuthToken>('1y');
+    public createAuthToken = this.buildCreateToken<AuthToken>('30d');
     public createLoginToken = this.buildCreateToken<AuthToken>('15m');
 
 

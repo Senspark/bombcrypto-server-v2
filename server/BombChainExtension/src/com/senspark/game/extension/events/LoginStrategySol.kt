@@ -10,12 +10,12 @@ class LoginStrategySol(services: GlobalServices) : ILoginStrategy {
     private val _serverType = ServerType.SOL
     private val _loginManager = services.get<ISvServicesContainer>().get(_serverType).get<ILoginManager>()
 
-    override fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo {
+    override suspend fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo {
         val u = _loginManager.loginSol(userName, loginToken, extra.deviceType)
         u.serverType = _serverType
         return u
     }
 
-    override fun postLogin(userInfo: IUserInfo, extra: LoginExtraData) {
+    override suspend fun postLogin(userInfo: IUserInfo, extra: LoginExtraData) {
     }
 }

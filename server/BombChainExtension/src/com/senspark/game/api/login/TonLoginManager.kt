@@ -14,7 +14,7 @@ class TonLoginManager(
     override fun initialize() {
     }
     
-    override fun loginAccount(
+    override suspend fun loginAccount(
         username: String,
         authorizationToken: String,
         dataType: EnumConstants.DataType?,
@@ -23,11 +23,11 @@ class TonLoginManager(
         throw Exception("Not supported")
     }
 
-    override fun loginGuest(username: String, token: String): IUserInfo {
+    override suspend fun loginGuest(username: String, token: String): IUserInfo {
         throw Exception("Not supported")
     }
 
-    override fun loginTon(userName: String, loginTokenData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
+    override suspend fun loginTon(userName: String, loginTokenData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
         val info = _authApi.verifyTonUser(userName, loginTokenData)
         val userInfo = UserLoginInfo(
             userId = info.userId,
@@ -47,11 +47,11 @@ class TonLoginManager(
         return user
     }
 
-    override fun loginSol(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
+    override suspend fun loginSol(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
         throw Exception("Not supported")
     }
 
-    override fun loginRon(
+    override suspend fun loginRon(
         walletAddress: String,
         loginData: String,
         deviceType: EnumConstants.DeviceType
@@ -59,11 +59,11 @@ class TonLoginManager(
         throw Exception("Not supported")
     }
     
-    override fun loginBas(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
+    override suspend fun loginBas(walletAddress: String, loginData: String, deviceType: EnumConstants.DeviceType): IUserInfo {
         throw Exception("Not supported")
     }
 
-    override fun loginVic(
+    override suspend fun loginVic(
         walletAddress: String,
         loginData: String,
         deviceType: EnumConstants.DeviceType

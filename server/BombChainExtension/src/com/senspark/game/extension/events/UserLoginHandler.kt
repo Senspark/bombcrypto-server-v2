@@ -24,6 +24,7 @@ import com.senspark.common.cache.ICacheService
 import com.senspark.game.declare.UserNameSuffix
 import com.senspark.game.constant.CachedKeys
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -66,7 +67,7 @@ class UserLoginHandler : MainGameExtensionBaseEventHandler() {
 
             val strategy = findStrategy(loginType, dataType)
             val extra = LoginExtraData(loginType, dataType, platform, deviceType, referralCode)
-            val userInfo = strategy.login(userName, loginToken, extra)
+            val userInfo = runBlocking { strategy.login(userName, loginToken, extra) }
 
             identity += " id=${userInfo.id}"
 
@@ -76,7 +77,7 @@ class UserLoginHandler : MainGameExtensionBaseEventHandler() {
 
             checkBanOrReview(userInfo, identity)
 
-            strategy.postLogin(userInfo, extra)
+            runBlocking { strategy.postLogin(userInfo, extra) }
             
             // Prepare data for user
             session.setProperty(SFSField.UserInfo, userInfo)
@@ -190,6 +191,6 @@ data class LoginExtraData(
 )
 
 interface ILoginStrategy {
-    fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo
-    fun postLogin(userInfo: IUserInfo, extra: LoginExtraData)
+    suspend fun login(userName: String, loginToken: String, extra: LoginExtraData): IUserInfo
+    suspend fun postLogin(userInfo: IUserInfo, extra: LoginExtraData)
 }
