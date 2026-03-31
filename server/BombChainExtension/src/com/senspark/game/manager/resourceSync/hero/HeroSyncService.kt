@@ -97,7 +97,7 @@ class HeroSyncService(
 
     override fun syncHeroOffline(uid: Int, dataType: DataType, dataSync: List<BlockchainHeroResponse>) {
         // B1: Load toàn bộ hero của user này trong db lên để sử dụng
-        val allHero = _heroBuilder.getFiHeroes(uid, dataType)
+        val allHero = _heroBuilder.getFiHeroes(uid, dataType, 1000000, 0)
 
         // B2: Kiểm tra và xoá các hero ko còn tồn tại trong dữ liệu từ blockchain
         val listHeroNeedDelete = deleteHeroNotExit(allHero, dataSync)
@@ -207,7 +207,9 @@ class HeroSyncService(
             listOf(mediator.dataType, DataType.TR),
             heroIds,
             allHeroType,
-            _traditionalManager.itemIds
+            _traditionalManager.itemIds,
+            1000000,
+            0
         )
         for (hero in heroes) {
             currentHero[Extractor.parseHeroId(hero.heroId, hero.type)] = hero

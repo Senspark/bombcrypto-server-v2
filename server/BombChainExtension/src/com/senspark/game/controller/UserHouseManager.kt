@@ -45,12 +45,23 @@ class UserHouseManager(
         ConcurrentHashMap(gameDataAccess.loadHeroInHouseRent(_dataType, _userId))
     private val _packageHouseRent: List<HouseRentPackage> = houseManager.listConfigPackages[_dataType] ?: listOf()
 
+    private val PAGE_LIMIT = 100
+
     private fun getItems(): MutableMap<Int, House> {
         if (!::_items.isInitialized) {
-            val mapHouse = gameDataAccess.loadUserHouse(_dataType, _userId)
+            val mapHouse = gameDataAccess.loadUserHouse(_dataType, _userId, PAGE_LIMIT, 0)
             _items = ConcurrentHashMap(mapHouse)
         }
         return _items
+    }
+
+    override fun loadMoreHouses(offset: Int, limit: Int) {
+        val newHouses = gameDataAccess.loadUserHouse(_dataType, _userId, limit, offset)
+        if (::_items.isInitialized) {
+            _items.putAll(newHouses)
+        } else {
+            _items = ConcurrentHashMap(newHouses)
+        }
     }
 
     override fun initHeroManager(heroManager: IUserHeroFiManager) {

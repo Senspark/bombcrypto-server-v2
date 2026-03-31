@@ -25,4 +25,5 @@ interface IUserHouseManager {
     fun heroGoWorkFromHouseRent(heroId: Int): House?
     fun getHouseHeroRest(hero: Hero): House?
     fun getHeroInHouse(): ISFSArray
+    fun loadMoreHouses(offset: Int, limit: Int)
 }

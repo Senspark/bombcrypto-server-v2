@@ -34,8 +34,8 @@ class HeroBuilder(
     override fun initialize() {
     }
 
-    override fun getFiHeroes(uid: Int, dataType: EnumConstants.DataType): Map<Int, Hero> {
-        val sfsArray = _gameDataAccess.getFiHeroes(uid, dataType)
+    override fun getFiHeroes(uid: Int, dataType: EnumConstants.DataType, limit: Int, offset: Int): Map<Int, Hero> {
+        val sfsArray = _gameDataAccess.getFiHeroes(uid, dataType, limit, offset)
         val size = sfsArray.size()
         val result: MutableMap<Int, Hero> = HashMap()
 
@@ -52,10 +52,12 @@ class HeroBuilder(
         dataTypes: List<EnumConstants.DataType>,
         lstBbmId: List<Int>,
         type: EnumConstants.HeroType,
-        listItemIds: List<Int>
+        listItemIds: List<Int>,
+        limit: Int,
+        offset: Int
     ): List<Hero> {
         val result: MutableList<Hero> = ArrayList()
-        val sfsArray = _gameDataAccess.getFiHeroes(uid, dataTypes, lstBbmId, type, listItemIds)
+        val sfsArray = _gameDataAccess.getFiHeroes(uid, dataTypes, lstBbmId, type, listItemIds, limit, offset)
         val size = sfsArray.size()
         for (i in 0 until size) {
             val rs = sfsArray.getSFSObject(i)

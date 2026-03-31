@@ -44,7 +44,7 @@ class GameDataAccessPostgreSql(
     /**
      * Lấy tất cả Hero Fi trong database
      */
-    override fun getFiHeroes(uid: Int, dataType: DataType): ISFSArray {
+    override fun getFiHeroes(uid: Int, dataType: DataType, limit: Int, offset: Int): ISFSArray {
         @Language("SQL")
         val statement = """
             SELECT ub.*, 1 AS status, ubl.lock_since, ubl.lock_seconds
@@ -53,9 +53,11 @@ class GameDataAccessPostgreSql(
             WHERE ub."uid" = ?
               AND ub."hasDelete" = 0
               AND ub.type in (?, ?, ?, ?, ?, ?)
-              AND ub.data_type = ?;
+              AND ub.data_type = ?
+            ORDER BY ub.bomber_id ASC
+            LIMIT ? OFFSET ?;
         """.trimIndent()
-        val params = arrayOf<Any?>(uid, HeroType.FI.value, HeroType.TON.value, HeroType.SOL.value, HeroType.RON.value, HeroType.BAS.value, HeroType.VIC.value, dataType.name)
+        val params = arrayOf<Any?>(uid, HeroType.FI.value, HeroType.TON.value, HeroType.SOL.value, HeroType.RON.value, HeroType.BAS.value, HeroType.VIC.value, dataType.name, limit, offset)
         return executeQuery(statement, params)
     }
 
@@ -67,7 +69,9 @@ class GameDataAccessPostgreSql(
         dataTypes: List<DataType>,
         lstBbmId: List<Int>,
         type: HeroType,
-        listItemIds: List<Int>
+        listItemIds: List<Int>,
+        limit: Int,
+        offset: Int
     ): ISFSArray {
         val bomberIds = lstBbmId.joinToString(separator = ",")
 //        @Language("SQL")
@@ -79,6 +83,8 @@ class GameDataAccessPostgreSql(
               AND ub."hasDelete" = 0
               AND ub.data_type IN (${dataTypes.joinToString(",") { "'${it.name}'" }})
               AND ${if (type != HeroType.FI) """"ub.type" = ${type.value} """ else "ub.bomber_id in ($bomberIds)"}
+            ORDER BY ub.bomber_id ASC
+            LIMIT $limit OFFSET $offset
             """.trimIndent()
         return executeQuery(statement, arrayOf())
     }
@@ -544,14 +550,16 @@ class GameDataAccessPostgreSql(
         return executeUpdate(statement, params)
     }
 
-    override fun loadUserHouse(dataType: DataType, uid: Int): Map<Int, House> {
+    override fun loadUserHouse(dataType: DataType, uid: Int, limit: Int, offset: Int): Map<Int, House> {
         val statement = """
             SELECT *, (EXTRACT(EPOCH FROM end_time_rent) * 1000)::BIGINT AS end_time_rent_convert
             FROM "user_house" 
-            WHERE "uid" = ? AND type = ?;
+            WHERE "uid" = ? AND type = ?
+            ORDER BY house_id ASC
+            LIMIT ? OFFSET ?;
             """.trimMargin()
         val mapHouse: MutableMap<Int, House> = HashMap()
-        val params = arrayOf<Any?>(uid, dataType.name)
+        val params = arrayOf<Any?>(uid, dataType.name, limit, offset)
         executeQuery(statement, params) {
             val house = House.fromResultSet(it)
             mapHouse[house.houseId] = house

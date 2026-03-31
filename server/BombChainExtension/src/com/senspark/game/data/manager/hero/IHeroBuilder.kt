@@ -7,13 +7,15 @@ import com.senspark.game.declare.EnumConstants
 import com.smartfoxserver.v2.entities.data.ISFSObject
 
 interface IHeroBuilder : IServerService {
-    fun getFiHeroes(uid: Int, dataType: EnumConstants.DataType): Map<Int, Hero>
+    fun getFiHeroes(uid: Int, dataType: EnumConstants.DataType, limit: Int, offset: Int): Map<Int, Hero>
     fun getFiHeroes(
         uid: Int,
         dataTypes: List<EnumConstants.DataType>,
         lstBbmId: List<Int>,
         type: EnumConstants.HeroType,
-        listItemIds: List<Int>
+        listItemIds: List<Int>,
+        limit: Int,
+        offset: Int
     ): List<Hero>
 
     fun getTonHeroes(uid: Int, limit: Int = 0): Map<Int, Hero>
