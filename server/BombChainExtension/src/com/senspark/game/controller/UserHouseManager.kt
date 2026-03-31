@@ -45,7 +45,10 @@ class UserHouseManager(
         ConcurrentHashMap(gameDataAccess.loadHeroInHouseRent(_dataType, _userId))
     private val _packageHouseRent: List<HouseRentPackage> = houseManager.listConfigPackages[_dataType] ?: listOf()
 
-    private val PAGE_LIMIT = 100
+    // TODO: Restore PAGE_LIMIT = 100 once the SFS command handler for SYNC_MORE_HOUSE is implemented
+    //       on the server side, so that loadMoreHouses() is actually reachable from the client.
+    //       Ref: client PR bombcrypto-client-v2#5
+    private val PAGE_LIMIT = Int.MAX_VALUE
 
     private fun getItems(): MutableMap<Int, House> {
         if (!::_items.isInitialized) {

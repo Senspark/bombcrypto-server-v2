@@ -58,7 +58,10 @@ class UserHeroFiManager(
     private val _heroBuilder = _mediator.svServices.get<IHeroBuilder>()
     private val treasureHuntDataManager = _mediator.services.get<ITreasureHuntConfigManager>()
 
-    private val PAGE_LIMIT = 100
+    // TODO: Restore PAGE_LIMIT = 100 once the SFS command handler for SYNC_MORE_BOMBERMAN is implemented
+    //       on the server side, so that loadMoreHeroes() is actually reachable from the client.
+    //       Ref: client PR bombcrypto-client-v2#5
+    private val PAGE_LIMIT = Int.MAX_VALUE
 
     private val _locker = Any()
 
