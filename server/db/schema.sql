@@ -376,11 +376,17 @@ $$;
 -- Name: fn_delete_tournament_match_v2(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_delete_tournament_match_v2(p_match_id integer) RETURNS TABLE(success boolean, message text)
+CREATE FUNCTION public.fn_delete_tournament_match_v2(p_match_id integer)
+    RETURNS TABLE
+            (
+                success boolean,
+                message text
+            )
     LANGUAGE plpgsql
     AS $$
 DECLARE
     v_exists BOOLEAN;
+    v_status VARCHAR;
 BEGIN
     -- Check if the match exists in pvp_tournament table
     SELECT EXISTS(SELECT 1 FROM pvp_tournament WHERE id = p_match_id) INTO v_exists;
@@ -390,11 +396,25 @@ BEGIN
         RETURN;
     END IF;
 
+
+    -- Hiện cho marketing xoá bất kỳ trận nào
+    -- Check tournament status
+--     SELECT status INTO v_status
+--     FROM pvp_tournament
+--     WHERE id = p_match_id;
+--
+--     -- Ko cho phép delete match đã completed
+--     IF v_status = 'COMPLETED' THEN
+--         RETURN QUERY SELECT FALSE, 'Cannot delete match from a completed tournament';
+--         RETURN;
+--     END IF;
+
     -- Begin transaction
     BEGIN
         -- Backup the tournament data to pvp_tournament_backup
         INSERT INTO pvp_tournament_backup
-        SELECT * FROM pvp_tournament
+        SELECT *
+        FROM pvp_tournament
         WHERE id = p_match_id;
 
         -- Delete from pvp_fixture_matches
@@ -405,9 +425,10 @@ BEGIN
 
         -- Return success
         RETURN QUERY SELECT TRUE, 'Tournament match deleted successfully';
-    EXCEPTION WHEN OTHERS THEN
-        -- Return error on exception
-        RETURN QUERY SELECT FALSE, 'Error deleting tournament match: ' || SQLERRM;
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- Return error on exception
+            RETURN QUERY SELECT FALSE, 'Error deleting tournament match: ' || SQLERRM;
     END;
 END;
 $$;
@@ -613,6 +634,39 @@ $$;
 
 
 --
+-- Name: fn_get_coin_ranking(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_get_coin_ranking()
+    RETURNS TABLE
+            (
+                uid     integer,
+                coin    double precision,
+                network character varying,
+                name    character varying
+            )
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RETURN QUERY
+        WITH result AS (SELECT * FROM user_ranking_coin)
+        SELECT r.*,
+               CASE
+                   WHEN u.name IS NOT NULL THEN u.name
+                   WHEN u.second_username IS NOT NULL THEN u.second_username
+                   ELSE
+                       CASE
+                           WHEN LENGTH(u.user_name) > 10 THEN CONCAT(SUBSTRING(u.user_name, 0, 6), '...',
+                                                                     SUBSTRING(u.user_name, LENGTH(u.user_name) - 3, 4))
+                           ELSE u.user_name END
+                   END AS name
+        FROM result AS r
+                 INNER JOIN "user" AS u ON r.uid = u.id_user;
+END;
+$$;
+
+
+--
 -- Name: fn_get_coin_ranking_2(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -705,13 +759,21 @@ $$;
 -- Name: fn_get_coin_ranking_5(integer, character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_get_coin_ranking_5(_season integer, _network character varying) RETURNS TABLE(uid integer, coin_total double precision, coin_current_season double precision, network character varying, name character varying)
+CREATE FUNCTION public.fn_get_coin_ranking_5(_season integer, _network character varying)
+    RETURNS TABLE
+            (
+                uid                 integer,
+                coin_total          double precision,
+                coin_current_season double precision,
+                network             character varying,
+                name                character varying
+            )
     LANGUAGE plpgsql
     AS $$
 BEGIN
     RETURN QUERY
         WITH result AS (SELECT urc.uid,
-                               SUM(urc.coin)                                            AS coin_total,
+                               SUM(urc.coin)                                                AS coin_total,
                                SUM(CASE WHEN urc.season = _season THEN urc.coin ELSE 0 END) AS coin_current_season,
                                urc.network
                         FROM user_ranking_coin urc
@@ -719,9 +781,49 @@ BEGIN
                         GROUP BY urc.uid, urc.network)
         SELECT r.*,
                CASE
+                   WHEN u.user_name IS NOT NULL THEN u.user_name
+                   WHEN u.name IS NOT NULL THEN u.name
+                   ELSE u.second_username
+                   END AS name
+        FROM result AS r
+                 INNER JOIN "user" AS u ON r.uid = u.id_user;
+END;
+$$;
+
+
+--
+-- Name: fn_get_coin_ranking_ton(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_get_coin_ranking_ton(_season integer)
+    RETURNS TABLE
+            (
+                uid                 integer,
+                coin_total          double precision,
+                coin_current_season double precision,
+                network             character varying,
+                name                character varying
+            )
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RETURN QUERY
+        WITH result AS (SELECT urc.uid,
+                               SUM(urc.coin)                                                AS coin_total,
+                               SUM(CASE WHEN urc.season = _season THEN urc.coin ELSE 0 END) AS coin_current_season,
+                               urc.network
+                        FROM user_ranking_coin urc
+                        WHERE urc.network = 'TON'
+                        GROUP BY urc.uid, urc.network)
+        SELECT r.*,
+               CASE
                    WHEN u.name IS NOT NULL THEN u.name
                    WHEN u.second_username IS NOT NULL THEN u.second_username
-                   ELSE u.user_name
+                   ELSE
+                       CASE
+                           WHEN LENGTH(u.user_name) > 10 THEN CONCAT(SUBSTRING(u.user_name, 0, 6), '...',
+                                                                     SUBSTRING(u.user_name, LENGTH(u.user_name) - 3, 4))
+                           ELSE u.user_name END
                    END AS name
         FROM result AS r
                  INNER JOIN "user" AS u ON r.uid = u.id_user;
@@ -878,93 +980,96 @@ $$;
 
 
 --
--- Name: fn_insert_new_hero_tr(integer, character varying, character varying, integer, integer, integer, integer, integer, integer, integer, character varying, integer, integer, integer, integer, integer, integer, timestamp with time zone, boolean, character varying, character varying, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: fn_insert_new_hero_tr(integer, character varying, character varying, integer, integer, integer, integer, integer, integer, integer, character varying, integer, integer, integer, integer, integer, integer, timestamp WITH TIME ZONE, boolean, character varying, character varying, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_insert_new_hero_tr(_userid integer, _datatype character varying, _details character varying, _herotype integer, _level integer, _bombpower integer, _bombrange integer, _stamina integer, _speed integer, _bombcount integer, _ability character varying, _skin integer, _color integer, _rarity integer, _bombskin integer, _energy integer, _stage integer, _timerest timestamp with time zone, _isactive boolean, _shield character varying, _abilitys character varying, _shieldlevel integer, _quantity integer) RETURNS TABLE(uid integer, bid integer, hero_tr_type character varying)
+CREATE FUNCTION public.fn_insert_new_hero_tr(_userid integer, _datatype character varying,
+                                                        _details character varying, _herotype integer, _level integer,
+                                                        _bombpower integer, _bombrange integer, _stamina integer,
+                                                        _speed integer, _bombcount integer, _ability character varying,
+                                                        _skin integer, _color integer, _rarity integer,
+                                                        _bombskin integer, _energy integer, _stage integer,
+                                                        _timerest timestamp WITH TIME ZONE, _isactive boolean,
+                                                        _shield character varying, _abilitys character varying,
+                                                        _shieldlevel integer, _quantity integer)
+    RETURNS TABLE
+            (
+                uid          integer,
+                bid          integer,
+                hero_tr_type character varying
+            )
     LANGUAGE plpgsql
     AS $$
 DECLARE
 BEGIN
-    -- has_hero counts the number of existing heroes of the same type
+    -- has_hero đếm số lượng hero TR cùng loại
     RETURN QUERY
-        WITH has_hero AS (
-            SELECT COUNT(*) AS count
-            FROM user_bomber ub
-            WHERE ub.uid = _userId
-              AND ub.charactor = _skin
-              AND ub.color = _color
-              AND ub.type = 2
-              AND ub.hero_tr_type = 'HERO'
-        )
-        INSERT INTO user_bomber AS ub (
-            uid,
-            gen_id,
-            "bomber_id",
-            level,
-            power,
-            bomb_range,
-            stamina,
-            speed,
-            bomb,
-            ability,
-            charactor,
-            color,
-            rare,
-            bomb_skin,
-            energy,
-            stage,
-            time_rest,
-            active,
-            shield,
-            ability_shield,
-            shield_level,
-            "type",
-            data_type,
-            hero_tr_type
-        )
-        SELECT
-            _userId,
-            _details,
-            NEXTVAL('user_bomber_id_non_fi_seq'),
-            _level,
-            _bombPower,
-            _bombRange,
-            _stamina,
-            _speed,
-            _bombCount,
-            _ability,
-            _skin,
-            _color,
-            _rarity,
-            _bombSkin,
-            _energy,
-            _stage,
-            _timeRest,
-            CASE WHEN _isActive THEN 1 ELSE 0 END,
-            _shield,
-            _abilityS,
-            _shieldLevel,
-            _heroType,
-            _dataType,
-            CASE
-                WHEN (SELECT count FROM has_hero) >= 1 THEN 'SOUL'
-                WHEN (SELECT count FROM has_hero) = 0 AND GENERATE_SERIES.row_number = 1 THEN 'HERO'
-                ELSE 'SOUL'
-            END
-        FROM (
-            SELECT row_number() OVER () AS row_number
-            FROM GENERATE_SERIES(1, _quantity)
-        ) AS GENERATE_SERIES
-        ON CONFLICT ("bomber_id", "type", "data_type")
-            DO UPDATE SET
-                "hasDelete" = 0,
-                active = excluded.active,
-                uid = excluded.uid,
-                time_rest = excluded.time_rest,
-                stage = _stage,
-                hero_tr_type = excluded.hero_tr_type
-        RETURNING ub.uid, ub.bomber_id::INT AS bid, ub.hero_tr_type;
+        WITH has_hero AS (SELECT COUNT(*) AS count
+                          FROM user_bomber ub
+                          WHERE ub.uid = _userId
+                            AND ub.charactor = _skin
+                            AND ub.color = _color
+                            AND ub.type = 2
+                            AND ub.hero_tr_type = 'HERO')
+            INSERT
+                INTO user_bomber AS ub (uid,
+                                        gen_id,
+                                        "bomber_id",
+                                        level,
+                                        power,
+                                        bomb_range,
+                                        stamina,
+                                        speed,
+                                        bomb,
+                                        ability,
+                                        charactor,
+                                        color,
+                                        rare,
+                                        bomb_skin,
+                                        energy,
+                                        stage,
+                                        time_rest,
+                                        active,
+                                        shield,
+                                        ability_shield,
+                                        shield_level,
+                                        "type",
+                                        data_type,
+                                        hero_tr_type)
+                    SELECT _userId,
+                           _details,
+                           NEXTVAL('user_bomber_id_non_fi_seq'),
+                           _level,
+                           _bombPower,
+                           _bombRange,
+                           _stamina,
+                           _speed,
+                           _bombCount,
+                           _ability,
+                           _skin,
+                           _color,
+                           _rarity,
+                           _bombSkin,
+                           _energy,
+                           _stage,
+                           _timeRest,
+                           CASE WHEN _isActive THEN 1 ELSE 0 END,
+                           _shield,
+                           _abilityS,
+                           _shieldLevel,
+                           _heroType,
+                           _dataType,
+                           CASE WHEN (SELECT count FROM has_hero) >= 1 THEN 'SOUL' ELSE 'HERO' END
+                    FROM GENERATE_SERIES(1, _quantity)
+                    ON CONFLICT ("bomber_id", "type", "data_type")
+                        DO UPDATE SET "hasDelete" = 0,
+                            active = excluded.active,
+                            uid = excluded.uid,
+                            time_rest = excluded.time_rest,
+                            stage = _stage,
+                            hero_tr_type = excluded.hero_tr_type
+                    RETURNING ub.uid, ub.bomber_id::INT AS bid, ub.hero_tr_type;
+
 END;
 $$;
 
@@ -1098,6 +1203,70 @@ $$;
 
 
 --
+-- Name: fn_insert_new_ton_hero(integer, integer, integer, integer, integer, integer, integer, character varying, integer, integer, integer, integer, character varying, character varying, character varying, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_insert_new_ton_hero(_uid integer, _level integer, _power integer,
+                                                         _bomb_range integer, _stamina integer, _speed integer,
+                                                         _bomb integer, _ability character varying, _charactor integer,
+                                                         _color integer, _rare integer, _bomb_skin integer,
+                                                         _shield character varying, _network character varying,
+                                                         _ability_shield character varying, _active integer)
+    RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    _bomber_id INTEGER;
+BEGIN
+    _bomber_id := NEXTVAL('user_bomber_id_non_fi_seq');
+    INSERT INTO user_bomber AS ub (uid,
+                                   level,
+                                   power,
+                                   bomb_range,
+                                   stamina,
+                                   speed,
+                                   bomb,
+                                   ability,
+                                   charactor,
+                                   color,
+                                   rare,
+                                   bomb_skin,
+                                   shield,
+                                   data_type,
+                                   ability_shield,
+                                   energy,
+                                   hero_tr_type,
+                                   bomber_id,
+                                   type,
+                                   active)
+    VALUES (_uid,
+            _level,
+            _power,
+            _bomb_range,
+            _stamina,
+            _speed,
+            _bomb,
+            _ability,
+            _charactor,
+            _color,
+            _rare,
+            _bomb_skin,
+            _shield,
+            _network,
+            _ability_shield,
+            _stamina * 50,
+            'HERO',
+            _bomber_id,
+            3,
+            _active);
+
+    RETURN _bomber_id;
+END;
+
+$$;
+
+
+--
 -- Name: fn_pvp_fixture_register_match(integer, integer, timestamp with time zone, timestamp with time zone, smallint, character varying, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1148,10 +1317,13 @@ $$;
 
 
 --
--- Name: fn_pvp_save_fixture_match_to_log(integer, integer, integer, timestamp without time zone, timestamp without time zone); Type: FUNCTION; Schema: public; Owner: -
+-- Name: fn_pvp_save_fixture_match_to_log(integer, integer, integer, timestamp WITH TIME ZONE, timestamp WITH TIME ZONE); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_pvp_save_fixture_match_to_log(userid1 integer, userid2 integer, game_mode integer, from_time timestamp without time zone, to_time timestamp without time zone) RETURNS void
+CREATE FUNCTION public.fn_pvp_save_fixture_match_to_log(userid1 integer, userid2 integer, game_mode integer,
+                                                                   from_time timestamp WITH TIME ZONE,
+                                                                   to_time timestamp WITH TIME ZONE)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1161,10 +1333,18 @@ BEGIN
     SELECT user_name INTO user1 FROM public.user WHERE id_user = userId1;
     SELECT user_name INTO user2 FROM public.user WHERE id_user = userId2;
 
-    INSERT INTO public.pvp_tournament (participant_1, participant_2, mode, status, find_begin_time, find_end_time)
-    VALUES (user1, user2, game_mode, 'PENDING', from_time, to_time)
-    ON CONFLICT (participant_1, participant_2, mode, status)
-    DO NOTHING;
+    IF EXISTS(SELECT *
+              FROM pvp_tournament
+              WHERE mode = game_mode
+                AND status = 'PENDING'
+                AND ((participant_1 = user1::varchar AND participant_2 = user2::varchar)
+                  OR (participant_2 = user1::varchar AND participant_1 = user2::varchar))) THEN
+        RETURN FALSE;
+    ELSE
+        INSERT INTO public.pvp_tournament (participant_1, participant_2, mode, status, find_begin_time, find_end_time)
+        VALUES (user1, user2, game_mode, 'PENDING', from_time, to_time);
+        RETURN TRUE;
+    END IF;
 
 END;
 $$;
@@ -1267,7 +1447,9 @@ $$;
 -- Name: fn_sub_user_gem(integer, character varying, double precision, character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_sub_user_gem(_uid integer, _datatype character varying, _amount double precision, _reason character varying) RETURNS text
+CREATE FUNCTION public.fn_sub_user_gem(_uid integer, _datatype character varying, _amount double precision,
+                                                  _reason character varying)
+    RETURNS text
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1279,13 +1461,6 @@ DECLARE
     _new_gem_locked_amount DOUBLE PRECISION;
     _new_gem_amount        DOUBLE PRECISION;
 BEGIN
-
-    PERFORM 1
-    FROM user_block_reward
-    WHERE uid = _uid
-      AND reward_type IN ('GEM_LOCKED', 'GEM')
-      AND "type" = _dataType
-    FOR UPDATE;
 
     SELECT COALESCE(SUM(CASE WHEN reward_type = 'GEM_LOCKED' THEN values ELSE 0 END), 0),
            COALESCE(SUM(CASE WHEN reward_type = 'GEM' THEN values ELSE 0 END), 0)
@@ -1318,8 +1493,7 @@ BEGIN
         INTO _new_gem_locked_amount
         FROM reward;
 
-        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
-                                                          values_new, reason)
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new, reason)
         VALUES (_uid, 'GEM_LOCKED', _dataType, _gem_locked_amount, -_sub_gem_locked_amount, _new_gem_locked_amount,
                 _reason);
     END IF;
@@ -1337,8 +1511,7 @@ BEGIN
         INTO _new_gem_amount
         FROM reward;
 
-        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed,
-                                                          values_new, reason)
+        INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new, reason)
         VALUES (_uid, 'GEM', _dataType, _gem_amount, -_sub_amount, _new_gem_amount, _reason);
     END IF;
 
@@ -1963,16 +2136,19 @@ $$;
 -- Name: fn_update_user_ton_transaction(integer, double precision, character varying, character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_update_user_ton_transaction(_id integer, _amount double precision, _tx_hash character varying, _token character varying) RETURNS character varying
+CREATE FUNCTION public.fn_update_user_ton_transaction(_id integer, _amount double precision,
+                                                                 _tx_hash character varying, _token character varying)
+    RETURNS character varying
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    v_tx_hash VARCHAR;
+    v_tx_hash   VARCHAR;
     v_user_name VARCHAR;
-    _uid integer;
+    _uid        integer;
 BEGIN
     -- Check if the transaction exists
-    SELECT tx_hash INTO v_tx_hash
+    SELECT tx_hash
+    INTO v_tx_hash
     FROM public.user_ton_transactions
     WHERE id = _id;
 
@@ -1984,20 +2160,22 @@ BEGIN
     -- If tx_hash is NULL, update row
     IF v_tx_hash IS NULL THEN
         UPDATE public.user_ton_transactions
-        SET amount = _amount,
-            tx_hash = _tx_hash,
-            token_name = _token,
+        SET amount           = _amount,
+            tx_hash          = _tx_hash,
+            token_name       = _token,
             transaction_type = 'Deposit'
         WHERE id = _id;
 
-        SELECT uid INTO _uid
+        SELECT uid
+        INTO _uid
         FROM public.user_ton_transactions
         WHERE id = _id;
 
-        PERFORM fn_add_user_reward(_uid, _token, _amount, 'TON_DEPOSITED', 'Deposite Ton');
+        PERFORM fn_add_user_reward(_uid, _token, _amount, 'TON_DEPOSITED', 'Deposit Ton');
 
         -- Select user_name from public.user
-        SELECT user_name INTO v_user_name
+        SELECT user_name
+        INTO v_user_name
         FROM public.user
         WHERE id_user = _uid;
 
@@ -2238,14 +2416,17 @@ $$;
 -- Name: sp_buy_item_marketplace(integer, integer, integer, double precision, integer, integer, character varying, integer); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_buy_item_marketplace(IN _item_id integer, IN _item_type integer, IN _quantity integer, IN _unit_price double precision, IN _buyer_id integer, IN _reward_type integer, IN _name character varying, IN _expiration_after integer)
+CREATE PROCEDURE public.sp_buy_item_marketplace(IN _item_id integer, IN _item_type integer,
+                                                           IN _quantity integer, IN _unit_price double precision,
+                                                           IN _buyer_id integer, IN _reward_type integer,
+                                                           IN _name character varying, IN _expiration_after integer)
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    feeSell         FLOAT DEFAULT 0.2;
-    typeReward      VARCHAR(20) DEFAULT 'TR';
-    _price          double precision DEFAULT _quantity * _unit_price;
-    param           RECORD;
+    feeSell    FLOAT DEFAULT 0.2;
+    typeReward VARCHAR(20) DEFAULT 'TR';
+    _price     double precision DEFAULT _quantity * _unit_price;
+    param      RECORD;
 BEGIN
     --     SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
@@ -2295,8 +2476,8 @@ BEGIN
     IF (_item_type IN (1, 2, 3, 8)) THEN
 --         update skin
         UPDATE user_skin
-        SET uid              = _buyer_id,
-            status           = 0
+        SET uid    = _buyer_id,
+            status = 0
         WHERE id IN (SELECT * FROM _tbl_ids);
     ELSIF (_item_type = 4) THEN
 --         update heroes
@@ -2779,7 +2960,12 @@ $$;
 -- Name: sp_edit_item_marketplace(integer, integer, integer, double precision, integer, double precision, integer); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_edit_item_marketplace(IN _uid integer, IN _item_id integer, IN _old_quantity integer, IN _old_unit_price double precision, IN _new_quantity integer, IN _new_unit_price double precision, IN _expiration_after integer)
+CREATE PROCEDURE public.sp_edit_item_marketplace(IN _uid integer, IN _item_id integer,
+                                                            IN _old_quantity integer,
+                                                            IN _old_unit_price double precision,
+                                                            IN _new_quantity integer,
+                                                            IN _new_unit_price double precision,
+                                                            IN _expiration_after integer)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -2849,11 +3035,11 @@ BEGIN
 
 --  gom lại thành 1 dòng mới
     UPDATE user_marketplace
-    SET list_id    = (SELECT JSON_AGG(instance_id) FROM _tbl_items_new),
-        price      = _new_unit_price * (SELECT COUNT(*) FROM _tbl_items_new),
-        unit_price = _new_unit_price,
-        quantity   = (SELECT COUNT(*) FROM _tbl_items_new),
-        status     = 0,
+    SET list_id          = (SELECT JSON_AGG(instance_id) FROM _tbl_items_new),
+        price            = _new_unit_price * (SELECT COUNT(*) FROM _tbl_items_new),
+        unit_price       = _new_unit_price,
+        quantity         = (SELECT COUNT(*) FROM _tbl_items_new),
+        status           = 0,
         expiration_after = _expiration_after
     WHERE id = (SELECT id FROM _tbl_items_market_item LIMIT 1)
       AND uid_creator = _uid;
@@ -2979,40 +3165,42 @@ $$;
 
 
 --
--- Name: sp_modify_rock_from_user_wallet(character varying, integer); Type: PROCEDURE; Schema: public; Owner: -
+-- Name: sp_modify_rock_from_user_wallet(character varying, character varying, jsonb, integer, character varying); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_modify_rock_from_user_wallet(IN _wallet character varying, IN _amount integer)
+CREATE PROCEDURE public.sp_modify_rock_from_user_wallet(IN _wallet character varying,
+                                                                   IN _tx character varying, IN _heroes_ids jsonb,
+                                                                   IN _amount integer, IN _network character varying)
     LANGUAGE plpgsql
+    SECURITY DEFINER
     AS $$
 DECLARE
-    _uid INT;
+    _uid           INT;
     _current_value NUMERIC;
 BEGIN
     -- Get user id
-    SELECT id_user INTO _uid FROM public.user WHERE user_name = _wallet;
+    SELECT id_user INTO _uid FROM public.user WHERE user_name = LOWER(_wallet);
 
     -- If user exists
     IF _uid IS NOT NULL THEN
         -- Get current rock value
-        SELECT COALESCE((SELECT values FROM user_block_reward WHERE uid = _uid AND reward_type = 'ROCK'), 0) INTO _current_value;
+        SELECT COALESCE((SELECT values FROM user_block_reward WHERE uid = _uid AND reward_type = 'ROCK'), 0)
+        INTO _current_value;
         -- If the new value is not negative
         IF _current_value + _amount >= 0 THEN
-            -- Insert new rock reward or update if it already exists
-            INSERT INTO user_block_reward (uid, type, reward_type, values, total_values, modify_date)
-            VALUES (_uid, 'TR', 'ROCK', GREATEST(_amount, 0), GREATEST(_amount, 0), CURRENT_TIMESTAMP)
-            ON CONFLICT (uid, type, reward_type) DO UPDATE
-            SET values = user_block_reward.values + _amount,
-                total_values = CASE WHEN _amount > 0 THEN user_block_reward.total_values + _amount ELSE user_block_reward.total_values END,
-                modify_date = CURRENT_TIMESTAMP;
+            PERFORM fn_add_user_reward(_uid, 'TR', GREATEST(_amount, 0), 'ROCK', 'BURN_FAILED');
         ELSE
             -- Throw exception if new value is negative
             RAISE EXCEPTION 'Not enough rock to perform this operation';
         END IF;
 
         -- Lưu lại lịch sử
-        INSERT INTO bombcrypto2.logs.logs_user_buy_rock_pack (uid, time_stamp, package_name, rock_amount, price, token_name, network)
-        VALUES (_uid, CURRENT_TIMESTAMP, 'ADD_DEFAULT', _amount, 0, 'ROCK', 'TR');
+        INSERT INTO logs.logs_user_buy_rock_pack (uid, time_stamp, package_name, rock_amount, price,
+                                                  token_name, network)
+        VALUES (_uid, CURRENT_TIMESTAMP, 'BURN_FAILED', _amount, 0, 'ROCK', 'TR');
+
+        INSERT INTO public.user_create_rock(uid, tx, heroes, rock_amount, network, status)
+        VALUES (_uid, _tx, _heroes_ids, _amount, _network, 'DONE');
     END IF;
 END;
 $$;
@@ -3105,37 +3293,14 @@ $$;
 -- Name: sp_repair_hero_shield_with_rock(integer, character varying, integer, double precision, character varying, integer, text); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_repair_hero_shield_with_rock(IN _uid integer, IN _network character varying, IN _hero_id integer, IN _price double precision, IN _reward_type character varying, IN _remain_shield integer, IN _new_shield text)
+CREATE PROCEDURE public.sp_repair_hero_shield_with_rock(IN _uid integer, IN _network character varying,
+                                                                   IN _hero_id integer, IN _price double precision,
+                                                                   IN _reward_type character varying,
+                                                                   IN _remain_shield integer, IN _new_shield text)
     LANGUAGE plpgsql
     AS $$
-DECLARE
-    rewardAmount FLOAT;
-    message TEXT;
 BEGIN
-    PERFORM 1
-    FROM user_block_reward
-    WHERE uid = _uid
-      AND reward_type = _reward_type
-    FOR UPDATE;
-
-    SELECT COALESCE(SUM(CASE WHEN reward_type = _reward_type THEN "values" ELSE 0 END), 0)
-    INTO rewardAmount
-    FROM user_block_reward
-    WHERE uid = _uid
-      AND reward_type = _reward_type;
-
-
-
-    IF _price > rewardAmount THEN
-        message := '1019,Not enough ' || _price || ' ' || _reward_type;
-        RAISE EXCEPTION '%', message;
-    END IF;
-
-    UPDATE user_block_reward
-    SET "values"    = "values" - _price,
-        modify_date = CURRENT_TIMESTAMP
-    WHERE uid = _uid
-      AND reward_type = _reward_type;
+    PERFORM fn_sub_user_reward(_uid, 'TR', _price, _reward_type, 'Repair Shield Hero ' || _hero_id);
 
     INSERT INTO log_repair_shield(username,
                                   repair_time,
@@ -3148,14 +3313,15 @@ BEGIN
             NOW() AT TIME ZONE 'utc',
             _hero_id,
             _remain_shield,
-            _network,
+            'TR',
             _uid,
             _reward_type);
 
     UPDATE user_bomber
     SET shield = _new_shield
     WHERE bomber_id = _hero_id
-      AND uid = _uid;
+      AND uid = _uid
+      AND data_type = _network;
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -3288,7 +3454,11 @@ $$;
 -- Name: sp_save_user_claim_reward_data(integer, character varying, character varying, double precision, double precision, double precision); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_save_user_claim_reward_data(IN _uid integer, IN _data_type character varying, IN _reward_type character varying, IN _min_claim double precision, IN _claim_fee_percent double precision, IN _api_synced_value double precision)
+CREATE PROCEDURE public.sp_save_user_claim_reward_data(IN _uid integer, IN _data_type character varying,
+                                                                  IN _reward_type character varying,
+                                                                  IN _min_claim double precision,
+                                                                  IN _claim_fee_percent double precision,
+                                                                  IN _api_synced_value double precision)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3411,7 +3581,10 @@ $$;
 -- Name: sp_sell_item_marketplace(json, integer, integer, integer, double precision, integer, integer, integer); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_sell_item_marketplace(IN _listid json, IN _type integer, IN _itemid integer, IN _quantity integer, IN _price double precision, IN _uid integer, IN _rewardtype integer, IN _expiration_after integer)
+CREATE PROCEDURE public.sp_sell_item_marketplace(IN _listid json, IN _type integer, IN _itemid integer,
+                                                            IN _quantity integer, IN _price double precision,
+                                                            IN _uid integer, IN _rewardtype integer,
+                                                            IN _expiration_after integer)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3485,7 +3658,7 @@ $$;
 
 CREATE PROCEDURE public.sp_setup_next_pvp_season()
     LANGUAGE plpgsql
-    AS $_$
+    AS $$
 DECLARE
     _current_season       INT;
     _is_calculated_reward bool;
@@ -3559,14 +3732,16 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 END
-$_$;
+$$;
 
 
 --
 -- Name: sp_sync_user_deposit(integer, character varying, double precision, double precision); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_sync_user_deposit(IN _uid integer, IN _type character varying, IN _total_bcoin_deposited double precision, IN _total_sen_deposited double precision)
+CREATE PROCEDURE public.sp_sync_user_deposit(IN _uid integer, IN _type character varying,
+                                                        IN _total_bcoin_deposited double precision,
+                                                        IN _total_sen_deposited double precision)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3579,7 +3754,8 @@ BEGIN
     SELECT bcoin_deposited, sen_deposited
     INTO _current_bcoin_deposited, _current_sen_deposited
     FROM user_total_bcoin_deposited
-    WHERE uid = _uid and type = _type;
+    WHERE uid = _uid
+      AND type = _type;
 
     SELECT COALESCE(_current_bcoin_deposited, 0), COALESCE(_current_sen_deposited, 0)
     INTO _current_bcoin_deposited, _current_sen_deposited;
@@ -3609,19 +3785,11 @@ BEGIN
     -- Nhập addition vào table user_block_reward
 
     IF _addition_bcoin_deposited > 0 THEN
-        INSERT INTO user_block_reward(uid, reward_type, type, values, total_values, modify_date)
-        VALUES (_uid, 'BCOIN_DEPOSITED', _type, _addition_bcoin_deposited, _addition_bcoin_deposited, _timeStamp)
-        ON CONFLICT (uid, reward_type, type) DO UPDATE SET values       = user_block_reward.values + EXCLUDED.values,
-                                                           total_values = user_block_reward.total_values + EXCLUDED.values,
-                                                           modify_date  = EXCLUDED.modify_date;
+        PERFORM fn_add_user_reward(_uid, _type, _addition_bcoin_deposited, 'BCOIN_DEPOSITED', 'Deposite Bcoin');
     END IF;
 
     IF _addition_sen_deposited > 0 THEN
-        INSERT INTO user_block_reward(uid, reward_type, type, values, total_values, modify_date)
-        VALUES (_uid, 'SENSPARK_DEPOSITED', _type, _addition_sen_deposited, _addition_sen_deposited, _timeStamp)
-        ON CONFLICT (uid, reward_type, type) DO UPDATE SET values       = user_block_reward.values + EXCLUDED.values,
-                                                           total_values = user_block_reward.total_values + EXCLUDED.values,
-                                                           modify_date  = EXCLUDED.modify_date;
+        PERFORM fn_add_user_reward(_uid, _type, _addition_sen_deposited, 'SENSPARK_DEPOSITED', 'Deposite Sen');
     END IF;
 
 END;
@@ -3768,7 +3936,8 @@ $_$;
 -- Name: sp_user_buy_auto_mine(integer, character varying, character varying, json); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_user_buy_auto_mine(IN _uid integer, IN _reward_type character varying, IN _data_type character varying, IN _package_json json)
+CREATE PROCEDURE public.sp_user_buy_auto_mine(IN _uid integer, IN _reward_type character varying,
+                                                         IN _data_type character varying, IN _package_json json)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3795,7 +3964,6 @@ BEGIN
                    (_time_stamp::timestamp - _last_end_time::timestamp)) < -2
         THEN
             RAISE EXCEPTION 'You can only renew your package on the last 2 days';
-
         END IF;
     END IF;
 
@@ -3814,10 +3982,10 @@ BEGIN
 
 --     trừ reward
     PERFORM fn_sub_user_reward(_uid,
-                              _data_type,
-                              _price,
-                              _reward_type,
-                              'Buy auto mine');
+                               _data_type,
+                               _price,
+                               _reward_type,
+                               'Buy auto mine');
 
 --     update lại thời gian hết hạn auto mine
     INSERT INTO user_auto_mine(uid, start_time, end_time, type)
@@ -3937,7 +4105,9 @@ $$;
 -- Name: sp_user_buy_gacha_chest_slot(integer, character varying, integer, integer, character varying); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_user_buy_gacha_chest_slot(IN _uid integer, IN _data_type character varying, IN _price integer, IN _slot_id integer, IN _gacha_chest_slots character varying)
+CREATE PROCEDURE public.sp_user_buy_gacha_chest_slot(IN _uid integer, IN _data_type character varying,
+                                                                IN _price integer, IN _slot_id integer,
+                                                                IN _gacha_chest_slots character varying)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3972,49 +4142,33 @@ $$;
 -- Name: sp_user_buy_rock_pack(integer, character varying, character varying, character varying, character varying); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_user_buy_rock_pack(IN _uid integer, IN _pack_name character varying, IN _network character varying, IN _reward_type character varying, IN _second_reward_type character varying)
+CREATE PROCEDURE public.sp_user_buy_rock_pack(IN _uid integer, IN _pack_name character varying,
+                                                         IN _network character varying,
+                                                         IN _reward_type character varying,
+                                                         IN _second_reward_type character varying)
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _value NUMERIC;
-    _second_value NUMERIC;
-    _price NUMERIC;
-    _remaining_price NUMERIC;
+    _price       NUMERIC;
     _rock_amount INT;
 BEGIN
-    SELECT
-        COALESCE(SUM(CASE WHEN reward_type = _reward_type THEN values ELSE 0 END), 0) AS _value,
-        COALESCE(SUM(CASE WHEN reward_type = _second_reward_type THEN values ELSE 0 END), 0) AS _second_value
-    INTO _value, _second_value
-    FROM user_block_reward
-    WHERE type = _network AND uid = _uid AND (reward_type = _reward_type OR reward_type = _second_reward_type);
-
+    -- Load giá
     IF _second_reward_type = 'SENSPARK' THEN
         SELECT sen_price, rock_amount INTO _price, _rock_amount FROM config_rock_pack WHERE pack_name = _pack_name;
     ELSE
         SELECT bcoin_price, rock_amount INTO _price, _rock_amount FROM config_rock_pack WHERE pack_name = _pack_name;
     END IF;
 
-    IF _value + _second_value < _price THEN
-        RAISE EXCEPTION 'Not enough % and %', _reward_type, _second_reward_type;
-    END IF;
+    -- Trừ tiền
+    PERFORM fn_sub_user_reward(_uid, _network, _price, _reward_type, _second_reward_type, 'Buy rock pack');
 
-    --Trừ token deposit
-    UPDATE user_block_reward SET values = values - LEAST(values, _price), modify_date = CURRENT_TIMESTAMP WHERE type = _network AND uid = _uid AND reward_type = _reward_type;
-    _remaining_price := _price - _value;
-    --Trừ token reward nếu còn thiếu
-    IF _value < _price THEN
-        UPDATE user_block_reward SET values = values - LEAST(values, _remaining_price), modify_date = CURRENT_TIMESTAMP WHERE type = _network AND uid = _uid AND reward_type = _second_reward_type;
-    END IF;
-
-    --Cộng đá
-    INSERT INTO user_block_reward (uid, type, reward_type, values, total_values, modify_date)
-    VALUES (_uid, 'TR', 'ROCK', _rock_amount, _rock_amount, CURRENT_TIMESTAMP)
-    ON CONFLICT (uid, type, reward_type) DO UPDATE SET values = user_block_reward.values + EXCLUDED.values, total_values = user_block_reward.total_values + EXCLUDED.values, modify_date = CURRENT_TIMESTAMP;
+    -- Cộng đá
+    PERFORM fn_add_user_reward(_uid, 'TR', _rock_amount, 'ROCK', 'Buy rock pack');
 
     -- Lưu lại lịch sử
-    INSERT INTO bombcrypto2.logs.logs_user_buy_rock_pack (uid, time_stamp, package_name, rock_amount, price, token_name, network)
-    VALUES (_uid, CURRENT_TIMESTAMP, _pack_name, _rock_amount, _price, _reward_type, 'TR');
+    INSERT INTO bombcrypto2.logs.logs_user_buy_rock_pack (uid, time_stamp, package_name, rock_amount, price, token_name,
+                                                          network)
+    VALUES (_uid, CURRENT_TIMESTAMP, _pack_name, _rock_amount, _price, _reward_type, _network);
 
 END;
 $$;
