@@ -487,7 +487,10 @@ class UserHeroFiManager(
 
     override fun repairShield(rewardType: BLOCK_REWARD_TYPE, heroId: Int): ISFSObject {
         val hero = getHero(heroId, HeroType.FI)
-            ?: throw CustomException("Hero $heroId not exists", ErrorCode.SERVER_ERROR)
+        if (hero == null || hero.userId != _mediator.userId) {
+            throw CustomException("Hero not found or ownership mismatch", ErrorCode.INVALID_PARAMETER)
+        }
+
         if (!hero.isHeroS && !hero.isFakeS) {
             throw CustomException("Hero $heroId doesn't have shield")
         }
@@ -497,6 +500,17 @@ class UserHeroFiManager(
         )
 
         val config = _heroRepairShieldDataManager.getPrice(hero.rarity, hero.shield.level)
+
+        if (rewardType == BLOCK_REWARD_TYPE.ROCK) {
+            if (config.priceRock <= 0) {
+                throw CustomException("Invalid price configuration", ErrorCode.SERVER_ERROR)
+            }
+        } else {
+            if (config.price <= 0) {
+                throw CustomException("Invalid price configuration", ErrorCode.SERVER_ERROR)
+            }
+        }
+
         hero.resetShieldToFull(GameConstants.BOMBER_ABILITY.AVOID_THUNDER)
         try {
             if (rewardType == BLOCK_REWARD_TYPE.ROCK) {
