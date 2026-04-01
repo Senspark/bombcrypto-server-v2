@@ -16,19 +16,19 @@ class RepairShieldHandler : BaseEncryptRequestHandler() {
         val user = controller.user
             ?: return sendError(controller, requestId, ErrorCode.SERVER_ERROR, "User not found")
 
+        controller as LegacyUserController
+        if (controller.disableWhileLoginByAccount()) {
+            return sendError(controller, requestId, ErrorCode.PERMISSION_DENIED, null)
+        }
+
         val currentTime = System.currentTimeMillis()
         val lastRepairTime = user.getProperty("last_repair_time") as? Long ?: 0L
         val cooldownMs = 2000L
 
         if (currentTime - lastRepairTime < cooldownMs) {
-            throw com.senspark.game.exception.CustomException("Request too fast. Please wait.", ErrorCode.SERVER_ERROR)
+            return sendError(controller, requestId, ErrorCode.SERVER_ERROR, "Request too fast. Please wait.")
         }
         user.setProperty("last_repair_time", currentTime)
-
-        controller as LegacyUserController
-        if (controller.disableWhileLoginByAccount()) {
-            return sendError(controller, requestId, ErrorCode.PERMISSION_DENIED, null)
-        }
         return try {
             val heroId = data.getInt("hero_id")
             val rewardType = EnumConstants.BLOCK_REWARD_TYPE.valueOf(data.getInt("reward_type"))
