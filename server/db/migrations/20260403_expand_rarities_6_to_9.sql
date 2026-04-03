@@ -112,20 +112,25 @@ ON CONFLICT (rare) DO NOTHING;
 -- ============================================================================
 -- 7. config_reward_pool_th_v2
 -- Game Design Option B: Soft-Cut with Expanded Supply
--- Deduct ~15-20% from existing 3, 4, 5 pools and add progressive pools for 6-9
+-- Update existing pools (3, 4, 5) and add new pools (6, 7, 8, 9)
 -- ============================================================================
--- Update existing pools (3, 4, 5) for BCOIN
+-- Update existing BCOIN pools (Soft-cut)
 UPDATE public.config_reward_pool_th_v2 SET max_reward = 3000, remaining_reward = LEAST(remaining_reward, 3000) WHERE pool_id = 3 AND type = 'BCOIN';
 UPDATE public.config_reward_pool_th_v2 SET max_reward = 5000, remaining_reward = LEAST(remaining_reward, 5000) WHERE pool_id = 4 AND type = 'BCOIN';
 UPDATE public.config_reward_pool_th_v2 SET max_reward = 7000, remaining_reward = LEAST(remaining_reward, 7000) WHERE pool_id = 5 AND type = 'BCOIN';
 
--- Insert new pools for 6-9
+-- Insert new BCOIN pools for 6-9
 INSERT INTO public.config_reward_pool_th_v2 (pool_id, remaining_reward, type, max_reward)
 VALUES
-    (6, 9000, 'BCOIN', 9000),
-    (7, 11500, 'BCOIN', 11500),
-    (8, 14500, 'BCOIN', 14500),
-    (9, 18000, 'BCOIN', 18000),
+    (6, 1300, 'BCOIN', 1300),   -- Funded by deducing from 3, 4, 5
+    (7, 1000, 'BCOIN', 1000),
+    (8, 800, 'BCOIN', 800),
+    (9, 650, 'BCOIN', 650)
+ON CONFLICT (pool_id, type) DO UPDATE SET max_reward = EXCLUDED.max_reward, remaining_reward = EXCLUDED.remaining_reward;
+
+-- Initialize SENSPARK and COIN pools for 6-9
+INSERT INTO public.config_reward_pool_th_v2 (pool_id, remaining_reward, type, max_reward)
+VALUES
     (6, 8333, 'SENSPARK', 8333),
     (7, 8333, 'SENSPARK', 8333),
     (8, 8333, 'SENSPARK', 8333),
@@ -134,7 +139,21 @@ VALUES
     (7, 500000, 'COIN', 500000),
     (8, 500000, 'COIN', 500000),
     (9, 500000, 'COIN', 500000)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (pool_id, type) DO NOTHING;
+
+
+-- ============================================================================
+-- 8. config_th_mode_v2 (Expansion to 10 tiers)
+-- reward_pool: JSONB map for rarity keys
+-- min_stake: JSONB array of size 10 (+30% rule for 6-9)
+-- ============================================================================
+UPDATE public.config_th_mode_v2 
+SET value = '{"0":1250,"1":2000,"2":3000,"3":3000,"4":5000,"5":7000,"6":1300,"7":1000,"8":800,"9":650}'
+WHERE key = 'reward_pool' AND type = 'BCOIN';
+
+UPDATE public.config_th_mode_v2 
+SET value = '[0,0,0,0,0,0,1,1.3,1.7,2.2]'
+WHERE key = 'min_stake';
 
 
 -- ============================================================================

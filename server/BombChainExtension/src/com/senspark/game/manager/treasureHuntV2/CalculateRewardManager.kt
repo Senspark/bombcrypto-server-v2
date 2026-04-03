@@ -22,8 +22,11 @@ class CalculateRewardManager(
 ) : ICalculateRewardManager {
 
     companion object {
-        private const val POOL_SIZE = 6
-        private val POOL_NAMES = arrayOf("Common", "Rare", "Super Rare", "Epic", "Legend", "Super Legend")
+        private const val POOL_SIZE = 10
+        private val POOL_NAMES = arrayOf(
+            "Common", "Rare", "Super Rare", "Epic", "Legend", "Super Legend", 
+            "Mega", "Super Mega", "Mystic", "Super Mystic"
+        )
     }
 
     /**
