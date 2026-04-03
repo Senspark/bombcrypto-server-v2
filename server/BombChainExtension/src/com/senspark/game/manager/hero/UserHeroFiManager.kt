@@ -732,7 +732,7 @@ class UserHeroFiManager(
         _gameDataAccess.subUserBlockReward(uid, dataType, BLOCK_REWARD_TYPE.BOMBERMAN, quantity.toFloat(), reason)
         val tonHeroDetails = mutableListOf<ServerHeroDetails>()
         repeat(quantity) {
-            tonHeroDetails.add(ServerHeroDetails.generateWithoutNewRarity(1, dataType))
+            tonHeroDetails.add(ServerHeroDetails.generate(1, dataType))
         }
         val newHeroIds = addHeroesServer(tonHeroDetails)
 
