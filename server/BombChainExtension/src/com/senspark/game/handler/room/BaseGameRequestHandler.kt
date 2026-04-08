@@ -69,7 +69,7 @@ abstract class BaseGameRequestHandler : MainGameExtensionBaseRequestHandler() {
         if (id < 10 || id % GameConstants.VERIFY_SUPPLY == 0) {
             val timestamp = params.getLong("timestamp")
             val tick = System.currentTimeMillis() + TICKS_AT_EPOCH
-            if (abs(tick - timestamp) >= 600000) {
+            if (abs(tick - timestamp) >= 60000) { // Reduced tolerance to 60s (was 600s)
                 controller.logger.error("$serverCommand ${controller.userName} invalid timestamp: $timestamp <> $tick")
                 trustDisconnectUser(controller, KickReason.WRONG_TIMESTAMP)
                 return

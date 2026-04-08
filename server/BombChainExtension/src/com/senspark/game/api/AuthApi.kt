@@ -28,7 +28,7 @@ class AuthApi(
         _jwt = _envManager.apLoginToken
     }
 
-    override fun verifyAuth(username: String, token: String, dataType: EnumConstants.DataType): LegacyLoginInfo {
+    override suspend fun verifyAuth(username: String, token: String, dataType: EnumConstants.DataType): LegacyLoginInfo {
         val url = if(dataType == DataType.POLYGON) _envManager.polVerifyLoginUrl else _envManager.bscVerifyLoginUrl
         val body = buildJsonObject {
             put("walletAddress", UserNameSuffix.removeSuffixName(username))
@@ -38,7 +38,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyAuthTr(
+    override suspend fun verifyAuthTr(
         username: String,
         token: String
     ): LegacyLoginInfo {
@@ -51,7 +51,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyMobileUser(username: String, token: String): LegacyLoginInfo {
+    override suspend fun verifyMobileUser(username: String, token: String): LegacyLoginInfo {
         val url = String.format(_envManager.mobileVerifyUrl, username)
         val body = buildJsonObject {
             put("userName", username)
@@ -61,7 +61,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyTonUser(username: String, token: String): TonLoginInfo {
+    override suspend fun verifyTonUser(username: String, token: String): TonLoginInfo {
         val url = _envManager.tonVerifyLoginUrl
         val body = buildJsonObject {
             put("walletAddress", username)
@@ -71,7 +71,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifySolUser(walletAddress: String, loginData: String): SolLoginInfo {
+    override suspend fun verifySolUser(walletAddress: String, loginData: String): SolLoginInfo {
         val url = _envManager.solVerifyLoginUrl
         val body = buildJsonObject {
             put("walletAddress", walletAddress)
@@ -81,7 +81,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyRonUser(
+    override suspend fun verifyRonUser(
         walletAddress: String,
         loginData: String
     ): EtherAirdropLoginInfo {
@@ -94,7 +94,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyBasUser(
+    override suspend fun verifyBasUser(
         walletAddress: String,
         loginData: String
     ): EtherAirdropLoginInfo {
@@ -107,7 +107,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun verifyVicUser(
+    override suspend fun verifyVicUser(
         walletAddress: String,
         loginData: String
     ): EtherAirdropLoginInfo {
@@ -120,7 +120,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun createAccountSenspark(username: String, password: String, email: String): Int {
+    override suspend fun createAccountSenspark(username: String, password: String, email: String): Int {
         val url = _envManager.mobileCreateAccount
         val body = buildJsonObject {
             put("username", username)
@@ -131,7 +131,7 @@ class AuthApi(
         return response!!
     }
 
-    override fun deleteUser(uid: Int, accessToken: String): Boolean {
+    override suspend fun deleteUser(uid: Int, accessToken: String): Boolean {
         throw Exception("This function is under maintenance")
 //        val url = "${_envManager.apiDomainUrl}/gateway/auth/tr/delete-user"
 //        val body = Json.run {
