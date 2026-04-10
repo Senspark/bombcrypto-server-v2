@@ -24,8 +24,39 @@ services:
       MAX_CCU: 100
       HTTP_PORT: 8080
       HTTPS_PORT: 8443
-      MAX_CONNECTIONS_PER_IP: 2
+      MAX_CONNECTIONS_PER_IP: 100
       SERVER_NAME: 'sfs-game-1'
+      LICENSE_CODE: ''
+      CREDENTIALS: 'bombcryptodev,123456'
+    restart: always
+    volumes:
+      - ./SmartFoxServer_2X:/opt/SmartFoxServer_2X_Patch:ro
+      - ./client_logs:/opt/SmartFoxServer_2X/SFS2X/clientLogs:rw
+      - ./extensions_volume:/opt/SmartFoxServer_2X/SFS2X/extensions:rw
+
+  sfs-pvp-1:
+    image: smartfox
+    container_name: sfs-pvp-1
+    env_file:
+      - ../.env
+      - ../.env.pvp
+    ports:
+      - "8081:8080"
+      - "8444:8443"
+      - "9934:9933/tcp"
+      - "9934:9933/udp"
+      - "9899:9898"
+    networks:
+      - base_default
+    environment:
+      IS_DEBUG: 0
+      IS_PVP_SERVER: 1
+      IS_GAME_SERVER: 0
+      MAX_CCU: 100
+      HTTP_PORT: 8080
+      HTTPS_PORT: 8443
+      MAX_CONNECTIONS_PER_IP: 100
+      SERVER_NAME: 'sfs-pvp-1'
       LICENSE_CODE: ''
       CREDENTIALS: 'bombcryptodev,123456'
     restart: always

@@ -8,6 +8,7 @@ echo "Rebuild project"
 cd ..
 pwd
 echo "Copy JAR files"
+mkdir -p server/deploy/extensions_volume/__lib__
 cp server/Common/build/libs/Common.jar server/deploy/extensions_volume/__lib__
 cp server/Common/build/dependencies/*.jar server/deploy/extensions_volume/__lib__
 
@@ -17,3 +18,5 @@ cp server/BombChainExtension/build/dependencies/*.jar server/deploy/extensions_v
 
 echo "Run Game server"
 docker restart sfs-game-1
+echo "Run Pvp server"
+docker restart sfs-pvp-1
