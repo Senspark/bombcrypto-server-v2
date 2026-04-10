@@ -1,0 +1,52 @@
+[
+  {
+    "id": "your_id",
+    "zone": "sg",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9933
+  },
+  {
+    "id": "your_id",
+    "zone": "br",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9933
+  },
+  {
+    "id": "your_id",
+    "zone": "us",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9933
+  },
+  {
+    "id": "your_id",
+    "zone": "jp",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9933
+  },
+  {
+    "id": "your_id",
+    "zone": "de",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9933
+  }
+]

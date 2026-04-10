@@ -1,0 +1,12 @@
+[
+  {
+    "id": "pvp-1",
+    "zone": "sg",
+    "host": "127.0.0.1",
+    "port": 8081,
+    "use_ssl": false,
+    "useSsl": false,
+    "udp_host": "127.0.0.1",
+    "udp_port": 9934
+  }
+]

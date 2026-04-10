@@ -1,0 +1,24 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  ap-pvp-matching:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ap-pvp-matching
+    ports:
+      - "8101:80"
+    networks:
+      - base_default
+    env_file:
+      - .env
+    environment:
+      TZ: 'Asia/Bangkok'
+      PORT: '80'
+      REDIS_CONNECTION_STRING: 'redis://@redis:6379/0'
+      POSTGRES_CONNECTION_STRING_BACKEND: 'postgres://postgres:123456@postgres:5432/backend'
+      POSTGRES_CONNECTION_STRING_BOMBCRYPTO: 'postgres://postgres:123456@postgres:5432/bombcrypto'

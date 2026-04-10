@@ -1,0 +1,12 @@
+[
+  {
+    "id": "your_id",
+    "zone": "sg",
+    "host": "your_host",
+    "port": 8443,
+    "use_ssl": true,
+    "useSsl": true,
+    "udp_host": "your_udp_host",
+    "udp_port": 9935
+  }
+]
