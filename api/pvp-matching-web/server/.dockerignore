@@ -1,0 +1,9 @@
+__tests__
+node_modules
+.git
+.gitignore
+.env.example
+*.yaml
+vitest.config.ts
+.ds_store
+*.sh
