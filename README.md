@@ -4,7 +4,7 @@
 ![Version](https://img.shields.io/badge/version-v2.0-blue)
 ![License](https://img.shields.io/badge/license-AGPLv3-blue)
 
-Open-source game server backend for BombCrypto V2, featuring Treasure Hunt and Adventure game modes. The backend consists of three microservices that communicate over a shared Docker network.
+Open-source game server backend for BombCrypto V2, featuring Treasure Hunt, Adventure, and PvP game modes. The backend consists of multiple microservices that communicate over a shared Docker network.
 
 ## 📚 Documentation
 - **[Architecture Maps](docs/architecture/c4-model.md)**: Explore the system context and container diagrams.
@@ -28,6 +28,14 @@ Unity Client ───────┼── HTTP :8120 ──────► [ap
                     │   HTTP :8080          (SmartFox)      (bombcrypto DB)│
                     │                          │                           │
                     │                          └──────────► Redis          │
+                    │                                                      │
+                    ├── TCP/UDP :9934 ──► [sfs-pvp-1]  ──► PostgreSQL      │
+                    │   HTTP :8081          (SmartFox)      (bombcrypto DB)│
+                    │                          │                           │
+                    │                          ├──────────► Redis          │
+                    │                          │                           │
+                    │                   [ap-pvp-matching] ──► PostgreSQL   │
+                    │                     HTTP :8101          (bombcrypto) │
                     └──────────────────────────────────────────────────────┘
 ```
 
@@ -37,14 +45,16 @@ Unity Client ───────┼── HTTP :8120 ──────► [ap
 |---------|-----------|---------|-------------|
 | **[ap-login](api/login/)** | Node.js / TypeScript | 8120 | Authentication — email/password, TON, Solana, Web3 wallets |
 | **[ap-market](api/market/)** | Node.js / TypeScript | 9120 | In-game item marketplace API |
+| **[ap-pvp-matching](api/pvp-matching/)** | Node.js / TypeScript | 8101 | PvP matchmaking — queue management, rank-based matching |
 | **[sfs-game-1](server/)** | Java/Kotlin + SmartFox Server 2.19 | 8080, 9933 | Game server — Treasure Hunt & Adventure modes |
+| **sfs-pvp-1** | Java/Kotlin + SmartFox Server 2.19 | 8081, 9934 | PvP game server — real-time PvP matches |
 
 ### Databases
 
 | Database | Used By | Schema                                                       | Description |
 |----------|---------|--------------------------------------------------------------|-------------|
 | `backend` | ap-login | [`api/login/db/schema.sql`](api/login/db/schema.sql)         | User accounts and authentication |
-| `bombcrypto` | sfs-game-1, ap-market | [`server/db/schema.sql`](server/db/schema.sql) | Game data, items, marketplace |
+| `bombcrypto` | sfs-game-1, sfs-pvp-1, ap-market, ap-pvp-matching | [`server/db/schema.sql`](server/db/schema.sql) | Game data, items, marketplace, PvP rankings |
 
 ## Prerequisites
 
@@ -82,10 +92,12 @@ psql -h localhost -U postgres -d bombcrypto \
 cp api/login/.env.example api/login/.env
 cp api/market/.env.example api/market/.env
 cp server/.env.example server/.env
+cp api/pvp-matching/.env.example api/pvp-matching/.env
 
 # 5. Build and start services
 docker compose -f api/login/compose.yaml up -d
 docker compose -f api/market/compose.yaml up -d
+docker compose -f api/pvp-matching/compose.yaml up -d
 
 docker build -f server/deploy/Dockerfile.arm64 -t smartfox server/deploy/
 docker compose -f server/deploy/compose.yaml up -d
@@ -151,7 +163,7 @@ psql -h localhost -U postgres -d backend -f api/login/db/schema.sql
 
 ### Database: `bombcrypto`
 
-Used by **sfs-game-1** and **ap-market** for game data. Schema and seed files are in [`server/db/`](server/db/).
+Used by **sfs-game-1**, **sfs-pvp-1**, **ap-market**, and **ap-pvp-matching** for game data. Schema and seed files are in [`server/db/`](server/db/).
 
 ```bash
 createdb -h localhost -U postgres bombcrypto
@@ -255,6 +267,29 @@ ENABLE_REQUEST_LOGGING=true
 
 > **Note:** Similar to ap-login, [`compose.yaml`](api/market/compose.yaml) overrides connection strings for Docker deployment.
 
+### ap-pvp-matching ([`api/pvp-matching/.env`](api/pvp-matching/.env.example))
+
+```bash
+cp api/pvp-matching/.env.example api/pvp-matching/.env
+```
+
+Recommended `.env` content:
+
+```env
+IS_GCLOUD=false
+RUNTIME_ENV=local
+PORT=8101
+REDIS_CONNECTION_STRING="redis://@localhost:6379/0"
+POSTGRES_CONNECTION_STRING="postgres://postgres:123456@localhost:5432/bombcrypto"
+QUEUE_TIME_OUT=30000
+CURRENT_PVP_SEASON=4
+
+LOG_NAME=
+LOG_REMOTE_HOST=
+```
+
+> **Note:** Similar to other services, [`compose.yaml`](api/pvp-matching/compose.yaml) overrides `PORT`, `REDIS_CONNECTION_STRING`, and `POSTGRES_CONNECTION_STRING` to use Docker hostnames.
+
 ### sfs-game-1 ([`server/.env`](server/.env.example))
 
 ```bash
@@ -319,6 +354,18 @@ HASH_ID_KEY="0123456789abcdefghijklmnopqrstuvwxyz_,0,0"
 
 > **Note:** `AP_LOGIN_TOKEN` must be a valid JWT signed with ap-login's `JWT_BEARER_SECRET`.
 
+### sfs-pvp-1 ([`server/.env.pvp`](server/.env.pvp))
+
+The PvP server reuses the same SmartFox image as sfs-game-1. It loads `server/.env` as the base config, then overrides PvP-specific values from `server/.env.pvp`:
+
+```env
+SERVER_ID="pvp-1"
+REDIS_CONSUMER_ID="pvp_1"
+SCHEDULER_THREAD_SIZE=5
+```
+
+The [`compose.yaml`](server/deploy/compose.yaml) sets `IS_PVP_SERVER=1` and `IS_GAME_SERVER=0` in its `environment` section to switch the server into PvP mode.
+
 ## 4. Building and Starting Services
 
 ### ap-login
@@ -337,7 +384,15 @@ docker compose -f api/market/compose.yaml up -d
 
 Builds from [`api/market/Dockerfile`](api/market/Dockerfile) (Node.js 22 Alpine) and starts on port **9120**. See [`api/market/compose.yaml`](api/market/compose.yaml).
 
-### sfs-game-1 (SmartFox Game Server)
+### ap-pvp-matching
+
+```bash
+docker compose -f api/pvp-matching/compose.yaml up -d
+```
+
+Builds from [`api/pvp-matching/Dockerfile`](api/pvp-matching/Dockerfile) (Node.js 20 Alpine) and starts on port **8101**. See [`api/pvp-matching/compose.yaml`](api/pvp-matching/compose.yaml).
+
+### sfs-game-1 & sfs-pvp-1 (SmartFox Game Server)
 
 **Step 1:** Build the SmartFox base image using [`Dockerfile.arm64`](server/deploy/Dockerfile.arm64):
 
@@ -347,20 +402,20 @@ docker build -f server/deploy/Dockerfile.arm64 -t smartfox server/deploy/
 
 > **Note:** Currently only `Dockerfile.arm64` is available, optimized for ARM64 (Apple Silicon). An amd64 Dockerfile may be added in the future.
 
-**Step 2:** Start the container (see [`server/deploy/compose.yaml`](server/deploy/compose.yaml)):
+**Step 2:** Start both containers (see [`server/deploy/compose.yaml`](server/deploy/compose.yaml)):
 
 ```bash
 docker compose -f server/deploy/compose.yaml up -d
 ```
 
-The SmartFox server exposes:
+This starts both `sfs-game-1` (Treasure Hunt & Adventure) and `sfs-pvp-1` (PvP matches). The SmartFox servers expose:
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 8080 | HTTP | WebSocket connections, admin panel |
-| 8443 | HTTPS | Secure WebSocket connections |
-| 9933 | TCP/UDP | Socket connections (game client) |
-| 9898 | TCP | Internal |
+| Port (game) | Port (pvp) | Protocol | Purpose |
+|-------------|------------|----------|---------|
+| 8080 | 8081 | HTTP | WebSocket connections, admin panel |
+| 8443 | 8444 | HTTPS | Secure WebSocket connections |
+| 9933 | 9934 | TCP/UDP | Socket connections (game client) |
+| 9898 | 9899 | TCP | Internal |
 
 ## 5. Verification
 
@@ -378,9 +433,14 @@ curl http://localhost:8120
 
 # ap-market
 curl http://localhost:9120
+
+# ap-pvp-matching
+curl http://localhost:8101
 ```
 
-Access the SmartFox admin panel at [http://localhost:8080](http://localhost:8080) (default credentials: `bombcryptodev` / `123456`).
+Access the SmartFox admin panels:
+- Game server: [http://localhost:8080](http://localhost:8080) (default credentials: `bombcryptodev` / `123456`)
+- PvP server: [http://localhost:8081](http://localhost:8081) (same credentials)
 
 ## 6. Unity Client Configuration (Optional)
 
@@ -463,14 +523,21 @@ bombcrypto-server-v2/
 │   │   ├── db/
 │   │   │   └── schema.sql            # backend database schema
 │   │   └── src/                      # TypeScript source
-│   └── market/                       # ap-market service
+│   ├── market/                       # ap-market service
+│   │   ├── compose.yaml
+│   │   ├── Dockerfile
+│   │   ├── .env.example
+│   │   ├── package.json
+│   │   └── src/                      # TypeScript source
+│   └── pvp-matching/                 # ap-pvp-matching service
 │       ├── compose.yaml
 │       ├── Dockerfile
 │       ├── .env.example
 │       ├── package.json
 │       └── src/                      # TypeScript source
-├── server/                           # sfs-game-1 (SmartFox game server)
+├── server/                           # sfs-game-1 & sfs-pvp-1 (SmartFox game server)
 │   ├── .env.example
+│   ├── .env.pvp                      # PvP server overrides
 │   ├── build.gradle.kts
 │   ├── run.sh                        # Build & deploy script
 │   ├── db/
@@ -493,7 +560,8 @@ bombcrypto-server-v2/
 **Key files:**
 [`api/login/README.md`](api/login/README.md) | [`api/login/compose.yaml`](api/login/compose.yaml) | [`api/login/Dockerfile`](api/login/Dockerfile) | [`api/login/.env.example`](api/login/.env.example) | [`api/login/db/schema.sql`](api/login/db/schema.sql)
 [`api/market/README.md`](api/market/README.md) | [`api/market/compose.yaml`](api/market/compose.yaml) | [`api/market/Dockerfile`](api/market/Dockerfile) | [`api/market/.env.example`](api/market/.env.example)
-[`server/README.md`](server/README.md) | [`server/.env.example`](server/.env.example) | [`server/deploy/compose.yaml`](server/deploy/compose.yaml) | [`server/deploy/Dockerfile.arm64`](server/deploy/Dockerfile.arm64)
+[`api/pvp-matching/README.md`](api/pvp-matching/README.md) | [`api/pvp-matching/compose.yaml`](api/pvp-matching/compose.yaml) | [`api/pvp-matching/Dockerfile`](api/pvp-matching/Dockerfile) | [`api/pvp-matching/.env.example`](api/pvp-matching/.env.example)
+[`server/README.md`](server/README.md) | [`server/.env.example`](server/.env.example) | [`server/.env.pvp`](server/.env.pvp) | [`server/deploy/compose.yaml`](server/deploy/compose.yaml) | [`server/deploy/Dockerfile.arm64`](server/deploy/Dockerfile.arm64)
 [`server/db/schema.sql`](server/db/schema.sql) | [`server/db/init.sql`](server/db/init.sql) | [`server/db/pvp_season_1.sql`](server/db/pvp_season_1.sql) | [`server/db/first_user_add_data.sql`](server/db/first_user_add_data.sql)
 
 ## Troubleshooting
