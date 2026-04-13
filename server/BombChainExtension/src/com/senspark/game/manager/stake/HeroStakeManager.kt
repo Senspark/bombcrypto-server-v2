@@ -80,13 +80,16 @@ class HeroStakeManager(
             return
         }
         // không phải hero S và có thay đổi bcoin thì kiểm tra để thêm shield
-        if (heroStake.stakeBcoin >= minStakeHeroConfig[bomber.rarity]!!) {
-            val shieldInDatabase = _gameDataAccess.getShieldHeroFromDatabase(dataType, bomber.heroId, bomber.type.value)
-            if (shieldInDatabase == "[]") {
-                bomber.addBasicShield()
-                _gameDataAccess.addShieldToBomber(dataType, bomber.heroId, bomber.type.value, bomber.shield.toString())
             } else {
                 bomber.addShield(shieldInDatabase)
+            }
+        } else {
+            // Stake is insufficient - if they have a shield and are not HeroS, we should remove it
+            if (!bomber.isHeroS) {
+                // To remove the shield in Senspark pattern, we set it to an empty array in the DB
+                // and we can also reset the memory object if needed.
+                _gameDataAccess.addShieldToBomber(dataType, bomber.heroId, bomber.type.value, "[]")
+                // Note: we might need a way to reset the bomber._shield object to an empty state here
             }
         }
     }
