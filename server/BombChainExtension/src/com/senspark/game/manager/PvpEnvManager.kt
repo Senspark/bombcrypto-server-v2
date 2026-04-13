@@ -8,7 +8,7 @@ class PvpEnvManager : IPvpEnvManager {
     override val isGke: Boolean = getEnv("GKE").toInt() == 1
     override val appStage = AppStage.fromString(getEnv("APP_STAGE", "LOCAL"))
     override val serverId: String = getEnv("SERVER_ID")
-    override val apiUrl: String = getEnv("URL_REQUEST_PVP")
+    override val apiUrl: String = getEnv("AP_PVP_MATCHING")
 
     override val postgresDriverName = "org.postgresql.Driver"
     override val postgresConnectionString = getEnv("POSTGRES_CONNECTION_STRING")
