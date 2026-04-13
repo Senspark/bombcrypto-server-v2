@@ -1,0 +1,13 @@
+.dockerignore
+.git
+.gitignore
+.example
+.ds_store
+.map
+.yaml
+.sh
+*.md
+dist/
+.idea/
+node_modules/
+__test__/

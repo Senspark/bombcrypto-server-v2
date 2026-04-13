@@ -1,0 +1,10 @@
+[
+  {
+    "id": "sg",
+    "host": "your-pvp-server/ping"
+  },
+  {
+    "id": "br",
+    "host": "your-pvp-server/ping"
+  }
+]

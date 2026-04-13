@@ -1,0 +1,10 @@
+﻿.DS_Store
+.env
+node_modules
+package-lock.json
+bin
+obj
+dist
+yarn.lock
+.idea
+compose-dev.yaml

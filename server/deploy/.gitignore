@@ -1,2 +1,3 @@
 postgres_data/
 client_logs/
+compose-dev.yaml
