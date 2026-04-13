@@ -190,7 +190,7 @@ LOG_REMOTE_HOST=
 
 REDIS_CONNECTION_STRING="redis://@localhost:6379/0"
 POSTGRES_CONNECTION_STRING_BACKEND="postgres://postgres:123456@localhost:5432/backend"
-POSTGRES_CONNECTION_STRING_BOMBCRYPTO="postgres://postgres:123456@localhost:5432/bombcrypto2"
+POSTGRES_CONNECTION_STRING_BOMBCRYPTO="postgres://postgres:123456@localhost:5432/bombcrypto"
 ALLOWED_DOMAINS=""
 TELEGRAM_BOT_TOKEN=","
 
