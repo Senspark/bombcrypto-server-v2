@@ -64,11 +64,12 @@ class EnumConstants {
                 return DataType.TR
             }
             // Coin giờ đc xem như 1 tài nguyên TR, network nào cũng có và riêng user airdrop sẽ có thêm COIN network đó
+            // Tuy nhiên, để tránh exploit farm BSC claim POLYGON, ta cần isolate cho BSC/POLYGON
             if(this == COIN){
+                if (currentDataType == DataType.BSC || currentDataType == DataType.POLYGON) {
+                    return currentDataType
+                }
                 return DataType.TR
-            }
-            if (currentDataType.isEthereumAirdropUser()) {
-                return currentDataType
             }
             return currentDataType
         }
