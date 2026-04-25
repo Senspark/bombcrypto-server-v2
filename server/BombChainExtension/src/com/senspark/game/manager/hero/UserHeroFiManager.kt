@@ -49,7 +49,8 @@ class UserHeroFiManager(
     private val _thModeDataAccess = _mediator.services.get<ITHModeDataAccess>()
     private val _heroAbilityConfigManager = _mediator.services.get<IHeroAbilityConfigManager>()
     private val _treasureHuntDataManager = _mediator.services.get<ITreasureHuntConfigManager>()
-    private val _gameConfigManager = _mediator.services.get<IGameConfigManager>()
+    private val _gameConfigManager: IGameConfigManager = ServiceLocator.getInstance().getService(IGameConfigManager::class.java)
+    private var _lastBuyHeroTime: Long = 0
 
     private val _heroStakeManager = _mediator.svServices.get<IHeroStakeManager>()
     private val _heroSyncService = _mediator.svServices.get<ISyncResourceManager>().heroSyncService
@@ -660,6 +661,19 @@ class UserHeroFiManager(
         if (userQuantityHeroes + quantity > _treasureHuntDataManager.getHeroLimit(dataType)) {
             throw CustomException("Heroes get limited")
         }
+
+        // Check bulk limit and cooldown
+        val currentTime = Instant.now().toEpochMilli()
+        if (currentTime < _lastBuyHeroTime + 60000) {
+            val waitSeconds = ((_lastBuyHeroTime + 60000 - currentTime) / 1000).toInt()
+            throw CustomException("Cooldown active. Wait $waitSeconds seconds.")
+        }
+
+        val level = com.senspark.game.utils.AccountLevelHelper.getAccountLevel(userQuantityHeroes)
+        val bulkLimit = com.senspark.game.utils.AccountLevelHelper.getBulkLimit(level)
+        if (quantity > bulkLimit) {
+            throw CustomException("Your level ($level) only allows buying $bulkLimit heroes at once.")
+        }
         var rewardValue = 0f;
         // Mua hero thì dùng COIN network
         if(rewardType == BLOCK_REWARD_TYPE.COIN){
@@ -682,6 +696,7 @@ class UserHeroFiManager(
             tonHeroDetails.add(ServerHeroDetails.generate(1, dataType))
         }
         val newHeroIds = addHeroesServer(tonHeroDetails)
+        _lastBuyHeroTime = Instant.now().toEpochMilli()
 
         // lưu log
         val itemIds = newHeroIds.map { it.first }.toList().serialize()
@@ -729,12 +744,26 @@ class UserHeroFiManager(
         if (userQuantityHeroes + quantity > _treasureHuntDataManager.getHeroLimit(dataType)) {
             throw CustomException("Heroes get limited")
         }
+
+        // Check bulk limit and cooldown for claim too
+        val currentTime = Instant.now().toEpochMilli()
+        if (currentTime < _lastBuyHeroTime + 60000) {
+            val waitSeconds = ((_lastBuyHeroTime + 60000 - currentTime) / 1000).toInt()
+            throw CustomException("Cooldown active. Wait $waitSeconds seconds.")
+        }
+
+        val level = com.senspark.game.utils.AccountLevelHelper.getAccountLevel(userQuantityHeroes)
+        val bulkLimit = com.senspark.game.utils.AccountLevelHelper.getBulkLimit(level)
+        if (quantity > bulkLimit) {
+            throw CustomException("Your level ($level) only allows claiming $bulkLimit heroes at once.")
+        }
         _gameDataAccess.subUserBlockReward(uid, dataType, BLOCK_REWARD_TYPE.BOMBERMAN, quantity.toFloat(), reason)
         val tonHeroDetails = mutableListOf<ServerHeroDetails>()
         repeat(quantity) {
             tonHeroDetails.add(ServerHeroDetails.generateWithoutNewRarity(1, dataType))
         }
         val newHeroIds = addHeroesServer(tonHeroDetails)
+        _lastBuyHeroTime = Instant.now().toEpochMilli()
 
         // lưu log
         val itemIds = newHeroIds.map { it.first }.toList().serialize()
