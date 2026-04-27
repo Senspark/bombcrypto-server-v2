@@ -114,6 +114,13 @@ class ServicesInitializerBnbPol(
         n.register(IBlockchainDatabaseManager::class) { BlockchainDatabaseManager(http,env, logger) }
         n.register(IConfigItemManager::class) { ConfigItemManager(g.get<IShopDataAccess>()) }
         n.register(IPvpConfigManager::class) { PvpConfigManager(env, logger) }
+        n.register(com.senspark.game.manager.nftShield.INFTShieldManager::class) {
+            com.senspark.game.manager.nftShield.NFTShieldManager(
+                g.get<IDataAccessManager>().nftShieldDataAccess,
+                env,
+                g.get<ICacheService>()
+            )
+        }
         n.register(IUserLinkManager::class) { UserLinkManager() }
         n.register(IHeroUpgradeShieldManager::class) { HeroUpgradeShieldManager(g.get<IShopDataAccess>()) }
         n.register(IUserTournamentWhitelistManager::class) {

@@ -134,6 +134,15 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.GET_USER_PVP_BOOSTERS_V2, GetUserPvpBoosterHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_PVP_RANKING_V2, GetPvpRankingHandler::class.java)
         helper.addRequestHandler(SFSCommand.CLAIM_MONTHLY_REWARD_V2, ClaimPvpRewardHandler::class.java)
+
+        helper.addRequestHandler(SFSCommand.STAKE_VIP_GET_CONFIG_V2, GetConfigStakeVipHandler::class.java)
+        helper.addRequestHandler(SFSCommand.STAKE_VIP_GET_INFO_V2, GetStakeVipInfoHandler::class.java)
+        helper.addRequestHandler(SFSCommand.STAKE_VIP_CLAIM_REWARD_V2, ClaimStakeVipRewardHandler::class.java)
+
+        helper.addRequestHandler(SFSCommand.GET_NFT_SHIELD_STATUS, com.senspark.game.handler.shield.GetNftShieldStatusHandler::class.java)
+        helper.addRequestHandler(SFSCommand.SETUP_NFT_SHIELD_PIN, com.senspark.game.handler.shield.SetupNftShieldPinHandler::class.java)
+        helper.addRequestHandler(SFSCommand.VERIFY_NFT_SHIELD_PIN, com.senspark.game.handler.shield.VerifyNftShieldPinHandler::class.java)
+        helper.addRequestHandler(SFSCommand.GENERATE_NFT_SHIELD_SIGNATURE, com.senspark.game.handler.shield.GenerateNftShieldSignatureHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_PVP_SERVER_CONFIGS_V2, GetPVPServerConfigsHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_BONUS_REWARD_PVP_V3, GetBonusRewardPvpHandler::class.java)
         helper.addRequestHandler(SFSCommand.KEEP_JOINING_PVP_QUEUE_V2, PvpKeepJoiningQueueHandler::class.java)

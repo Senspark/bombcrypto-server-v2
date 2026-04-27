@@ -21,6 +21,7 @@ class DataAccessManager(
     override val tournamentDataAccess: IPvpTournamentDataAccess,
     override val missionDataAccess: IMissionDataAccess,
     override val thModeDataAccess: ITHModeDataAccess,
+    override val nftShieldDataAccess: com.senspark.game.db.nftShield.INFTShieldDataAccess,
     private val gameConfigManager: GameConfigManager,
 ) : IDataAccessManager {
     
