@@ -21,4 +21,5 @@ interface IDataAccessManager : IGlobalService {
     val iapDataAccess: IIapDataAccess
     val thModeDataAccess: ITHModeDataAccess
     val tournamentDataAccess: IPvpTournamentDataAccess
+    val nftShieldDataAccess: com.senspark.game.db.nftShield.INFTShieldDataAccess
 }

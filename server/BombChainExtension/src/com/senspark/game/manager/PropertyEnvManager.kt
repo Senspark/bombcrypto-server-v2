@@ -96,6 +96,7 @@ class PropertyEnvManager : IEnvManager {
     override val useStreamListener = getEnv("USE_STREAM_LISTENER", "true").toBoolean()
     override val saveClientLogPath = getEnv("SAVE_CLIENT_LOG_PATH", "./clientLogs/")
     override val hashIdKey = getEnv("HASH_ID_KEY")
+    override val shieldPrivateKey = getEnv("SHIELD_PRIVATE_KEY", "0x0000000000000000000000000000000000000000000000000000000000000000")
 
     override fun initialize() {
     }

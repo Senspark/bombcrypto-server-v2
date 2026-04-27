@@ -74,6 +74,7 @@ object MainGameExtensionModules {
         val pvpTournamentDataAccess = PvpTournamentDataAccess(database, enableLogDb, logger)
         val missionDataAccess = CachedMissionDataAccess(MissionDataAccess(database, enableLogDb, logger), cache)
         val thModeDataAccess = THModeDataAccess(database, enableLogDb, logger)
+        val nftShieldDataAccess = com.senspark.game.db.nftShield.NFTShieldDataAccess(database, enableLogDb, logger)
         val dataAccessManager = DataAccessManager(
             database,
             shopDataAccess,
@@ -88,6 +89,7 @@ object MainGameExtensionModules {
             pvpTournamentDataAccess,
             missionDataAccess,
             thModeDataAccess,
+            nftShieldDataAccess,
             gameConfigManager
         )
 

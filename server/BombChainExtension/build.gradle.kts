@@ -93,6 +93,7 @@ dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
     implementation("com.google.code.gson:gson:2.10") // FIXME: remove.
     implementation("com.slack.api:slack-api-client:1.39.0")
+    implementation("org.web3j:crypto:4.9.8") // Web3j for generating EIP-191 signatures
     testImplementation(kotlin("test"))
     testImplementation(project(":SmartFoxLibs"))
     testImplementation(project(":Common"))

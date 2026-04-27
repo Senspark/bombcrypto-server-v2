@@ -375,4 +375,10 @@ object SFSCommand {
     const val SYNC_BOMBERMAN_V3: String = "SYNC_BOMBERMAN_V3"
     const val SYNC_HOUSE_V3: String = "SYNC_HOUSE_V3"
     const val SYNC_DEPOSITED_V3: String = "SYNC_DEPOSITED_V3"
+
+    // NFT Shield Commands
+    const val GET_NFT_SHIELD_STATUS: String = "GET_NFT_SHIELD_STATUS"
+    const val SETUP_NFT_SHIELD_PIN: String = "SETUP_NFT_SHIELD_PIN"
+    const val VERIFY_NFT_SHIELD_PIN: String = "VERIFY_NFT_SHIELD_PIN"
+    const val GENERATE_NFT_SHIELD_SIGNATURE: String = "GENERATE_NFT_SHIELD_SIGNATURE"
 }

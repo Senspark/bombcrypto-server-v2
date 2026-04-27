@@ -95,4 +95,5 @@ interface IEnvManager : IGlobalService {
     val saveClientLogPath: String
 
     val hashIdKey: String
+    val shieldPrivateKey: String
 }
