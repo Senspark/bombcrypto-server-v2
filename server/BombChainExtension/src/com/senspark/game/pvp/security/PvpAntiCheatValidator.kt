@@ -13,7 +13,7 @@ class PvpAntiCheatValidator(
     
     // Config
     private val MAX_ACTIONS_PER_TICK = 5
-    private val SPEED_THRESHOLD_MULTIPLIER = 1.5f // Allow 50% margin for latency and network jitter
+    private val SPEED_THRESHOLD_MULTIPLIER = 1.25f // Tightened from 1.5f for stricter movement control
     
     /**
      * Validates if the action is chronologically valid and doesn't exceed rate limits.

@@ -46,6 +46,7 @@ class PvpDataInfo(
     override val wagerMode: Int = 0,
     override val wagerTier: Int = 0,
     override val wagerToken: Int = 0,
+    override val network: String = ""
 ) : IPvpDataInfo
 
 @Serializable

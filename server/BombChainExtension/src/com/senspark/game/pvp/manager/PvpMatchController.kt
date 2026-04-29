@@ -811,6 +811,9 @@ class PvpMatchController(
                     usedBoosters.merge(it, 1, Int::plus)
                 }
                 val rewards = userInfo.hero.rewards.toMutableMap()
+                // Wagered prizes are now handled exclusively by PvpWagerService via Database
+                // to prevent double distribution (one from PVP server, one from main server).
+                /*
                 if (matchInfo.wagerTier > 0 && !resultInfo.isDraw) {
                     val prize = prizeDistribution[userInfo.ranking] ?: 0f
                     if (prize > 0f) {
@@ -819,6 +822,7 @@ class PvpMatchController(
                         rewards[rewardTypeId] = (rewards[rewardTypeId] ?: 0f) + prize
                     }
                 }
+                */
 
                 PvpResultUserInfo(
                     serverId = userInfo.serverId,
@@ -927,6 +931,16 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        // Anti-cheat validation
+        if (!_antiCheat.validateAction(slot, timestamp)) {
+            _logger.log("[Security] Invalid bomb action timestamp: slot=$slot ts=$timestamp")
+            throw Exception("Invalid action timestamp")
+        }
+        if (!_antiCheat.incrementActionCount(slot)) {
+            _logger.log("[Security] Bomb rate limit exceeded: slot=$slot")
+            throw Exception("Too many actions")
+        }
+
         _integrityService.logAction(slot, "PLANT", "")
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()
@@ -940,6 +954,16 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        // Anti-cheat validation
+        if (!_antiCheat.validateAction(slot, timestamp)) {
+            _logger.log("[Security] Invalid bomb action timestamp: slot=$slot ts=$timestamp")
+            throw Exception("Invalid action timestamp")
+        }
+        if (!_antiCheat.incrementActionCount(slot)) {
+            _logger.log("[Security] Bomb rate limit exceeded: slot=$slot")
+            throw Exception("Too many actions")
+        }
+
         _integrityService.logAction(slot, "THROW", "")
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()

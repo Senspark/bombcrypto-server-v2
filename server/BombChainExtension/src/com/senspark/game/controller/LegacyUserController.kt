@@ -78,7 +78,7 @@ class LegacyUserController(
     private var _pvpUserController: PvpUserController? = null
     private val _needSave = mutableMapOf<EnumConstants.SAVE, Boolean>()
     private val _userPermissions: IUserPermissions = UserPermissions(
-        // FIXME: nhanc18 tạm disable tính năng này vì không cần thiết
+        // FIXME: nhanc18 temporarily disable this feature as it is not needed
         UserPermissionsData(
             createRoom = false,
             resetData = false,
@@ -386,7 +386,7 @@ class LegacyUserController(
             }
         }
 
-        //Kkiểm tra nhà nếu không còn nhà đang active thì cho hero đi ngủ
+        // Check house status: if no active house is found, set hero to sleep mode
         val activeHouse = masterUserManager.houseManager.activeHouse
         if (activeHouse != null && detailList.none { e -> e.houseId == activeHouse.houseId }) {
             val bombermanRest = masterUserManager.heroFiManager.housingHeroes.map { e ->
@@ -394,7 +394,7 @@ class LegacyUserController(
                 e
             }
 
-            // cập nhật vào db
+            // Update database
             _gameDataAccess.updateBomberEnergyAndStage(userId, _userInfo.dataType, bombermanRest)
         }
 
@@ -403,7 +403,7 @@ class LegacyUserController(
 
     override fun checkHash(): Boolean {
         return true;
-        // Tạm comment do hash đc lưu trên redis = uid mà bây giờ 5 network dùng 1 uid nên network sau sẽ ghi đè hash của network trước
+        // Temporarily comment out as hash is stored on redis using uid, and currently 5 networks share 1 uid, so the next network will overwrite the previous hash.
         //return getHashFromCached() == getHash()
     }
 
@@ -464,7 +464,7 @@ class LegacyUserController(
 
             userRw.onSaved()
 
-            //add quà user & lưu quà xuống DB
+            // Add rewards to user and save to DB
             if (mapReward.isNotEmpty()) {
                 val nerfRewards = listOf(
                     EnumConstants.BLOCK_REWARD_TYPE.BCOIN,
@@ -482,7 +482,7 @@ class LegacyUserController(
                 }
 
                 val rewardDetails = mutableListOf<RewardDetail>()
-                // luu DB.
+                // Save to DB
                 for (reward in mapReward.entries) {
                     val rewardDetail = reward.value
                     _rewardDataAccess.addUserBlockReward(
@@ -524,7 +524,7 @@ class LegacyUserController(
         return false
     }
 
-    // Tinh toan so lan request toi da cua client.
+    // Calculate maximum number of requests allowed from client
     fun recalculateDDosSupply() {
         val heroesActive = masterUserManager.heroFiManager.activeHeroes
         var amountBombs = 0
@@ -533,14 +533,14 @@ class LegacyUserController(
         }
 
         val powDDos = GameConstants.CHECK_DDOS_DURATION / GameConstants.BOMB_EXPLODE_DURATION
-        val maxDDos = amountBombs * powDDos * 2 // Cho lech 100%
+        val maxDDos = amountBombs * powDDos * 2 // Allow 100% variance
         _checkDDosSupply = maxOf(maxDDos, GameConstants.CHECK_DDOS_SUPPLY)
     }
 
     override fun saveGameAndLoadReward() {
-        //save game luư reward
+        // Save game and rewards
         saveGame()
-        // load reward đã save
+        // Load saved rewards
         masterUserManager.blockRewardManager.loadUserBlockReward()
     }
 
@@ -549,7 +549,7 @@ class LegacyUserController(
     }
 
     /**
-     * Nếu user login = account thì sẽ bị giới hạn 1 số tính năng liên quan đến contract
+     * If user logs in via account, certain contract-related features will be limited.
      */
     fun disableWhileLoginByAccount(): Boolean {
         return _userInfo.type == EnumConstants.UserType.TR
@@ -610,12 +610,17 @@ class LegacyUserController(
         
         val wagerTokenEnum = PvpWagerToken.from(wagerToken)
         val wagerTierEnum = PvpWagerTier.from(wagerTier)
-        
+
         if (wagerMode == 1) {
-            if (!PvpWagerManager.processWagerJoin(this, wagerTokenEnum, wagerTierEnum, logger)) {
-                throw CustomException("Not enough balance for wager", ErrorCode.NOT_ENOUGH_REWARD)
+            if (wagerTokenEnum == PvpWagerToken.NONE) {
+                throw CustomException("Invalid wager token", ErrorCode.BAD_REQUEST)
+            }
+            if (wagerTokenEnum.network != _userInfo.dataType) {
+                throw CustomException("Token network mismatch: ${wagerTokenEnum.network} != ${_userInfo.dataType}", ErrorCode.BAD_REQUEST)
             }
         }
+        
+        // DELETED REDUNDANT DEDUCTION (Centralized in MatchManager Escrow)
 
         val info: IMatchUserInfo =
             _pvpUserController!!.getMatchInfo(this, matchId, mode, test, hero, boostersMap, avatar)
@@ -635,7 +640,8 @@ class LegacyUserController(
             gameMode = gameMode,
             wagerMode = wagerMode,
             wagerTier = wagerTier,
-            wagerToken = wagerToken
+            wagerToken = wagerToken,
+            network = _userInfo.dataType.name
         )
     }
 
@@ -666,14 +672,14 @@ class LegacyUserController(
     }
 
     /**
-     * Lấy thông tin stake của user (có thể withdraw luôn)
+     * Get user stake info (can also withdraw)
      *
-     * @param isWithdraw có withdraw hay ko. nếu không thì chỉ tính toán thông tin và không withdraw
-     * @return Thông tin đã stake user
+     * @param isWithdraw whether to withdraw. If false, only calculate info without withdrawing.
+     * @return User stake info
      */
     @Throws(Exception::class)
     fun userWithdrawStake(isWithdraw: Boolean): ISFSObject {
-        // Nếu withdraw thì trả thưởng vip stake
+        // If withdrawing, claim remaining VIP stake rewards
         if (isWithdraw) {
             masterUserManager.userStakeVipManager.claimRemainingReward()
         }

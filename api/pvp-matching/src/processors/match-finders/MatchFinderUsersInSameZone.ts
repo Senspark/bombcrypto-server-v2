@@ -30,7 +30,7 @@ export default class MatchFinderUsersInSameZone implements IMatchFinder {
             const groupedByModeAndWager = new Map<string, IUser[]>();
             for (const user of usersInZone) {
                 if (!user.newServer) continue;
-                const key = `${user.mode}_${user.data.wagerMode}_${user.data.wagerTier}_${user.data.wagerToken}`;
+                const key = `${user.mode}_${user.data.wagerMode}_${user.data.wagerTier}_${user.data.wagerToken}_${user.data.network}`;
                 if (!groupedByModeAndWager.has(key)) {
                     groupedByModeAndWager.set(key, []);
                 }

@@ -122,17 +122,34 @@ class PvpMatchManager(
     private val _matchMapLocker = Any()
     private val _matchMap = mutableMapOf<String, IMatchEntry>()
     private val _reportApi = PvpReportApi(_envManager)
-    //private val _resultApi = PvpResultApi(_logger, _envManager)
+    
+    // Shared executor for all PvP rooms to ensure scalability (Stress Test fix)
+    private val _sharedExecutor = ScheduledThreadPoolExecutor(Runtime.getRuntime().availableProcessors() * 4).apply {
+        removeOnCancelPolicy = true
+    }
 
     init {
         _scheduler.schedule("PvpMatchManager_update", 0, 1000) {
             val now = _timeManager.timestamp
             synchronized(_matchMapLocker) {
                 _matchMap.entries.removeIf { (id, entry) ->
+                    val duration = now - entry.startTimestamp
+                    
+                    // Orphaned Match Watchdog: Refund if match didn't finish within timeout
+                    if (!entry.isFinished && duration > PvpWagerConfig.MATCH_START_TIMEOUT * 1000) {
+                        _logger.log("[Pvp][Watchdog] Match $id timed out. Refunding players.")
+                        try {
+                            _wagerService.refundMatch(id)
+                        } catch (e: Exception) {
+                            _logger.error("[Pvp][Watchdog] Failed to refund match $id: ${e.message}")
+                        }
+                        entry.finish(PvpResultInfo(id = id, results = emptyList())) // Force finish
+                    }
+
                     if (!entry.isFinished) {
                         return@removeIf false
                     }
-                    val duration = now - entry.startTimestamp
+                    
                     if (duration < MATCH_EXPIRY_TIME_IN_MILLIS) {
                         return@removeIf false
                     }
@@ -192,7 +209,15 @@ class PvpMatchManager(
                     require(false) { "Observer cannot create a room" }
                 }
                 // Create room immediately.
-                val extension = createRoom(info)
+                val extension = try {
+                    createRoom(info)
+                } catch (e: Exception) {
+                    _logger.error("[Security] Room creation failed for matchId=${info.id}. Refunding players.")
+                    if (info.wagerMode == 1) {
+                        _wagerService.refundMatch(info.id)
+                    }
+                    throw e
+                }
                 MatchEntry(info.timestamp, extension, _messageBridge)
             }
             item.join(user)
@@ -227,7 +252,7 @@ class PvpMatchManager(
         // Database.
         _databaseManager.addMatch(resultInfo, stats)
 
-        // delay 2 giây để tránh trường hợp client nhận PVP_FINISH_MATCH sau entry.finish
+        // Delay 2 seconds to ensure client receives result before match entry is destroyed
         CoroutineScope(Dispatchers.Default).launch {
             delay(2000)
 
@@ -293,7 +318,6 @@ class PvpMatchManager(
         val room = _roomCreator.createRoom(settings)
         val extension = room.extension as IRoomExtension
         extension.initialize(object : IMatchFactory {
-            private val _executor = ScheduledThreadPoolExecutor(2)
             private lateinit var _scheduler: IScheduler
             private lateinit var _controller: IMatchController
             private lateinit var _handlers: List<RoomHandler>
@@ -302,8 +326,8 @@ class PvpMatchManager(
             override val handlers get() = _handlers
 
             override fun initialize(logger: ILogger) {
-                // Force MatchController created in the same class loader with PvpZoneExtension.
-                _scheduler = SafeScheduler(logger, DefaultScheduler(logger, _executor))
+                // Use shared executor from PvpMatchManager for better resource management
+                _scheduler = SafeScheduler(logger, DefaultScheduler(logger, _sharedExecutor))
                 _controller = PvpMatchController(
                     observerInfo,
                     settings.maxSpectators,
@@ -332,7 +356,7 @@ class PvpMatchManager(
 
             override fun destroy() {
                 _scheduler.clearAll()
-                _executor.shutdownNow()
+                // Do NOT shut down shared executor here
             }
         }, _logger)
         return extension

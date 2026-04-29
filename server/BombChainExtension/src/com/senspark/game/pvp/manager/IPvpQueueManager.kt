@@ -22,7 +22,8 @@ interface IPvpQueueManager : IService, IUserFinder, IMatchmakerListener, IServer
         gameMode: Int,
         wagerMode: Int,
         wagerTier: Int,
-        wagerToken: Int
+        wagerToken: Int,
+        network: String
     ): Boolean
 
     fun keepJoining(username: String)

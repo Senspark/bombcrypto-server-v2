@@ -45,9 +45,11 @@ class PvpWagerService(
         val rewardType = token.rewardType.name
 
         return try {
+            // Security First: Use a single transaction for balance deduction and entry logging
+            val builder = _db.createQueryBuilder(true)
+            
             // 1. Check balance and debit using fn_sub_user_reward
-            // Parameters: _uid, _networktype, _amount, _rewardtype, _reason
-            _statement.subUserReward.executeQuery(userId, network, amount, rewardType, PvpWagerConfig.ESCROW_REASON)
+            builder.addStatement(_statement.subUserReward, arrayOf(userId, network, amount, rewardType, PvpWagerConfig.ESCROW_REASON))
 
             // 2. Insert into pvp_wager_entry
             val sqlEntry = """
@@ -55,7 +57,7 @@ class PvpWagerService(
                 VALUES (?, ?, ?, ?, ?, 'PENDING')
                 ON CONFLICT (match_id, user_id) DO UPDATE SET status = 'PENDING';
             """.trimIndent()
-            sqlEntry.executeUpdate(matchId, userId, amount, rewardType, network)
+            builder.addStatementUpdate(sqlEntry, arrayOf(matchId, userId, amount, rewardType, network))
 
             // 3. Upsert pool
             val sqlPool = """
@@ -63,11 +65,12 @@ class PvpWagerService(
                 VALUES (?, ?, ?, 0, 0, 'OPEN')
                 ON CONFLICT (match_id) DO NOTHING;
             """.trimIndent()
-            sqlPool.executeUpdate(matchId, rewardType, network)
+            builder.addStatementUpdate(sqlPool, arrayOf(matchId, rewardType, network))
 
+            builder.executeMultiQuery()
             true
         } catch (e: Exception) {
-            _logger.error("Failed to debit escrow for user $userId in match $matchId", e)
+            _logger.error("[Security] Failed to debit escrow for user $userId in match $matchId", e)
             false
         }
     }
@@ -102,7 +105,8 @@ class PvpWagerService(
             var totalPool = 0.0
             var feeAmount = 0.0
 
-            val sqlGetPool = "SELECT token_type, network, total_pool, fee_amount FROM pvp_wager_pool WHERE match_id = ?"
+            // Security First: Select FOR UPDATE to lock the pool record
+            val sqlGetPool = "SELECT token_type, network, total_pool, fee_amount FROM pvp_wager_pool WHERE match_id = ? FOR UPDATE"
             _db.createQueryBuilder(true).addStatement(sqlGetPool, arrayOf(matchId)).executeQuery { rs ->
                 if (rs.next()) {
                     tokenType = rs.getString("token_type")
@@ -129,16 +133,18 @@ class PvpWagerService(
             if (resultInfo.mode == com.senspark.common.pvp.PvpMode.BATTLE_ROYALE) {
                 // Battle Royale: 1st (70%), 2nd (20%), 3rd (10%)
                 // Quitted users get 0 even if their rank is 1, 2 or 3.
+                val builder = _db.createQueryBuilder(true)
                 resultInfo.info.filter { !it.quit && it.ranking <= 3 }.forEach { user ->
                     val split = PvpWagerConfig.BR_PRIZE_SPLIT[user.ranking] ?: 0.0
                     if (split > 0) {
                         val prize = netPool * split
-                        _statement.addUserReward.executeQuery(user.userId, network, prize, tokenType, PvpWagerConfig.PRIZE_REASON)
+                        builder.addStatementUpdate(_statement.addUserReward, arrayOf(user.userId, network, prize, tokenType, PvpWagerConfig.PRIZE_REASON))
                         
                         val sqlWin = "UPDATE pvp_wager_entry SET status = 'WON', amount = ? WHERE match_id = ? AND user_id = ?"
-                        sqlWin.executeUpdate(prize, matchId, user.userId)
+                        builder.addStatementUpdate(sqlWin, arrayOf(prize, matchId, user.userId))
                     }
                 }
+                builder.executeMultiQuery()
             } else {
                 // Team Mode (1v1, 2v2, 3v3)
                 // winningTeam members divide the netPool equally, BUT quitted members get 0.
@@ -146,12 +152,14 @@ class PvpWagerService(
                     val winningMembers = resultInfo.info.filter { it.teamId == resultInfo.winningTeam && !it.quit }
                     if (winningMembers.isNotEmpty()) {
                         val prizePerMember = netPool / winningMembers.size
+                        val builder = _db.createQueryBuilder(true)
                         winningMembers.forEach { user ->
-                            _statement.addUserReward.executeQuery(user.userId, network, prizePerMember, tokenType, PvpWagerConfig.PRIZE_REASON)
+                            builder.addStatementUpdate(_statement.addUserReward, arrayOf(user.userId, network, prizePerMember, tokenType, PvpWagerConfig.PRIZE_REASON))
                             
                             val sqlWin = "UPDATE pvp_wager_entry SET status = 'WON', amount = ? WHERE match_id = ? AND user_id = ?"
-                            sqlWin.executeUpdate(prizePerMember, matchId, user.userId)
+                            builder.addStatementUpdate(sqlWin, arrayOf(prizePerMember, matchId, user.userId))
                         }
+                        builder.executeMultiQuery()
                     }
                 }
             }
@@ -172,6 +180,7 @@ class PvpWagerService(
 
     override fun refundMatch(matchId: String): Boolean {
         return try {
+            val builder = _db.createQueryBuilder(true)
             val sqlGetEntries = "SELECT user_id, amount, token_type, network FROM pvp_wager_entry WHERE match_id = ? AND status <> 'REFUNDED'"
             _db.createQueryBuilder(true).addStatement(sqlGetEntries, arrayOf(matchId)).executeQuery { rs ->
                 while (rs.next()) {
@@ -180,19 +189,20 @@ class PvpWagerService(
                     val token = rs.getString("token_type")
                     val net = rs.getString("network")
                     
-                    _statement.addUserReward.executeQuery(userId, net, amount, token, PvpWagerConfig.REFUND_REASON)
+                    builder.addStatementUpdate(_statement.addUserReward, arrayOf(userId, net, amount, token, PvpWagerConfig.REFUND_REASON))
                 }
             }
 
             val sqlUpdateEntries = "UPDATE pvp_wager_entry SET status = 'REFUNDED' WHERE match_id = ?"
-            sqlUpdateEntries.executeUpdate(matchId)
+            builder.addStatementUpdate(sqlUpdateEntries, arrayOf(matchId))
 
             val sqlUpdatePool = "UPDATE pvp_wager_pool SET status = 'REFUNDED', updated_at = (NOW() AT TIME ZONE 'utc') WHERE match_id = ?"
-            sqlUpdatePool.executeUpdate(matchId)
+            builder.addStatementUpdate(sqlUpdatePool, arrayOf(matchId))
 
+            builder.executeMultiQuery()
             true
         } catch (e: Exception) {
-            _logger.error("Failed to refund match $matchId", e)
+            _logger.error("[Security] Failed to refund match $matchId", e)
             false
         }
     }

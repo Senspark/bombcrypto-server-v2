@@ -38,6 +38,7 @@ sealed interface IUserData {
     val wagerMode: Int
     val wagerTier: Int
     val wagerToken: Int
+    val network: String
 }
 
 @Serializable

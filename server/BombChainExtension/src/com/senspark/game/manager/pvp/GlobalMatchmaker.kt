@@ -37,6 +37,7 @@ class GlobalMatchmaker(
     private val _cache: ICacheService,
     private val _usersManager: IUsersManager,
     private val _pvpDataAccess: IPvpDataAccess,
+    private val _wagerService: com.senspark.game.service.IPvpWagerService,
 ) : IMatchmaker {
     private class QueueEntry(
         var heartbeatTimestamp: Long,
@@ -156,7 +157,8 @@ class GlobalMatchmaker(
             joinInfo.info.avatar,
             joinInfo.wagerMode,
             joinInfo.wagerTier,
-            joinInfo.wagerToken
+            joinInfo.wagerToken,
+            joinInfo.network
         )
 
         val pvpData = PvpData(
@@ -203,6 +205,12 @@ class GlobalMatchmaker(
                     if (elapsed >= WAGERED_MATCH_CANCEL_TIMEOUT_MILLIS) {
                         toRemove.add(username)
                         it.remove()
+                        
+                        // Security First: Automated refund for wagered matches on timeout
+                        if (entry.info.wagerMode == 1) {
+                            _logger.log("[Security] Refund matchId=${entry.info.info.matchId} for user=$username due to timeout")
+                            _wagerService.refundMatch(entry.info.info.matchId)
+                        }
                     }
                 }
             }

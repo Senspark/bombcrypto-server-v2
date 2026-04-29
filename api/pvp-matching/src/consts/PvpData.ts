@@ -14,6 +14,7 @@ export interface IJoinQueueRequestBody {
         availableBoosters: Map<number, number>,
         hero: IMatchHeroInfo,
         avatar: number,
+        network: string,
         // Other aux data, may vary.
     },
     timestamp?: number,
@@ -105,6 +106,7 @@ export interface IUser {
         wagerTier: number,
         wagerToken: number,
         gameMode: number,
+        network: string,
     },
 }
 

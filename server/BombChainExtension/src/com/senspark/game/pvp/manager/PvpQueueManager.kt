@@ -13,6 +13,7 @@ import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.pvp.GlobalMatchmaker
 import com.senspark.game.manager.pvp.LocalMatchmaker
 import com.senspark.game.service.IPvpDataAccess
+import com.senspark.game.service.IPvpWagerService
 import com.senspark.game.pvp.HandlerCommand
 import com.senspark.game.pvp.info.MatchInfoClient
 import com.senspark.game.pvp.info.MatchRuleInfoClient
@@ -36,6 +37,7 @@ class PvpQueueManager(
     private val _sender: ISender,
     private val _usersManager: IUsersManager,
     private val _pvpDataAccess: IPvpDataAccess,
+    private val _wagerService: IPvpWagerService,
 ) : IPvpQueueManager {
     private val _json = JsonUtility.json
     private val _timeManager: ITimeManager = EpochTimeManager()
@@ -61,6 +63,7 @@ class PvpQueueManager(
             _cache,
             _usersManager,
             _pvpDataAccess,
+            _wagerService
         )
     }
 
@@ -73,7 +76,8 @@ class PvpQueueManager(
         gameMode: Int,
         wagerMode: Int,
         wagerTier: Int,
-        wagerToken: Int
+        wagerToken: Int,
+        network: String
     ): Boolean {
         _logger.log("[Pvp][PvpQueueManager:join] username=${username} gameMode=$gameMode wagerMode=$wagerMode wagerTier=$wagerTier wagerToken=$wagerToken")
         // Join-queue info.
@@ -84,7 +88,8 @@ class PvpQueueManager(
             gameMode = gameMode,
             wagerMode = wagerMode,
             wagerTier = wagerTier,
-            wagerToken = wagerToken
+            wagerToken = wagerToken,
+            network = network
         )
         synchronized(_locker) {
             _userMappers[username] = Pair(user, aesKey)
@@ -111,7 +116,7 @@ class PvpQueueManager(
     ) {
         val user = find(username)
         require(user != null) { "Cannot find user $username" }
-        //Tạm thời convert biến để client cũ dùng đc, sau này update sẽ bỏ bước này
+        // Temporarily convert variables for legacy client compatibility. This will be removed in future updates.
         val infoClient = MatchInfoClient(
             id = info.id,
             serverId = info.serverId,
@@ -134,7 +139,7 @@ class PvpQueueManager(
             info = info.info,
         )
 
-        //Gửi về cho client vào pvp
+        // Send data back to client to enter PVP
         val data = buildJsonObject {
             put("info", _json.encodeToJsonElement(infoClient).apply {
                 put("hash", info.hash)

@@ -21,8 +21,9 @@ class PvpFeeProcessor(
      */
     fun processPendingFees() {
         try {
+            // Use a cutoff time to prevent processing records that arrive during this execution
             val sqlPending = """
-                SELECT token_type, network, SUM(amount) as total_amount 
+                SELECT token_type, network, SUM(amount) as total_amount, MAX(created_at) as cutoff
                 FROM pvp_fee_ledger 
                 WHERE status = 'PENDING' 
                 GROUP BY token_type, network
@@ -31,16 +32,16 @@ class PvpFeeProcessor(
             val queryBuilder = _db.createQueryBuilder(true)
             queryBuilder.addStatement(sqlPending, emptyArray())
             
-            // Execute query and process results
             queryBuilder.executeQuery().let { sfsArray ->
                 for (i in 0 until sfsArray.size()) {
                     val row = sfsArray.getSFSObject(i)
                     val tokenType = row.getUtfString("token_type")
                     val network = row.getUtfString("network")
                     val totalAmount = row.getDouble("total_amount")
+                    val cutoff = row.getUtfString("cutoff") // SFSObject converts timestamp to string
                     
                     if (totalAmount != null && totalAmount > 0) {
-                        processBatch(tokenType, network, totalAmount)
+                        processBatch(tokenType, network, totalAmount, cutoff)
                     }
                 }
             }
@@ -49,31 +50,27 @@ class PvpFeeProcessor(
         }
     }
 
-    /**
-     * Executes the transfer for a specific token/network batch and marks the ledger records as processed.
-     */
-    private fun processBatch(tokenType: String, network: String, amount: Double) {
+    private fun processBatch(tokenType: String, network: String, amount: Double, cutoff: String) {
         try {
-            // 1. Credit the treasury wallet using the established addUserReward pattern
-            // addUserReward Statement: _uid, _networktype, _amount, _rewardtype, _reason
             val updateBuilder = _db.createQueryBuilder(true)
             updateBuilder.addStatement(_statement.addUserReward, arrayOf(_treasuryUserId, network, amount, tokenType, PvpWagerConfig.TREASURY_FEE_REASON))
             val updated = updateBuilder.executeUpdate()
             
             if (updated > 0) {
-                // 2. Mark all aggregated records in this batch as PROCESSED
+                // Mark ONLY the records that were included in this specific batch
                 val markProcessed = """
                     UPDATE pvp_fee_ledger 
-                    SET status = 'PROCESSED', processed_at = (NOW() AT TIME ZONE 'utc')
-                    WHERE token_type = ? AND network = ? AND status = 'PENDING'
+                    SET status = 'TRANSFERRED', processed_at = (NOW() AT TIME ZONE 'utc')
+                    WHERE token_type = ? AND network = ? AND status = 'PENDING' AND created_at <= ?::timestamp
                 """.trimIndent()
                 
                 val markBuilder = _db.createQueryBuilder(true)
-                markBuilder.addStatement(markProcessed, arrayOf(tokenType, network))
+                markBuilder.addStatement(markProcessed, arrayOf(tokenType, network, cutoff))
                 markBuilder.executeUpdate()
                 
-                _logger.log("[PvpFeeProcessor] Successfully processed batch fee: $amount (Token: $tokenType, Network: $network)")
-            } else {
+                _logger.log("[PvpFeeProcessor] Successfully processed batch fee: $amount (Token: $tokenType, Network: $network, Cutoff: $cutoff)")
+            }
+ else {
                 _logger.error("[PvpFeeProcessor] Failed to credit treasury for $amount $tokenType on $network")
             }
         } catch (e: Exception) {

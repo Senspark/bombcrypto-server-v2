@@ -7,7 +7,7 @@ object PvpWagerConfig {
     const val PRIZE_REASON = "PVP Match Prize"
     const val REFUND_REASON = "PVP Match Refund"
 
-    // Distribuicao Battle Royale 6P
+    // Battle Royale 6P Distribution
     val BR_PRIZE_SPLIT = mapOf(
         1 to 0.70, // 1st
         2 to 0.20, // 2nd

@@ -25,4 +25,5 @@ class PvpJoinQueueInfo(
     @SerialName("wager_mode") override val wagerMode: Int = 0,
     @SerialName("wager_tier") override val wagerTier: Int = 0,
     @SerialName("wager_token") override val wagerToken: Int = 0,
+    @SerialName("network") override val network: String = "",
 ) : IPvpJoinQueueInfo

@@ -34,7 +34,8 @@ class UserData(
     @SerialName("hero") override val hero: PvpHeroInfo,
     override val wagerMode: Int = 0,
     override val wagerTier: Int = 0,
-    override val wagerToken: Int = 0
+    override val wagerToken: Int = 0,
+    override val network: String = ""
 ) : IUserData
 
 @Serializable
