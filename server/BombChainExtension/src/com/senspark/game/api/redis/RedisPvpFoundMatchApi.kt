@@ -31,7 +31,10 @@ class UserData(
     // Other aux data.
 
     // Hero data.
-    @SerialName("hero") override val hero: PvpHeroInfo
+    @SerialName("hero") override val hero: PvpHeroInfo,
+    override val wagerMode: Int = 0,
+    override val wagerTier: Int = 0,
+    override val wagerToken: Int = 0
 ) : IUserData
 
 @Serializable

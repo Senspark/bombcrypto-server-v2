@@ -18,7 +18,11 @@ interface IPvpQueueManager : IService, IUserFinder, IMatchmakerListener, IServer
         username: String,
         pings: Map<String, Int>,
         info: IMatchUserInfo,
-        aesKey: SecretKey
+        aesKey: SecretKey,
+        gameMode: Int,
+        wagerMode: Int,
+        wagerTier: Int,
+        wagerToken: Int
     ): Boolean
 
     fun keepJoining(username: String)

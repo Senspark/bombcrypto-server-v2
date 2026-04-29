@@ -49,6 +49,11 @@ import com.senspark.lib.data.manager.IGameConfigManager
 import com.senspark.lib.db.ILibDataAccess
 import com.smartfoxserver.v2.entities.User
 import com.smartfoxserver.v2.entities.data.ISFSArray
+import com.senspark.game.pvp.config.PvpWagerTier
+import com.senspark.game.pvp.config.PvpWagerToken
+import com.senspark.game.pvp.manager.PvpWagerManager
+import com.senspark.game.exception.CustomException
+import com.senspark.game.declare.ErrorCode
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
 import com.smartfoxserver.v2.extensions.SFSExtension
@@ -580,7 +585,11 @@ class LegacyUserController(
         heroId: Int,
         boosters: List<Int>,
         pings: Map<String, Int>,
-        avatar: Int
+        avatar: Int,
+        gameMode: Int,
+        wagerMode: Int,
+        wagerTier: Int,
+        wagerToken: Int
     ) {
         if (_pvpUserController == null) {
             return
@@ -598,6 +607,16 @@ class LegacyUserController(
             }
         }
         _lastPlayedHeroId = heroId.toLong()
+        
+        val wagerTokenEnum = PvpWagerToken.from(wagerToken)
+        val wagerTierEnum = PvpWagerTier.from(wagerTier)
+        
+        if (wagerMode == 1) {
+            if (!PvpWagerManager.processWagerJoin(this, wagerTokenEnum, wagerTierEnum, logger)) {
+                throw CustomException("Not enough balance for wager", ErrorCode.NOT_ENOUGH_REWARD)
+            }
+        }
+
         val info: IMatchUserInfo =
             _pvpUserController!!.getMatchInfo(this, matchId, mode, test, hero, boostersMap, avatar)
 
@@ -612,7 +631,11 @@ class LegacyUserController(
             username = userName,
             pings = pings,
             info = info,
-            aesKey = userInfo.aesKey
+            aesKey = userInfo.aesKey,
+            gameMode = gameMode,
+            wagerMode = wagerMode,
+            wagerTier = wagerTier,
+            wagerToken = wagerToken
         )
     }
 

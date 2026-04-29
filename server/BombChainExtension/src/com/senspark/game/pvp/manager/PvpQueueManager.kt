@@ -12,6 +12,7 @@ import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.pvp.GlobalMatchmaker
 import com.senspark.game.manager.pvp.LocalMatchmaker
+import com.senspark.game.service.IPvpDataAccess
 import com.senspark.game.pvp.HandlerCommand
 import com.senspark.game.pvp.info.MatchInfoClient
 import com.senspark.game.pvp.info.MatchRuleInfoClient
@@ -34,6 +35,7 @@ class PvpQueueManager(
     private val _configHeroTraditionalManager: IConfigHeroTraditionalManager,
     private val _sender: ISender,
     private val _usersManager: IUsersManager,
+    private val _pvpDataAccess: IPvpDataAccess,
 ) : IPvpQueueManager {
     private val _json = JsonUtility.json
     private val _timeManager: ITimeManager = EpochTimeManager()
@@ -58,6 +60,7 @@ class PvpQueueManager(
             _messengerService,
             _cache,
             _usersManager,
+            _pvpDataAccess,
         )
     }
 
@@ -66,14 +69,22 @@ class PvpQueueManager(
         username: String,
         pings: Map<String, Int>,
         info: IMatchUserInfo,
-        aesKey: SecretKey
+        aesKey: SecretKey,
+        gameMode: Int,
+        wagerMode: Int,
+        wagerTier: Int,
+        wagerToken: Int
     ): Boolean {
-        _logger.log("[Pvp][PvpQueueManager:join] username=${username}")
+        _logger.log("[Pvp][PvpQueueManager:join] username=${username} gameMode=$gameMode wagerMode=$wagerMode wagerTier=$wagerTier wagerToken=$wagerToken")
         // Join-queue info.
         val queueInfo = PvpJoinQueueInfo(
             username = username,
             pings = pings,
             info = info, // Aux data.
+            gameMode = gameMode,
+            wagerMode = wagerMode,
+            wagerTier = wagerTier,
+            wagerToken = wagerToken
         )
         synchronized(_locker) {
             _userMappers[username] = Pair(user, aesKey)
@@ -112,7 +123,11 @@ class PvpQueueManager(
                 team_size = info.rule.teamSize,
                 can_draw = info.rule.canDraw,
                 round = info.rule.round,
-                is_tournament = info.rule.isTournament
+                is_tournament = info.rule.isTournament,
+                game_mode = info.rule.gameMode,
+                wager_mode = info.rule.wagerMode,
+                wager_tier = info.rule.wagerTier,
+                wager_token = info.rule.wagerToken
             ),
             team = info.team,
             slot = info.slot,

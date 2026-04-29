@@ -19,9 +19,14 @@ import com.senspark.game.pvp.info.IMatchHistoryInfo
 import com.senspark.game.pvp.info.MatchInfo
 import com.senspark.game.pvp.manager.*
 import com.senspark.game.service.IPvpDataAccess
-import com.senspark.game.utils.DefaultScheduler
 import com.senspark.game.utils.ISender
 import com.senspark.game.utils.SafeScheduler
+import com.senspark.game.service.*
+import com.senspark.game.declare.ErrorCode
+import com.senspark.game.exception.CustomException
+import com.senspark.game.manager.IUsersManager
+import com.senspark.game.pvp.config.PvpWagerTier
+import com.senspark.game.pvp.config.PvpWagerToken
 import com.smartfoxserver.v2.api.CreateRoomSettings
 import com.smartfoxserver.v2.entities.SFSRoomRemoveMode
 import com.smartfoxserver.v2.entities.User
@@ -105,6 +110,9 @@ class PvpMatchManager(
     private val _cache: ICacheService,
     private val _pvpDataAccess: IPvpDataAccess,
     private val _pvpRankManager: IRankManager,
+    private val _wagerService: IPvpWagerService,
+    private val _usersManager: IUsersManager,
+    private val _rankingService: IPvpRankingService,
 ) : IMatchManager {
     companion object {
         private const val MATCH_EXPIRY_TIME_IN_MILLIS = 300 * 1000 // 5 minutes per match token.
@@ -159,6 +167,22 @@ class PvpMatchManager(
     override fun join(user: User) {
         _logger.log("[Pvp][PvpMatchManager:join] user=$user")
         val info = user.getJoinPVPMatchInfo()
+        
+        // FASE 2: Escrow Debit
+        if (info.wagerMode == 1) {
+            val tier = PvpWagerTier.from(info.wagerTier)
+            val token = PvpWagerToken.from(info.wagerToken)
+            val userId = _usersManager.getUserId(user.name)
+            if (userId == -1) {
+                throw CustomException("User not found: ${user.name}", ErrorCode.USER_NOT_FOUND)
+            }
+            
+            if (!_wagerService.debitEscrow(info.id, userId, tier, token)) {
+                throw CustomException("Insufficient funds for wager", ErrorCode.PVP_JOIN_FAILED)
+            }
+            _logger.log("[Pvp][Wager] Debited escrow for user=$userId, match=${info.id}, amount=${tier.amount}")
+        }
+
         val aesKey = getAESKey(user.name)
         user.setProperty(UserPvpProperty.AES_KEY, aesKey)
         synchronized(_matchMapLocker) {
@@ -209,7 +233,27 @@ class PvpMatchManager(
 
             synchronized(_matchMapLocker) {
                 val entry = _matchMap[resultInfo.id] ?: return@synchronized
+                
+                // FASE 2: Prize Distribution
+                if (resultInfo.wagerMode == 1) {
+                    try {
+                        _wagerService.distributePrize(resultInfo)
+                        _logger.log("[Pvp][Wager] Distributed prizes for match=${resultInfo.id}")
+                    } catch (e: Exception) {
+                        _logger.log("[Pvp][Wager][ERROR] Failed to distribute prize for match=${resultInfo.id}: ${e.message}")
+                    }
+                }
+
                 _logger.log("[Pvp][MatchEntry:finish] id=${resultInfo.id}")
+                
+                // FASE 5: Ranking Update
+                try {
+                    _rankingService.updateRankings(resultInfo)
+                    _logger.log("[Pvp][Ranking] Updated rankings for match=${resultInfo.id}")
+                } catch (e: Exception) {
+                    _logger.log("[Pvp][Ranking][ERROR] Failed to update rankings for match=${resultInfo.id}: ${e.message}")
+                }
+
                 // Must call finish latest, this will also destroy the current thread.
                 entry.finish(resultInfo)
             }
@@ -228,6 +272,9 @@ class PvpMatchManager(
             team = info.team,
             slot = info.info.size,
             info = info.info,
+            wagerMode = info.wagerMode,
+            wagerTier = info.wagerTier,
+            wagerToken = info.wagerToken,
         )
         val settings = CreateRoomSettings().apply {
             groupId = "pvp"
@@ -264,7 +311,7 @@ class PvpMatchManager(
                     logger,
                     this@PvpMatchManager,
                     _messageBridge,
-                    createMapGenerator(),
+                    createMapGenerator(info.mode),
                     _pvpRankManager,
                     _scheduler
                 )
@@ -291,8 +338,8 @@ class PvpMatchManager(
         return extension
     }
 
-    private fun createMapGenerator(): IMapGenerator {
-        val mapConfig = ConstantMapConfig()
+    private fun createMapGenerator(mode: PvpMode): IMapGenerator {
+        val mapConfig = DynamicMapConfig(mode)
         val blockHealthManager = DefaultBlockHealthManager(_pvpDataAccess.queryPvPBlockHealth())
         val chestDropRate = _pvpDataAccess.queryPvPChestDropRate()
         val itemDropRate = _pvpDataAccess.queryPvPItemDropRate()

@@ -158,7 +158,8 @@ class ServicesInitializerBnbPol(
                 g.get<ICacheService>(),
                 n.get<IConfigHeroTraditionalManager>(),
                 g.get<ISender>(),
-                n.get<IUsersManager>()
+                n.get<IUsersManager>(),
+                g.get<IPvpDataAccess>()
             )
         }
         n.register(IGachaChestManager::class) {

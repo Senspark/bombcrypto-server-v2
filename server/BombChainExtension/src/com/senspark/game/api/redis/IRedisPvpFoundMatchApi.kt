@@ -35,6 +35,9 @@ sealed interface IUserData {
 
     // Hero data.
     val hero: IPvpHeroInfo
+    val wagerMode: Int
+    val wagerTier: Int
+    val wagerToken: Int
 }
 
 @Serializable

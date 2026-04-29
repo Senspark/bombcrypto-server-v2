@@ -57,7 +57,11 @@ interface IUserController {
         heroId: Int,
         boosters: List<Int>,
         pings: Map<String, Int>,
-        avatar: Int
+        avatar: Int,
+        gameMode: Int,
+        wagerMode: Int,
+        wagerTier: Int,
+        wagerToken: Int
     )
 
     fun countUserRanked(): Int

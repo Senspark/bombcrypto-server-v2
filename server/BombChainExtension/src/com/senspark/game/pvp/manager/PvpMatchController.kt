@@ -13,6 +13,7 @@ import com.senspark.game.pvp.config.IHeroConfig
 import com.senspark.game.pvp.data.*
 import com.senspark.game.pvp.entity.*
 import com.senspark.game.pvp.info.*
+import com.senspark.game.pvp.security.*
 import com.senspark.game.pvp.user.IObserverController
 import com.senspark.game.pvp.user.IParticipantController
 import com.senspark.game.pvp.user.ObserverController
@@ -106,6 +107,11 @@ class PvpMatchController(
             5
         )
     private val _packetManager: IPacketManager = DefaultPacketManager()
+    
+    /** Security Components. */
+    private val _antiCheat = PvpAntiCheatValidator(_matchInfo.info.map { it.hero })
+    private val _integrityService = PvpMatchIntegrityService(_matchInfo.id, logger)
+    private val _matchShield = PvpMatchShield(this, logger)
 
     private val _matchData: IMatchData = MatchData(
         id = _matchInfo.id,
@@ -315,6 +321,7 @@ class PvpMatchController(
             // Participant.
             synchronized(_participantLocker) {
                 val info = user.getJoinPVPMatchInfo()
+                _matchShield.handleDisconnect(user)
                 _participantControllers[info.slot].leave()
             }
         } else {
@@ -658,8 +665,35 @@ class PvpMatchController(
             duration = (_timeManager.timestamp - _matchData.roundStartTimestamp).toInt(),
             startTimestamp = _matchData.roundStartTimestamp,
             info = _participantControllers.mapIndexed { index, it ->
-                // FIXME: synchronize hero.
                 val hero = _match.heroManager.getHero(index)
+                val teamId = _matchInfo.team.indexOfFirst { it.slots.contains(index) }
+                
+                // Calculate ranking
+                val ranking = when {
+                    isDraw -> 0
+                    winningTeam == teamId -> 1
+                    else -> {
+                        if (_matchInfo.mode == PvpMode.BATTLE_ROYALE) {
+                            // In BR, ranking is based on death order.
+                            // Players who are still alive get rank 1 (should only be one or zero if draw).
+                            if (hero.isAlive) 1
+                            else {
+                                // Find how many players died AFTER this one.
+                                val diedAfter = _matchInfo.info.indices.count { otherIdx ->
+                                    val otherHero = _match.heroManager.getHero(otherIdx)
+                                    !otherHero.isAlive && otherHero.deathTimestamp > hero.deathTimestamp
+                                }
+                                // Rank = (Number of players still alive) + (Number of players died after) + 1
+                                val aliveCount = _matchInfo.info.indices.count { _match.heroManager.getHero(it).isAlive }
+                                aliveCount + diedAfter + 1
+                            }
+                        } else {
+                            // In 1v1, 2v2, 3v3, losing team is rank 2.
+                            2
+                        }
+                    }
+                }
+
                 val rewards = mutableMapOf<Int, Float>()
                 hero.items.forEach {
                     when (it.key) {
@@ -677,7 +711,7 @@ class PvpMatchController(
                     serverId = it.info.serverId,
                     isTest = it.info.isTest,
                     isBot = it.info.isBot,
-                    teamId = _matchInfo.team.indexOfFirst { it.slots.contains(index) },
+                    teamId = teamId,
                     userId = it.info.userId,
                     username = it.info.username,
                     matchCount = it.info.matchCount,
@@ -691,7 +725,8 @@ class PvpMatchController(
                         damageSource = hero.damageSource.ordinal,
                         rewards = rewards,
                         collectedItems = hero.collectedItems,
-                    )
+                    ),
+                    ranking = ranking
                 )
             }
         )
@@ -733,7 +768,8 @@ class PvpMatchController(
                         collectedItems = _matchData.results
                             .map { it.info[index].hero.collectedItems }
                             .flatten()
-                    )
+                    ),
+                    ranking = _matchData.results[0].info[index].ranking
                 )
             }
         )
@@ -741,6 +777,15 @@ class PvpMatchController(
 
     private fun createResultInfo(resultInfo: IMatchResultInfo): IPvpResultInfo {
         val points = resultInfo.info.map { it.point }
+        val prizeDistribution = if (matchInfo.wagerTier > 0) {
+            val tier = com.senspark.game.pvp.config.PvpWagerTier.from(matchInfo.wagerTier)
+            com.senspark.game.manager.pvp.PvpWagerManager.calculatePrizeDistribution(
+                matchInfo.info.size,
+                tier.amount.toFloat(),
+                matchInfo.mode == com.senspark.common.pvp.PvpMode.BATTLE_ROYALE
+            )
+        } else emptyMap()
+
         val info = PvpResultInfo(
             id = matchInfo.id,
             serverId = matchInfo.serverId,
@@ -765,7 +810,16 @@ class PvpMatchController(
                 rankResult.usedBoosters.forEach {
                     usedBoosters.merge(it, 1, Int::plus)
                 }
-                val rewards = if (isWinner) userInfo.hero.rewards else emptyMap()
+                val rewards = userInfo.hero.rewards.toMutableMap()
+                if (matchInfo.wagerTier > 0 && !resultInfo.isDraw) {
+                    val prize = prizeDistribution[userInfo.ranking] ?: 0f
+                    if (prize > 0f) {
+                        val token = com.senspark.game.pvp.config.PvpWagerToken.from(matchInfo.wagerToken)
+                        val rewardTypeId = token.rewardType.value
+                        rewards[rewardTypeId] = (rewards[rewardTypeId] ?: 0f) + prize
+                    }
+                }
+
                 PvpResultUserInfo(
                     serverId = userInfo.serverId,
                     isBot = userInfo.isBot,
@@ -783,9 +837,15 @@ class PvpMatchController(
                     damageSource = userInfo.hero.damageSource,
                     rewards = rewards,
                     collectedItems = userInfo.hero.collectedItems,
+                    ranking = userInfo.ranking
                 )
-            }
+            },
+            wagerMode = matchInfo.wagerMode,
+            wagerTier = matchInfo.wagerTier,
+            wagerToken = matchInfo.wagerToken,
         )
+        info.signature = _integrityService.signResult(info)
+        info.integrityLogs = _integrityService.exportLogs()
         return info
     }
 
@@ -837,6 +897,24 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        
+        // Anti-cheat validation
+        if (!_antiCheat.validateAction(slot, timestamp)) {
+            _logger.log("[Security] Invalid action timestamp: slot=$slot ts=$timestamp")
+            throw Exception("Invalid movement timestamp")
+        }
+        if (!_antiCheat.validateMovement(slot, timestamp, x, y)) {
+            _logger.log("[Security] Speed-hack detected: slot=$slot x=$x y=$y")
+            throw Exception("Movement speed exceeding limits")
+        }
+        if (!_antiCheat.incrementActionCount(slot)) {
+            _logger.log("[Security] Action rate limit exceeded: slot=$slot")
+            throw Exception("Too many actions")
+        }
+
+        // Log for integrity
+        _integrityService.logAction(slot, "MOVE", "$x,$y")
+
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()
         return _commandManager.moveHero(slot, matchTimestamp, x, y)
@@ -849,6 +927,7 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        _integrityService.logAction(slot, "PLANT", "")
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()
         return _commandManager.plantBomb(slot, matchTimestamp)
@@ -861,6 +940,7 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        _integrityService.logAction(slot, "THROW", "")
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()
         return _commandManager.throwBomb(slot, matchTimestamp)
@@ -873,6 +953,7 @@ class PvpMatchController(
         }
         val info = user.getJoinPVPMatchInfo()
         val slot = info.slot
+        _integrityService.logAction(slot, "BOOSTER", itemId.toString())
         val serverTimestamp = timestamp + _networkManager.timeDeltas[slot]
         val matchTimestamp = (serverTimestamp - _matchData.roundStartTimestamp).toInt()
         _commandManager.useBooster(slot, matchTimestamp, Booster.fromValue(itemId))
@@ -880,7 +961,7 @@ class PvpMatchController(
 
     override fun useEmoji(user: User, itemId: Int) {
         require(user.isPlayer) { "User is not a participant" }
-        require(checkStatus(MatchStatus.Started)) {
+        require(checkStatus(MatchStatus.Started) || checkStatus(MatchStatus.Ready)) {
             "Invalid match status: ${_matchData.status}"
         }
         val info = user.getJoinPVPMatchInfo()

@@ -162,7 +162,7 @@ class PvpResultManager(
                 }
             } else {
                 // Update to the correct value. al
-                isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId)
+                isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId, info, dataType)
                 _userRewards[userInfo.userId] = MatchReward(rewardId, isOutOfChestSlot)
             }
         }
@@ -206,7 +206,9 @@ class PvpResultManager(
         controller: IUserController?,
         rewards: Map<Int, Float>,
         userId: Int,
-        rewardId: String
+        rewardId: String,
+        info: IPvpResultInfo,
+        playingDataType: DataType?
     ): Boolean {
         val rewardsInternal = rewards.toMutableMap()
         if (rewardsInternal.isEmpty()) {
@@ -215,29 +217,37 @@ class PvpResultManager(
             }
         }
         var outOfSlot = false
-        rewardsInternal.map { reward ->
-            userId to RewardData(
-                reward.key,
-                BLOCK_REWARD_TYPE.valueOf(reward.key).name,
-                DataType.TR.name,
-                reward.value,
-            )
-        }.forEach { (userId, reward) ->
-            controller?.apply {
-                masterUserManager.userBonusRewardManager.addRewardsAds(rewardId, reward)
+        rewardsInternal.forEach { rewardEntry ->
+            val wagerToken = com.senspark.game.pvp.config.PvpWagerToken.from(info.wagerToken)
+            val networkName = if (rewardEntry.key == wagerToken.rewardType.value && wagerToken != com.senspark.game.pvp.config.PvpWagerToken.NONE) {
+                wagerToken.network.name
+            } else {
+                playingDataType?.name ?: DataType.TR.name
             }
-            val rewardType = BLOCK_REWARD_TYPE.valueOf(reward.id)
+            
+            val finalReward = RewardData(
+                rewardEntry.key,
+                BLOCK_REWARD_TYPE.valueOf(rewardEntry.key).name,
+                networkName,
+                rewardEntry.value,
+            )
+            
+            controller?.apply {
+                masterUserManager.userBonusRewardManager.addRewardsAds(rewardId, finalReward)
+            }
+            
+            val rewardType = BLOCK_REWARD_TYPE.valueOf(finalReward.id)
             if (rewardType.name.contains("chest", ignoreCase = true)) {
                 outOfSlot = if (controller != null) {
                     controller.masterUserManager.userGachaChestManager.addChestFromBlockRewardType(rewardType) == null
                 } else {
                     addChestFromBlockRewardTypeForDisconnectUser(
-                        BLOCK_REWARD_TYPE.valueOf(reward.id),
+                        rewardType,
                         userId
                     ) == null
                 }
             } else {
-                _pvpDataAccess.updateUserReward(userId, mutableListOf(reward), ChangeRewardReason.REWARD_PVP)
+                _pvpDataAccess.updateUserReward(userId, mutableListOf(finalReward), ChangeRewardReason.REWARD_PVP)
             }
         }
         return outOfSlot

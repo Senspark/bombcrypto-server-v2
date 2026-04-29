@@ -20,6 +20,7 @@ import com.senspark.game.pvp.info.MatchHeroInfo
 import com.senspark.game.pvp.manager.EpochTimeManager
 import com.senspark.game.pvp.manager.ITimeManager
 import com.senspark.game.pvp.utility.JsonUtility
+import com.senspark.game.service.IPvpDataAccess
 import java.util.*
 import kotlin.math.abs
 import kotlin.random.Random
@@ -35,15 +36,20 @@ class GlobalMatchmaker(
     private val _messengerService: IMessengerService,
     private val _cache: ICacheService,
     private val _usersManager: IUsersManager,
+    private val _pvpDataAccess: IPvpDataAccess,
 ) : IMatchmaker {
     private class QueueEntry(
-        var timestamp: Long,
+        var heartbeatTimestamp: Long,
+        val joinTimestamp: Long,
         val info: IPvpJoinQueueInfo,
     )
 
     companion object {
-        private const val USER_JOIN_QUEUE_TTL_IN_MILLIS = 20 * 1000
+        private const val HEARTBEAT_TIMEOUT_MILLIS = 20 * 1000
+        private const val FREE_MATCH_BOT_TIMEOUT_MILLIS = 30 * 1000
+        private const val WAGERED_MATCH_CANCEL_TIMEOUT_MILLIS = 60 * 1000
         private const val SEND_USERS_IN_QUEUE_INTERVAL = 1 * 1000
+        private const val MIN_FREE_MATCHES_FOR_WAGER = 10
     }
 
     private val _json = JsonUtility.json
@@ -55,13 +61,22 @@ class GlobalMatchmaker(
     private val _queueInfoMap = mutableMapOf<String, QueueEntry>()
 
     init {
-        _scheduler.schedule("PVPQueue_CheckTimeoutUsers", 0, USER_JOIN_QUEUE_TTL_IN_MILLIS, ::checkTimeoutUsers)
-        //_scheduler.schedule("PVPQueue_SendUsersInQueue", 0, SEND_USERS_IN_QUEUE_INTERVAL, ::sendUsersInQueueToApi)
+        _scheduler.schedule("PVPQueue_CheckTimeoutUsers", 0, 1000, ::checkTimeoutUsers)
     }
 
     override fun join(info: IPvpJoinQueueInfo): Boolean {
+        // Anti-smurf: Check total free matches before wagering
+        if (info.wagerMode == 1) {
+            val userId = _usersManager.getUserId(info.username)
+            val totalMatches = _pvpDataAccess.getTotalPvpMatches(userId)
+            if (totalMatches < MIN_FREE_MATCHES_FOR_WAGER) {
+                throw CustomException("Account needs at least $MIN_FREE_MATCHES_FOR_WAGER free matches to wager.", ErrorCode.CAN_NOT_MATCHING)
+            }
+        }
+
         val entry = QueueEntry(
-            timestamp = _timeManager.timestamp,
+            heartbeatTimestamp = _timeManager.timestamp,
+            joinTimestamp = _timeManager.timestamp,
             info = info,
         )
 
@@ -89,7 +104,7 @@ class GlobalMatchmaker(
                 _logger.log("[Pvp][GlobalMatchmaker:keepJoining] User $username is not in queue")
                 return
             }
-            item.timestamp = _timeManager.timestamp
+            item.heartbeatTimestamp = _timeManager.timestamp
         }
     }
 
@@ -139,6 +154,9 @@ class GlobalMatchmaker(
             joinInfo.info.availableBoosters,
             hero,
             joinInfo.info.avatar,
+            joinInfo.wagerMode,
+            joinInfo.wagerTier,
+            joinInfo.wagerToken
         )
 
         val pvpData = PvpData(
@@ -155,21 +173,154 @@ class GlobalMatchmaker(
     /** Check time-out users (users who join but not keep-joining). */
     private fun checkTimeoutUsers() {
         val timestamp = _timeManager.timestamp
-        val timeOutUsers: List<String>
+        val toRemove = mutableListOf<String>()
+        val toBotPlay = mutableListOf<QueueEntry>()
+
         synchronized(_queueInfoLocker) {
-            timeOutUsers = _queueInfoMap.filter {
-                it.value.timestamp + USER_JOIN_QUEUE_TTL_IN_MILLIS < timestamp
-            }.keys.toList()
-        }
-        timeOutUsers.forEach { username ->
-            if (_redisPvpQueueApi.leaveQueue(username)) {
-                synchronized(_queueInfoLocker) {
-                    _queueInfoMap.remove(username) // May failed if the user leave before.
+            val it = _queueInfoMap.entries.iterator()
+            while (it.hasNext()) {
+                val entry = it.next()
+                val username = entry.key
+                val item = entry.value
+
+                // 1. Heartbeat timeout (Client disconnected)
+                if (item.heartbeatTimestamp + HEARTBEAT_TIMEOUT_MILLIS < timestamp) {
+                    toRemove.add(username)
+                    it.remove()
+                    continue
                 }
-            } else {
-                // FIXME: handle failed to leave queue.
+
+                // 2. Matchmaking timeout
+                val elapsed = timestamp - item.joinTimestamp
+                if (item.info.wagerMode == 0) {
+                    // Free match -> Bot fallback
+                    if (elapsed >= FREE_MATCH_BOT_TIMEOUT_MILLIS) {
+                        toBotPlay.add(item)
+                        it.remove()
+                    }
+                } else {
+                    // Wagered match -> Cancel
+                    if (elapsed >= WAGERED_MATCH_CANCEL_TIMEOUT_MILLIS) {
+                        toRemove.add(username)
+                        it.remove()
+                    }
+                }
             }
         }
+
+        toRemove.forEach { username ->
+            _redisPvpQueueApi.leaveQueue(username)
+        }
+
+        toBotPlay.forEach { entry ->
+            _redisPvpQueueApi.leaveQueue(entry.info.username)
+            playPvpWithBot(entry.info)
+        }
+    }
+
+    private fun playPvpWithBot(info: IPvpJoinQueueInfo) {
+        _logger.log("[Pvp][GlobalMatchmaker] Play with bot for user ${info.username}")
+        val user = _usersManager.getUserController(info.username)
+        if (user == null) {
+            _logger.error("[Pvp][GlobalMatchmaker] User ${info.username} not found for bot play")
+            return
+        }
+
+        // Generate bot match
+        val matchId = UUID.randomUUID().toString()
+        val users = mutableListOf<IUser>()
+        
+        // Add real user
+        val realUser = User(
+            id = info.username,
+            timestamp = _timeManager.timestamp,
+            mode = info.mode,
+            matchId = info.matchId,
+            serverId = _envManager.serverId,
+            point = info.point,
+            rank = info.rank,
+            totalMatchCount = info.totalMatchCount,
+            data = convertToPvpDataInfo(info, isBot = false)
+        )
+        users.add(realUser)
+
+        // Add bot users (for FFA_2, add 1 bot)
+        // Room sizes: FFA_2=2, FFA_4=4, TEAMS_2V2=4, TEAMS_3V3=6, FFA_6=6
+        val targetSize = when(PvpMode.fromValue(info.mode)) {
+            PvpMode.FFA_2 -> 2
+            PvpMode.FFA_4 -> 4
+            PvpMode.TEAMS_2V2 -> 4
+            PvpMode.TEAMS_3V3 -> 6
+            PvpMode.FFA_6 -> 6
+            else -> 2
+        }
+
+        for (i in 1 until targetSize) {
+            val botUser = User(
+                id = "bot_${matchId}_$i",
+                timestamp = _timeManager.timestamp,
+                mode = info.mode,
+                matchId = "",
+                serverId = _envManager.serverId,
+                point = 0,
+                rank = 1,
+                totalMatchCount = 0,
+                data = convertToPvpDataInfo(info, isBot = true)
+            )
+            users.add(botUser)
+        }
+
+        val rule = MatchRule(targetSize, if (targetSize % 2 == 0) 2 else 1, true, 1, false)
+        val teams = mutableListOf<IMatchTeam>()
+        if (targetSize % 2 == 0) {
+            // Teams mode
+            val teamSize = targetSize / 2
+            teams.add(MatchTeam((0 until teamSize).toList()))
+            teams.add(MatchTeam((teamSize until targetSize).toList()))
+        } else {
+            // FFA mode
+            for (i in 0 until targetSize) {
+                teams.add(MatchTeam(listOf(i)))
+            }
+        }
+
+        onMatchFound(matchId, _envManager.serverId, null, rule, teams, users)
+    }
+
+    private fun convertToPvpDataInfo(info: IPvpJoinQueueInfo, isBot: Boolean): PvpDataInfo {
+        val hero = PvpHeroInfo(
+            info.info.hero.id,
+            info.info.hero.color,
+            info.info.hero.skin,
+            info.info.hero.skinChests,
+            info.info.hero.health,
+            info.info.hero.speed,
+            info.info.hero.damage,
+            info.info.hero.bombCount,
+            info.info.hero.bombRange,
+            info.info.hero.maxHealth,
+            info.info.hero.maxSpeed,
+            info.info.hero.maxDamage,
+            info.info.hero.maxBombCount,
+            info.info.hero.maxBombRange,
+        )
+        return PvpDataInfo(
+            info.info.serverId,
+            info.info.matchId,
+            info.mode,
+            isBot,
+            info.info.displayName,
+            info.info.totalMatchCount,
+            info.info.rank,
+            info.info.point,
+            info.info.boosters,
+            info.info.availableBoosters,
+            hero,
+            info.info.avatar,
+            info.wagerMode,
+            info.wagerTier,
+            info.wagerToken
+        )
     }
 
     override fun leave(username: String): Boolean {
@@ -241,8 +392,13 @@ class GlobalMatchmaker(
 
     private fun convertToMatchUserInfo(data: List<IUser>): List<IMatchUserInfo> {
         val userList = mutableListOf<IMatchUserInfo>()
+        val isWagered = isMatchWagered(data)
+        
         for ((index, user) in data.withIndex()) {
             if (user.data.isBot) {
+                if (isWagered) {
+                    throw CustomException("Bots are not allowed in wagered matches!", ErrorCode.CAN_NOT_MATCHING)
+                }
                 // Generate bot users based on real users.
                 val key = data
                     .filter { !it.data.isBot }
@@ -343,4 +499,4 @@ class GlobalMatchmaker(
             avatar = -1
         )
     }
-}
+    private fun isMatchWagered(users: List<IUser>): Boolean { return users.any { it.data.wagerMode == 1 } }`n}

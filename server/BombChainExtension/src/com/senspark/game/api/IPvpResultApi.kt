@@ -49,6 +49,9 @@ interface IPvpResultUserInfoClient {
 
     /** Collected item (booster) in-game. */
     val collectedItems: List<Int>
+
+    /** Final ranking in match (1st, 2nd, 3rd...). */
+    val ranking: Int
 }
 
 interface IPvpResultInfoClient {
@@ -78,6 +81,12 @@ interface IPvpResultInfoClient {
 
     /** User info. */
     val info: List<IPvpResultUserInfoClient>
+
+    val wagerMode: Int
+    val wagerTier: Int
+    val wagerToken: Int
+    var signature: String?
+    var integrityLogs: String?
 }
 
 interface IPvpResultUserInfo {
@@ -124,6 +133,9 @@ interface IPvpResultUserInfo {
 
     /** Collected item (booster) in-game. */
     val collectedItems: List<Int>
+
+    /** Final ranking in match (1st, 2nd, 3rd...). */
+    val ranking: Int
 }
 
 interface IPvpResultInfo {
@@ -153,4 +165,10 @@ interface IPvpResultInfo {
 
     /** User info. */
     val info: List<IPvpResultUserInfo>
+
+    val wagerMode: Int
+    val wagerTier: Int
+    val wagerToken: Int
+    val signature: String?
+    val integrityLogs: String?
 }

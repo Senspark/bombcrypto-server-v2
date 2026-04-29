@@ -35,7 +35,9 @@ interface IPvpDataInfo {
     val availableBoosters: Map<Int, Int>
     val hero: IPvpHeroInfo
     val avatar: Int?
-
+    val wagerMode: Int
+    val wagerTier: Int
+    val wagerToken: Int
 }
 
 interface IPvpData {

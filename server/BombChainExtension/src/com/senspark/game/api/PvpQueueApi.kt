@@ -21,4 +21,8 @@ class PvpJoinQueueInfo(
     @SerialName("username") override val username: String,
     @SerialName("pings") override val pings: Map<String, Int>,
     @SerialName("data") override val info: IMatchUserInfo,
+    @SerialName("game_mode") override val gameMode: Int = 1,
+    @SerialName("wager_mode") override val wagerMode: Int = 0,
+    @SerialName("wager_tier") override val wagerTier: Int = 0,
+    @SerialName("wager_token") override val wagerToken: Int = 0,
 ) : IPvpJoinQueueInfo

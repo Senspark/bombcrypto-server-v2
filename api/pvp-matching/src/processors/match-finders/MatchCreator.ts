@@ -11,7 +11,9 @@ export default class MatchCreator {
     }
 
     private createMatchWithId(id: string, zone: string, detail: IServerDetail, mode: PvpMode, users: IUser[], heroProfile: number, desc: string): IMatch {
-        const rule = createRule(mode);
+        const gameMode = users[0].data.gameMode;
+        const wagerMode = users[0].data.wagerMode;
+        const rule = createRule(mode, gameMode, wagerMode);
         const team = createTeam(rule);
         const timestamp = Date.now();
         return {
@@ -86,15 +88,17 @@ function createHeroProfileForTournamentNormalMode(): IFixedHeroInfo {
 }
 
 
-function createRule(mode: PvpMode) {
+function createRule(mode: PvpMode, gameMode: number, wagerMode: number) {
     const dict: { [key: number]: IMatchRule } = {
-        [PvpMode.FFA_2]: {roomSize: 2, teamSize: 1, canDraw: true, round: 1, isTournament: false},
-        [PvpMode.FFA_3]: {roomSize: 3, teamSize: 1, canDraw: true, round: 1, isTournament: false},
-        [PvpMode.FFA_4]: {roomSize: 4, teamSize: 1, canDraw: true, round: 1, isTournament: false},
-        [PvpMode.Team_2v2]: {roomSize: 4, teamSize: 2, canDraw: true, round: 1, isTournament: false},
-        [PvpMode.FFA_2_B3]: {roomSize: 2, teamSize: 1, canDraw: false, round: 3, isTournament: true},
-        [PvpMode.FFA_2_B5]: {roomSize: 2, teamSize: 1, canDraw: false, round: 5, isTournament: true},
-        [PvpMode.FFA_2_B7]: {roomSize: 2, teamSize: 1, canDraw: false, round: 7, isTournament: true},
+        [PvpMode.FFA_2]: {roomSize: 2, teamSize: 1, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
+        [PvpMode.FFA_3]: {roomSize: 3, teamSize: 1, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
+        [PvpMode.FFA_4]: {roomSize: 4, teamSize: 1, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
+        [PvpMode.Team_2v2]: {roomSize: 4, teamSize: 2, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
+        [PvpMode.FFA_2_B3]: {roomSize: 2, teamSize: 1, canDraw: false, round: 3, isTournament: true, gameMode, wagerMode},
+        [PvpMode.FFA_2_B5]: {roomSize: 2, teamSize: 1, canDraw: false, round: 5, isTournament: true, gameMode, wagerMode},
+        [PvpMode.FFA_2_B7]: {roomSize: 2, teamSize: 1, canDraw: false, round: 7, isTournament: true, gameMode, wagerMode},
+        [PvpMode.Team_3v3]: {roomSize: 6, teamSize: 3, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
+        [PvpMode.BATTLE_ROYALE]: {roomSize: 6, teamSize: 1, canDraw: true, round: 1, isTournament: false, gameMode, wagerMode},
     };
     const rule = dict[mode];
     assert(rule.roomSize % rule.teamSize === 0);
