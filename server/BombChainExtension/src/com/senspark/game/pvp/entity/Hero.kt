@@ -224,8 +224,12 @@ class Hero(
         }
     }
 
+    private var _deathTimestamp: Long = 0
+    override val deathTimestamp get() = _deathTimestamp
+
     override fun kill() {
         _alive = false
+        _deathTimestamp = _timeManager.timestamp
     }
 
     override fun move(timestamp: Int, x: Float, y: Float) {

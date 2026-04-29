@@ -84,7 +84,7 @@ class PvpResultManager(
         val dataType = _trGameplayManger.getCurrentTypePlayingPvp(userInfo.userId)
 
         var controller: IUserController? = null
-        // Do có nhiều controller đang sử dụng nên cần lấy đúng cotroller để update cho đúng
+        // Since multiple controllers are in use, we must retrieve the correct controller to perform the update accurately.
         if (user != null) {
             controller = if(dataType == null) {
                 _usersManager.getUserController(userInfo.userId)
@@ -93,7 +93,7 @@ class PvpResultManager(
             }
         }
 
-        // trước khi update điểm pvp cần sync lại với database trước
+        // Synchronize with the database before updating PVP points
         controller?.reloadPvpRanking()
 
 
@@ -103,7 +103,7 @@ class PvpResultManager(
         val completedAction = mutableListOf<Pair<MissionAction, Int>>()
         val shieldsUsed = userInfo.usedBoosters[Booster.Shield.value] ?: 0
         val keysUsed = userInfo.usedBoosters[Booster.Key.value] ?: 0
-        // tạm thời đóng lại khi naof có yêu cầu sẽ hien len
+        // temporarily disabled until requested
         //check if no match played before add 30 GEM_LOCKED
 //        if (_userDataAccess.countPvpPlayedMatch(userInfo.userId) == 0) {
 //            rewards.compute(BLOCK_REWARD_TYPE.GEM_LOCKED.value) { _, v ->
@@ -112,16 +112,16 @@ class PvpResultManager(
 //        }
         if (userInfo.teamId == info.winningTeam) {
             completedAction.add(Pair(MissionAction.WIN_PVP, 1))
-            // Hoàn thành 1 trận pvp thắng , check và update daily task
+            // Delay 2 seconds to avoid race conditions where client receives PVP_FINISH_MATCH after entry.finish
             controller?.masterUserManager?.userDailyTaskManager?.updateProgressTask(DailyTaskManager.PlayPvpWin)
         }
         if (shieldsUsed > 0) {
-            // Dùng shield trong pvp , check và update daily task
+            // Using shield in PVP, check and update daily task
             controller?.masterUserManager?.userDailyTaskManager?.updateProgressTask(DailyTaskManager.UseShieldInPvp, shieldsUsed)
             completedAction.add(Pair(MissionAction.USE_SHIELD, shieldsUsed))
         }
         if (keysUsed > 0) {
-            // Dùng key trong pvp , check và update daily task
+            // Using key in PVP, check and update daily task
             controller?.masterUserManager?.userDailyTaskManager?.updateProgressTask(DailyTaskManager.UseKeyInPvp, keysUsed)
             completedAction.add(Pair(MissionAction.USE_KEY, keysUsed))
         }
@@ -133,7 +133,8 @@ class PvpResultManager(
                 userInfo.deltaPoint,
                 seasonId,
             )
-            // Ko thực hiện đc
+            // Operation failed
+            _logger.error("[PvpResultManager] Failed to process result for user ${userInfo.username}")
 //            TablePvPUserRank(seasonId).update(
 //                userId = userInfo.userId,
 //                isWinner = info.winningTeam == userInfo.teamId,
@@ -158,11 +159,13 @@ class PvpResultManager(
             if (info.isDraw) {
                 // No chest.
                 controller?.apply {
+                    // The checkMatchId fails if the match started before the player left the queue.
+                    _logger.log("[PvpResultManager] user ${userInfo.username} is in a different matchId (current: $matchId, received: ${info.id})")
                     masterUserManager.userBonusRewardManager.addRewardsAds(rewardId)
                 }
             } else {
-                // Update to the correct value. al
-                isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId)
+                // Update to the correct value.
+                isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId, info, dataType)
                 _userRewards[userInfo.userId] = MatchReward(rewardId, isOutOfChestSlot)
             }
         }
@@ -206,7 +209,9 @@ class PvpResultManager(
         controller: IUserController?,
         rewards: Map<Int, Float>,
         userId: Int,
-        rewardId: String
+        rewardId: String,
+        info: IPvpResultInfo,
+        playingDataType: DataType?
     ): Boolean {
         val rewardsInternal = rewards.toMutableMap()
         if (rewardsInternal.isEmpty()) {
@@ -215,29 +220,37 @@ class PvpResultManager(
             }
         }
         var outOfSlot = false
-        rewardsInternal.map { reward ->
-            userId to RewardData(
-                reward.key,
-                BLOCK_REWARD_TYPE.valueOf(reward.key).name,
-                DataType.TR.name,
-                reward.value,
-            )
-        }.forEach { (userId, reward) ->
-            controller?.apply {
-                masterUserManager.userBonusRewardManager.addRewardsAds(rewardId, reward)
+        rewardsInternal.forEach { rewardEntry ->
+            val wagerToken = com.senspark.game.pvp.config.PvpWagerToken.from(info.wagerToken)
+            val networkName = if (rewardEntry.key == wagerToken.rewardType.value && wagerToken != com.senspark.game.pvp.config.PvpWagerToken.NONE) {
+                wagerToken.network.name
+            } else {
+                playingDataType?.name ?: DataType.TR.name
             }
-            val rewardType = BLOCK_REWARD_TYPE.valueOf(reward.id)
+            
+            val finalReward = RewardData(
+                rewardEntry.key,
+                BLOCK_REWARD_TYPE.valueOf(rewardEntry.key).name,
+                networkName,
+                rewardEntry.value,
+            )
+            
+            controller?.apply {
+                masterUserManager.userBonusRewardManager.addRewardsAds(rewardId, finalReward)
+            }
+            
+            val rewardType = BLOCK_REWARD_TYPE.valueOf(finalReward.id)
             if (rewardType.name.contains("chest", ignoreCase = true)) {
                 outOfSlot = if (controller != null) {
                     controller.masterUserManager.userGachaChestManager.addChestFromBlockRewardType(rewardType) == null
                 } else {
                     addChestFromBlockRewardTypeForDisconnectUser(
-                        BLOCK_REWARD_TYPE.valueOf(reward.id),
+                        rewardType,
                         userId
                     ) == null
                 }
             } else {
-                _pvpDataAccess.updateUserReward(userId, mutableListOf(reward), ChangeRewardReason.REWARD_PVP)
+                _pvpDataAccess.updateUserReward(userId, mutableListOf(finalReward), ChangeRewardReason.REWARD_PVP)
             }
         }
         return outOfSlot

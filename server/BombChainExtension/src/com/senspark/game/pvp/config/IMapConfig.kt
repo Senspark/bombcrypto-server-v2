@@ -15,4 +15,10 @@ interface IMapConfig {
 
     /** Amount of time until a bomb explodes (ms). */
     val explodeDuration: Int
-}
+
+    /** Maximum number of players allowed on this map. */
+    val maxPlayers: Int
+
+    /** Unique identifier for the map layout pattern. */
+    val mapPatternId: String
+}

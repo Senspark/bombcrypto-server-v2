@@ -19,6 +19,11 @@ interface IMatchInfo {
     /** All user info. */
     val info: List<IMatchUserInfo>
 
+    val gameMode: Int
+    val wagerMode: Int
+    val wagerTier: Int
+    val wagerToken: Int
+
     /** Used for verification. */
     val hash: String
 }

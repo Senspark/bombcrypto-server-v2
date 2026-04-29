@@ -114,6 +114,7 @@ class ServicesInitializerBnbPol(
         n.register(IBlockchainDatabaseManager::class) { BlockchainDatabaseManager(http,env, logger) }
         n.register(IConfigItemManager::class) { ConfigItemManager(g.get<IShopDataAccess>()) }
         n.register(IPvpConfigManager::class) { PvpConfigManager(env, logger) }
+        n.register(IPvpWagerService::class) { PvpWagerService(g.get<IDatabase>(), logger, postgreSQLDatabaseStatement()) }
         n.register(IUserLinkManager::class) { UserLinkManager() }
         n.register(IHeroUpgradeShieldManager::class) { HeroUpgradeShieldManager(g.get<IShopDataAccess>()) }
         n.register(IUserTournamentWhitelistManager::class) {
@@ -158,7 +159,9 @@ class ServicesInitializerBnbPol(
                 g.get<ICacheService>(),
                 n.get<IConfigHeroTraditionalManager>(),
                 g.get<ISender>(),
-                n.get<IUsersManager>()
+                n.get<IUsersManager>(),
+                g.get<IPvpDataAccess>(),
+                n.get<IPvpWagerService>()
             )
         }
         n.register(IGachaChestManager::class) {
