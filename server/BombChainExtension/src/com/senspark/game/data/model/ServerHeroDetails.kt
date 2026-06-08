@@ -156,7 +156,7 @@ class ServerHeroDetails(
         private val abilityRate = mutableListOf(1f, 2f, 1f, 1f, 1f, 2f, 2f, 0f, 0f, 0f)
         private val abilityRateNew = mutableListOf(10f, 15f, 10f, 10f, 10f, 15f, 15f, 5f, 7f, 3f)
         val dropRate = listOf(8287f, 1036f, 518f, 104f, 52f, 4f)
-        private val dropRateNew = listOf(8118f, 962f, 481f, 240f, 112f, 51f, 22f, 9f, 4f, 1f)
+        private val dropRateNew = listOf(8118f, 962f, 481f, 240f, 112f, 51f, 0.22f, 0.09f, 0.04f, 0.01f)
         private val skinArr = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16)
 
         fun generate(heroId: Int, dataType: EnumConstants.DataType): ServerHeroDetails {
