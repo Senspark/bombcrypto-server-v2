@@ -119,9 +119,8 @@ class UsersManager(logger: ILogger) : IUsersManager {
             _loggedOutUsers.remove(userId)
         }
 
-        // Chỉ mới áp dụng cho sol, nào ton build lại client mới có gửi ping pong request thì check cái này
-        if(userInfo.dataType == EnumConstants.DataType.SOL)
-            _checkAlive.addUserToCheck(userInfo.id, userInfo.dataType)
+        // Apply keep-alive check to all data types to proactively clear ghost sessions
+        _checkAlive.addUserToCheck(userInfo.id, userInfo.dataType)
 
 
         userController.setUser(user)

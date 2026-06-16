@@ -1,6 +1,8 @@
 package com.senspark.game.api
 
 import com.senspark.common.utils.ILogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -15,7 +17,7 @@ class ApiException(code: Int, message: String) : Exception(message)
 object StandardSensparkApi {
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    private fun <T> request(request: Request, serializer: KSerializer<T>, logger: ILogger?): T? {
+    private suspend fun <T> request(request: Request, serializer: KSerializer<T>, logger: ILogger?): T? = withContext(Dispatchers.IO) {
         HttpClient.getInstance().newCall(request).execute().use {
             val body: ResponseBody? = it.body
             val data = parseBody(body, serializer, logger, debugUrl = request.url.toString())
@@ -25,18 +27,18 @@ object StandardSensparkApi {
                     throw ApiException(it.code, msg)
                 }
             }
-            return@request data?.message
+            return@withContext data?.message
         }
     }
 
-    fun <T> get(url: String, serializer: KSerializer<T>, logger: ILogger?): T? {
+    suspend fun <T> get(url: String, serializer: KSerializer<T>, logger: ILogger?): T? {
         val request = Request.Builder()
             .url(url)
             .build()
         return request(request, serializer, logger)
     }
 
-    fun <T> get(url: String, authorization: String, serializer: KSerializer<T>, logger: ILogger?): T? {
+    suspend fun <T> get(url: String, authorization: String, serializer: KSerializer<T>, logger: ILogger?): T? {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", authorization)
@@ -44,7 +46,7 @@ object StandardSensparkApi {
         return request(request, serializer, logger)
     }
 
-    fun <T> get(
+    suspend fun <T> get(
         url: String,
         authorization: String,
         queries: Map<String, String>,
@@ -58,7 +60,7 @@ object StandardSensparkApi {
         return request(request, serializer, logger)
     }
 
-    fun <T> post(
+    suspend fun <T> post(
         url: String,
         authorization: String,
         body: JsonObject,
