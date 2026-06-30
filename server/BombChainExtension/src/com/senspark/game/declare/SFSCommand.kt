@@ -250,6 +250,7 @@ object SFSCommand {
     const val CHECK_BOMBER_STAKE_V2: String = "CHECK_BOMBER_STAKE_V2"
     const val GET_REPAIR_SHIELD_CONFIG_V2: String = "GET_REPAIR_SHIELD_CONFIG_V2"
     const val REPAIR_SHIELD_V2: String = "REPAIR_SHIELD_V2"
+    const val REPAIR_SHIELD_BATCH: String = "REPAIR_SHIELD_BATCH"
     const val CREATE_ROCK_V2: String = "CREATE_ROCK_V2"
     const val GET_BURN_HERO_CONFIG_V2: String = "GET_BURN_HERO_CONFIG_V2"
     const val BUY_ROCK_V2: String = "BUY_ROCK_V2"
