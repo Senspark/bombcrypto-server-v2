@@ -18,7 +18,7 @@ services:
     networks:
       - base_default
     environment:
-      IS_DEBUG: 0
+      IS_DEBUG: 1
       IS_PVP_SERVER: 0
       IS_GAME_SERVER: 1
       MAX_CCU: 100
@@ -28,7 +28,7 @@ services:
       SERVER_NAME: 'sfs-game-1'
       LICENSE_CODE: ''
       CREDENTIALS: 'bombcryptodev,123456'
-    restart: always
+    restart: unless-stopped
     volumes:
       - ./SmartFoxServer_2X:/opt/SmartFoxServer_2X_Patch:ro
       - ./client_logs:/opt/SmartFoxServer_2X/SFS2X/clientLogs:rw
@@ -59,7 +59,7 @@ services:
       SERVER_NAME: 'sfs-pvp-1'
       LICENSE_CODE: ''
       CREDENTIALS: 'bombcryptodev,123456'
-    restart: always
+    restart: unless-stopped
     volumes:
       - ./SmartFoxServer_2X:/opt/SmartFoxServer_2X_Patch:ro
       - ./client_logs:/opt/SmartFoxServer_2X/SFS2X/clientLogs:rw

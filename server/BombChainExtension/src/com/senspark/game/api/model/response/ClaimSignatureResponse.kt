@@ -4,11 +4,11 @@ import kotlinx.serialization.Serializable
 
 
 @Serializable
-data class ClaimSignatureResponse(val data: ClaimSignatureResponseData)
+data class ClaimSignatureResponse(val code: Int, val message: ClaimSignatureResponseData)
 
 @Serializable
 data class ClaimSignatureResponseData(
     val nonce: Int,
     val signature: String,
-    val amount: Double
+    val amount: String
 )

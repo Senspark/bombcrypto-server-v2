@@ -13,7 +13,7 @@ class SyncDepositedHandlerV3 : BaseEncryptRequestHandler() {
 
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         return try {
-            controller.masterUserManager.userDataManager.syncDepositedV3()
+            controller.masterUserManager.userDepositManager.syncDepositedV3()
             val result: ISFSObject = SFSObject()
             result.putSFSArray(SFSField.Rewards, controller.masterUserManager.blockRewardManager.toSfsArrays())
             return sendSuccess(controller, requestId, result)

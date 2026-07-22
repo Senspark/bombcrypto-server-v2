@@ -36,6 +36,10 @@ class CachedKeys {
         const val WHITE_LIST_SWAP_GEM = "SWAP_GEM:WHITE_LIST"
         const val CHEAT_SWAP_GEM_UID = "CHEAT_SWAP_GEM_UID"
         const val SV_CURRENT_USER_SEND_LOG = "SV_CURRENT_USER_SEND_LOG"
+
+        // Set chứa các "wallet:dataType" đã chạy one-time cleanup sync (dọn BHero/BHouse clone cross-network).
+        // Tạm thời cho bản này; xoá cả key + logic sau khi toàn bộ user đã được dọn.
+        const val CLEANUP_CROSS_NETWORK_SYNC_DONE = "SV:CLEANUP_CROSS_NETWORK_SYNC_DONE"
     }
 }
 
@@ -75,5 +79,13 @@ class StreamKeys {
         const val AP_BL_SYNC_HERO = "AP_BL_SYNC_HERO"
         const val AP_BL_SYNC_HOUSE = "AP_BL_SYNC_HOUSE"
         const val AP_BL_SYNC_DEPOSIT = "AP_BL_SYNC_DEPOSIT"
+
+        const val AP_SIG_CLAIM_CHECK_RESPONSE_STR = "AP_SIG_CLAIM_CHECK_RESPONSE_STR"
+        const val AP_SIG_CLAIM_SIGN_RESPONSE_STR = "AP_SIG_CLAIM_SIGN_RESPONSE_STR"
+
+        // Cross-chain deposit bridge — server game <-> ap-deposit-bridge SIGNER (Phase 9, user-relayed withdraw).
+        const val SV_DEPBRIDGE_REQUEST_STR = "SV_DEPBRIDGE_REQUEST_STR"   // server -> signer: withdraw-sign request
+        const val AP_DEPBRIDGE_RESULT_STR = "AP_DEPBRIDGE_RESULT_STR"     // signer -> server: result, by correlationId
+        const val SV_DEPBRIDGE_NOTIFY_STR = "SV_DEPBRIDGE_NOTIFY_STR"     // server -> indexer: bridge activity feed (fire-and-forget)
     }
 }

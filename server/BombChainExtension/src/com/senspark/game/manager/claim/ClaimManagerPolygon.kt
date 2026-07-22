@@ -16,6 +16,8 @@ import com.senspark.game.declare.SFSField
 import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
+import com.senspark.game.manager.claim.dto.ClaimV4Finalize
+import com.senspark.game.manager.claim.dto.ClaimV4Prep
 import com.senspark.game.utils.Utils
 import com.senspark.game.utils.deserialize
 import com.senspark.game.utils.deserializeList
@@ -84,7 +86,6 @@ class ClaimManagerPolygon(
             blockRewardType,
             getMinClaim(blockRewardType),
             totalClaimed,
-            false
         )
         val newTotalClaimed = jsonResult["value"]?.jsonPrimitive?.double ?: throw CustomException("Missing value")
         val received = jsonResult["received"]?.jsonPrimitive?.double ?: throw CustomException("Missing value")
@@ -103,7 +104,7 @@ class ClaimManagerPolygon(
         result.putSFSArray(SFSField.Rewards, blockRewardManager.toSfsArrays())
         result.putInt("nonce", response.nonce)
         result.putUtfString("signature", response.signature)
-        result.putDouble("amount", response.amount)
+        result.putDouble("amount", response.amount.toDouble())
         result.putInt("tokenType", tokenTypeInBlockChain)
         result.putUtfStringArray("details", giftDetails)
         return result
@@ -124,14 +125,12 @@ class ClaimManagerPolygon(
         val blockRewardType = userBlockReward.rewardType
         val tokenTypeInBlockChain: Int = tokenTypeInBlockChain(blockRewardType)
         val totalClaimed: Double = callGetTotalClaimed(tokenTypeInBlockChain)
-        val received: Double = dataAccessManager.rewardDataAccess.saveUserClaimRewardData(
+        val received: Double = dataAccessManager.rewardDataAccess.syncUserClaimSynced(
             _mediator.userId,
             _mediator.dataType,
             blockRewardType,
-            getMinClaim(blockRewardType),
             totalClaimed,
-            true
-        )["received"]?.jsonPrimitive?.double ?: throw CustomException("Missing received", ErrorCode.SERVER_ERROR)
+        )
         blockRewardManager.loadUserBlockReward()
         val result: ISFSObject = SFSObject()
         result.putDouble("received", received)
@@ -151,7 +150,7 @@ class ClaimManagerPolygon(
     private fun callGetTotalClaimed(tokenTypeInBlockChain: Int): Double {
         val url = java.lang.String.format(
             envManager.apSignatureCmdCheckTotalClaimedUrl,
-            _mediator.userName,
+            _mediator.walletAddress,
             tokenTypeInBlockChain,
             _mediator.dataType.name.lowercase()
         )
@@ -162,7 +161,7 @@ class ClaimManagerPolygon(
             .build()
         getInstance().newCall(request).execute().use { response ->
             return if (response.isSuccessful && response.body != null) {
-                deserialize<TotalClaimResponse>(response.body!!.string()).data
+                deserialize<TotalClaimResponse>(response.body!!.string()).message.toDouble()
             } else {
                 throw CustomException(
                     String.format("Call get total claimed failed,code %s", response.code),
@@ -180,13 +179,13 @@ class ClaimManagerPolygon(
     ): ClaimSignatureResponseData {
         val url = java.lang.String.format(
             envManager.apSignatureCmdClaimRewardUrl,
-            _mediator.userName,
+            _mediator.walletAddress,
             tokenTypeInBlockChain,
             newTotalClaimed,
             _mediator.dataType.name.lowercase()
         )
         val body = ClaimSignatureRequest(
-            _mediator.userName,
+            _mediator.walletAddress!!,
             tokenTypeInBlockChain,
             newTotalClaimed,
             giftDetails,
@@ -202,7 +201,7 @@ class ClaimManagerPolygon(
             .build()
         getInstance().newCall(request).execute().use { response ->
             return if (response.isSuccessful && response.body != null) {
-                deserialize<ClaimSignatureResponse>(response.body!!.string()).data
+                deserialize<ClaimSignatureResponse>(response.body!!.string()).message
             } else {
                 throw CustomException(
                     String.format("Call get signature,code %s", response.code),
@@ -212,6 +211,119 @@ class ClaimManagerPolygon(
         }
     }
 
+
+    override fun prepareClaimV4(blockRewardType: BLOCK_REWARD_TYPE): ClaimV4Prep {
+        val userBlockReward = blockRewardManager.get(blockRewardType)
+            ?: throw CustomException("User block reward not exists")
+
+        val rewardType = userBlockReward.rewardType
+
+        if (!gameConfigManager.enableClaimToken && (rewardType == BCOIN || rewardType == SENSPARK)) {
+            throw CustomException("This feature will be coming soon.")
+        }
+        if (!gameConfigManager.enableClaimTokenDeposited && (rewardType == BCOIN_DEPOSITED || rewardType == SENSPARK_DEPOSITED)) {
+            throw CustomException("This feature will be coming soon.")
+        }
+        if (!gameConfigManager.enableClaimHero && rewardType == BOMBERMAN) {
+            throw CustomException("This feature will be coming soon.")
+        }
+        if (rewardType != BOMBERMAN && isSameDay(userBlockReward)) {
+            throw CustomException("You can only withdraw once a day(UTC time).", ErrorCode.NOT_EXECUTE)
+        }
+        when (rewardType) {
+            BCOIN, SENSPARK, BCOIN_DEPOSITED, SENSPARK_DEPOSITED, WOFM, BOMBERMAN -> Unit
+            else -> throw CustomException("Invalid token ${rewardType.name}")
+        }
+        val claimBcoinLimit = gameConfigManager.claimBcoinLimit
+        if (!userBlockReward.canClaim(claimBcoinLimit)) {
+            throw CustomException("Not enough reward", ErrorCode.NOT_ENOUGH_REWARD)
+        }
+        return ClaimV4Prep(tokenTypeInBlockChain(rewardType))
+    }
+
+    override fun finalizeClaimAfterCheck(
+        blockRewardType: BLOCK_REWARD_TYPE,
+        totalClaimed: Double,
+    ): ClaimV4Finalize {
+        val jsonResult = dataAccessManager.rewardDataAccess.saveUserClaimRewardData(
+            _mediator.userId,
+            _mediator.dataType,
+            blockRewardType,
+            getMinClaim(blockRewardType),
+            totalClaimed,
+        )
+        val newTotalClaimed = jsonResult["value"]?.jsonPrimitive?.double
+            ?: throw CustomException("Missing value")
+        val received = jsonResult["received"]?.jsonPrimitive?.double
+            ?: throw CustomException("Missing value")
+        val gifts = deserializeList<UserBlockRewardGift>(jsonResult["gifts"]?.jsonArray.toString())
+        val giftDetails: MutableList<String> = ArrayList()
+        if (blockRewardType == BOMBERMAN) {
+            gifts.forEach { giftDetails.add(it.parseToGenId().toString()) }
+            val remainItemCount = (received - gifts.sumOf { it.count }).toInt()
+            for (i in 0 until remainItemCount) {
+                giftDetails.add(0.toString())
+            }
+        }
+        return ClaimV4Finalize(newTotalClaimed, giftDetails, received)
+    }
+
+    override fun syncPendingClaimsFromChain() {
+        if (_mediator.walletAddress.isNullOrEmpty()) {
+            _mediator.logger.log("[syncPendingClaimsFromChain] skip — no wallet address")
+            return
+        }
+
+        val claimableTypes = listOf(BCOIN, SENSPARK, BCOIN_DEPOSITED, SENSPARK_DEPOSITED, BOMBERMAN)
+        val pendingByType = claimableTypes.mapNotNull { type ->
+            blockRewardManager.get(type)?.takeIf { it.claimPending > 0 }?.let { type to it.claimPending }
+        }.toMap()
+        if (pendingByType.isEmpty()) {
+            _mediator.logger.log("[syncPendingClaimsFromChain] skip — no pending claims")
+            return
+        }
+
+        _mediator.logger.log("[syncPendingClaimsFromChain] start dataType=${_mediator.dataType} pending=$pendingByType")
+
+        var successCount = 0
+        for ((rewardType, pending) in pendingByType) {
+            try {
+                val tokenType = tokenTypeInBlockChain(rewardType)
+                val totalClaimed = callGetTotalClaimed(tokenType)
+                dataAccessManager.rewardDataAccess.syncUserClaimSynced(
+                    _mediator.userId,
+                    _mediator.dataType,
+                    rewardType,
+                    totalClaimed,
+                )
+                successCount++
+                _mediator.logger.log("[syncPendingClaimsFromChain] $rewardType OK totalClaimed=$totalClaimed pending=$pending")
+            } catch (e: Exception) {
+                _mediator.logger.error("[syncPendingClaimsFromChain] $rewardType failed", e)
+            }
+        }
+
+        blockRewardManager.loadUserBlockReward()
+        _mediator.logger.log("[syncPendingClaimsFromChain] done success=$successCount/${pendingByType.size}")
+    }
+
+    override fun buildClaimV4SfsObject(
+        tokenTypeInBlockChain: Int,
+        giftDetails: List<String>,
+        nonce: Int,
+        signature: String,
+        amount: Double,
+    ): ISFSObject {
+        blockRewardManager.loadUserBlockReward()
+        val result: ISFSObject = SFSObject()
+        result.putSFSArray(SFSField.Rewards, blockRewardManager.toSfsArrays())
+        result.putInt("nonce", nonce)
+        result.putUtfString("signature", signature)
+        result.putDouble("amount", amount)
+        result.putInt("tokenType", tokenTypeInBlockChain)
+        result.putUtfStringArray("details", giftDetails)
+        return result
+    }
 
     @Throws(CustomException::class)
     private fun tokenTypeInBlockChain(blockRewardType: BLOCK_REWARD_TYPE): Int {

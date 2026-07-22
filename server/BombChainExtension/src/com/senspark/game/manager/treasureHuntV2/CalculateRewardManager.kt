@@ -17,13 +17,16 @@ class CalculateRewardManager(
     var rewardType: BLOCK_REWARD_TYPE,
     private var _thModeRaceBroadcaster: THModeRaceBroadcaster,
     private val _heroStakeManager: IHeroStakeManager,
-    private var _rewardLevelConfig: Map<Int, RewardLevelConfig>,
+    private var _rewardLevelConfigByRarity: Map<Int, Map<Int, RewardLevelConfig>>,
     private val _logger: ILogger,
 ) : ICalculateRewardManager {
 
     companion object {
-        private const val POOL_SIZE = 6
-        private val POOL_NAMES = arrayOf("Common", "Rare", "Super Rare", "Epic", "Legend", "Super Legend")
+        private const val POOL_SIZE = 10
+        private val POOL_NAMES = arrayOf(
+            "Common", "Rare", "Super Rare", "Epic", "Legend", "Super Legend",
+            "Mega", "Super Mega", "Mystic", "Super Mystic"
+        )
     }
 
     /**
@@ -36,8 +39,11 @@ class CalculateRewardManager(
      */
     private val _pools: Array<ConcurrentHashMap<String, UserHero>> = Array(POOL_SIZE) { ConcurrentHashMap() }
     private val _log = false
-    private var _maxUsersForEachPool = _rewardLevelConfig.values.sumOf { it.numUsers }
+    private var _maxUsersForEachPool = sumNumUsers(_rewardLevelConfigByRarity)
     private val _minStakeHeroConfig = _heroStakeManager.minStakeHeroConfig
+
+    private fun sumNumUsers(cfg: Map<Int, Map<Int, RewardLevelConfig>>): Int =
+        cfg.values.firstOrNull()?.values?.sumOf { it.numUsers } ?: 0
 
     init {
         for (i in 1 until POOL_SIZE) {
@@ -45,10 +51,10 @@ class CalculateRewardManager(
         }
     }
 
-    override fun setConfig(config: TreasureHuntV2Config, rewardLevelConfig: Map<Int, RewardLevelConfig>) {
+    override fun setConfig(config: TreasureHuntV2Config, rewardLevelConfig: Map<Int, Map<Int, RewardLevelConfig>>) {
         treasureHuntV2Config = config
-        _rewardLevelConfig = rewardLevelConfig
-        _maxUsersForEachPool = _rewardLevelConfig.values.sumOf { it.numUsers }
+        _rewardLevelConfigByRarity = rewardLevelConfig
+        _maxUsersForEachPool = sumNumUsers(_rewardLevelConfigByRarity)
     }
 
     override fun addHeroToPool(hero: Hero, userId: UserId, raceId: Int) {
@@ -83,6 +89,12 @@ class CalculateRewardManager(
                 continue
             }
 
+            val rewardLevelConfig = _rewardLevelConfigByRarity[poolIndex]
+            if (rewardLevelConfig == null) {
+                consoleLog("Pool ${POOL_NAMES[poolIndex]} has no reward-level config; skipping")
+                continue
+            }
+
             // Lượng reward có thể chia mỗi pool (ví dụ 500000, trừ dần đến khi hết thì thôi)
             var rewardRemaining = getRemainingReward(poolIndex)
             consoleLog("------Pool ${POOL_NAMES[poolIndex]} start: ${rewardRemaining}-------")
@@ -100,8 +112,6 @@ class CalculateRewardManager(
             if (clonedPools.size > _maxUsersForEachPool) {
                 clonedPools = clonedPools.subList(0, _maxUsersForEachPool)
             }
-
-            val rewardLevelConfig = _rewardLevelConfig.toMap() // clone
 
             // Chia thuởng
             var fromIndex = 0

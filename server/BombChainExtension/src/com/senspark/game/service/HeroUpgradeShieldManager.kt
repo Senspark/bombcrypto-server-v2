@@ -17,6 +17,11 @@ class HeroUpgradeShieldManager(
 
     override fun initialize() {
         _data = shopDataAccess.queryHeroUpgradeShield()
+        val raritiesPresent = _data.map { it.rarity }.toSet()
+        val missing = (0..9).filterNot { it in raritiesPresent }
+        check(missing.isEmpty()) {
+            "config_hero_upgrade_shield missing rarities: $missing. Apply rarity 6-9 migration."
+        }
     }
 
     override fun getValue(level: Int, rarity: Int): Int {

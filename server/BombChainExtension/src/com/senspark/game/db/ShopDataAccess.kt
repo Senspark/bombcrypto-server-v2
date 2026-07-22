@@ -276,6 +276,18 @@ class ShopDataAccess(
         )
     }
 
+    override fun createPvpRankingSeasonTables(seasonId: Int) {
+        require(seasonId in 0..1_000_000) { "Invalid PVP seasonId: $seasonId" }
+        executeUpdate(
+            "CREATE SEQUENCE IF NOT EXISTS user_pvp_rank_ss_${seasonId}_seq START 1;",
+            arrayOf()
+        )
+        executeUpdate(
+            "CREATE TABLE IF NOT EXISTS user_pvp_rank_ss_${seasonId} (LIKE user_pvp_rank_template INCLUDING ALL);",
+            arrayOf()
+        )
+    }
+
     override fun loadCoinRankingSeason(): MutableMap<Int, Season> {
         val result: MutableMap<Int, Season> = HashMap()
         val statement = """

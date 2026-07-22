@@ -11,6 +11,7 @@ import WebLoginService from "../services-impl/login/bsc/WebLoginService";
 import CombineLogger from "../services-impl/loggers/CombineLogger";
 import {UserAccountCache} from "../services-impl/UserAccountCache";
 import {sleep} from "../utils/Time";
+import {normalizeAuthInput} from "../utils/WalletAddressUtils";
 import {randomResponse} from "../services-impl/utils/RandomResponse";
 import {
     K_INVALID_DATA_ERR,
@@ -88,6 +89,31 @@ export class WebHandlers {
     private readonly _databaseAccess: DatabaseAccess;
     private readonly _profileService: ProfileService;
 
+    public async verifyLogin(req: Request, res: Response) {
+        try {
+            const authHeader = req.headers['authorization'];
+            if (!authHeader) {
+                return res.sendError('Missing Authorization header', 401);
+            }
+            const token = authHeader.replace('Bearer ', '').trim();
+            if (!token) {
+                return res.sendError('Missing token', 401);
+            }
+            const payload = await this._jwtService.verifyToken(token);
+            if (!payload) {
+                return res.sendError('Invalid token', 401);
+            }
+            const wallet = (payload as JwtPayload).address ?? (payload as JwtPayloadAccount).userName;
+            if (!wallet) {
+                return res.sendError('Invalid token payload', 401);
+            }
+            return res.sendSuccess({valid: true, wallet: wallet.toLowerCase()});
+        } catch (e) {
+            this._logger.error(e);
+            return res.sendError('Invalid token', 401);
+        }
+    }
+
     public async generateNonce(req: Request, res: Response) {
         const logger = new CombineLogger('[NONCE]', this._logger.clone(''));
         const now = Date.now();
@@ -102,7 +128,7 @@ export class WebHandlers {
      */
     public async _generateNonce(req: Request, res: Response, logger: ILogger) {
         try {
-            const walletAddress = req.body.walletAddress;
+            const walletAddress = (req.body.walletAddress ?? '').toLowerCase();
             const clientVersion = extractClientVersionFromHeader(req);
             if (!walletAddress) {
                 logger.error('Missing wallet address');
@@ -149,7 +175,7 @@ export class WebHandlers {
      */
     public async _checkProof(req: Request, res: Response, logger: ILogger) {
         try {
-            const walletAddress = req.body.walletAddress;
+            const walletAddress = (req.body.walletAddress ?? '').toLowerCase();
             const signature = req.body.signature;
             const clientVersion = extractClientVersionFromHeader(req);
 
@@ -386,10 +412,7 @@ export class WebHandlers {
         try {
             await this._dep.bearerService.verifyBearer(req);
 
-
-            // Server tự remove suffix và lowercase nếu cần rồi
-            const walletAddress = req.body.walletAddress;
-            // const walletAddress = removeNameSuffix(walletAddressSuffix);
+            const walletAddress = normalizeAuthInput(req.body.walletAddress ?? '');
 
             const loginData = req.body.loginData;
 
@@ -528,7 +551,7 @@ export class WebHandlers {
      */
     public async signEditorJwt(req: Request, res: Response) {
         try {
-            const walletAddress = req.query.walletAddress as string;
+            const walletAddress = (req.query.walletAddress as string ?? '').toLowerCase();
             if (!walletAddress) {
                 this._logger.error('Missing wallet address');
                 return res.sendError(K_MISSING_DATA_ERR);

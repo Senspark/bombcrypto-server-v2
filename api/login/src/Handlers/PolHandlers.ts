@@ -11,6 +11,7 @@ import WebLoginService from "../services-impl/login/bsc/WebLoginService";
 import CombineLogger from "../services-impl/loggers/CombineLogger";
 import {UserAccountCache} from "../services-impl/UserAccountCache";
 import {sleep} from "../utils/Time";
+import {normalizeAuthInput} from "../utils/WalletAddressUtils";
 import {randomResponse} from "../services-impl/utils/RandomResponse";
 import {
     K_INVALID_DATA_ERR,
@@ -102,7 +103,7 @@ export class PolHandlers {
      */
     public async _generateNonce(req: Request, res: Response, logger: ILogger) {
         try {
-            const walletAddress = req.body.walletAddress;
+            const walletAddress = (req.body.walletAddress ?? '').toLowerCase();
             const clientVersion = extractClientVersionFromHeader(req);
             if (!walletAddress) {
                 logger.error('Missing wallet address');
@@ -137,7 +138,7 @@ export class PolHandlers {
      */
     public async _checkProof(req: Request, res: Response, logger: ILogger) {
         try {
-            const walletAddress = req.body.walletAddress;
+            const walletAddress = (req.body.walletAddress ?? '').toLowerCase();
             const signature = req.body.signature;
             const clientVersion = extractClientVersionFromHeader(req);
 
@@ -347,9 +348,7 @@ export class PolHandlers {
         try {
             await this._dep.bearerService.verifyBearer(req);
 
-            // Server tự remove suffix và lowercase nếu cần rồi
-            const walletAddress = req.body.walletAddress;
-            // const walletAddress = removeNameSuffix(walletAddressSuffix);
+            const walletAddress = normalizeAuthInput(req.body.walletAddress ?? '');
 
             const loginData = req.body.loginData;
 
@@ -488,7 +487,7 @@ export class PolHandlers {
      */
     public async signEditorJwt(req: Request, res: Response) {
         try {
-            const walletAddress = req.query.walletAddress as string;
+            const walletAddress = (req.query.walletAddress as string ?? '').toLowerCase();
             if (!walletAddress) {
                 this._logger.error('Missing wallet address');
                 return res.sendError(K_MISSING_DATA_ERR);

@@ -18,4 +18,6 @@ interface ILibDataAccess : IGlobalService {
     fun updateIsReview(userId: Int, isReview: Int): Boolean
     fun queryBannedCountries(): Set<String>
     fun getUserHash(uid: Int): String
+    /** Upsert a single game_config key/value (used by hot-reload admin commands). */
+    fun updateGameConfig(key: String, value: String): Boolean
 }

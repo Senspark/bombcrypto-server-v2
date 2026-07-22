@@ -1,0 +1,46 @@
+{
+    "BSC": {
+        "apiUrl": "https://api.bscscan.com",
+        "explorerUrl": "https://bscscan.com",
+        "bcoinTokenAddress": "0x00e1656e45f18ec6747f5a8496fd39b50b38396d",
+        "bheroTokenAddress": "0x30cc0553f6fa1faf6d7847891b9b36eb559dc618",
+        "bheroSAddress": "0x9fb9b7349279266c85c0C9dd264D71d2a4B79AB4",
+        "bheroStakeAddress": "0x053282c295419E67655a5032A4DA4e3f92D11F17",
+        "bhouseTokenAddress": "0xea3516feb8f3e387eec3004330fd30aff615496a",
+        "depositAddress": "0xad5669fD304aF930C04B5bc7541e5285b638169d",
+        "claimAddress": "0x39328612EC8A6C45b490D524b1C103ACC32f6b6d",
+        "lockedAddresses": [
+            "0x0d1e3ce5666d02152e58141c4397810bd2830f0d",
+            "0x81e0ef68e103ee65002d3cf766240ed1c070334d",
+            "0x1f92505043511b5af8bd1e1ce17c166d8fc05952",
+            "0xee08e835c24a45dccb0be799e0ce1b98fb9a5c52",
+            "0x00af63f9d03395e969d21a90547c2e896e18f071",
+            "0x4a7102a9c7bbdd588cb37465291e97e1e6a2270f",
+            "0x8b62bf1b4234911b3449f1e1c71f30686b4fad0f",
+            "0x00e1656e45f18ec6747f5a8496fd39b50b38396d"
+        ],
+        "oldSenTokenAddress": "0x23383e18deedf460ebb918545c8b0588038b7998",
+        "senTokenAddress": "0xb43Ac9a81eDA5a5b36839d5b6FC65606815361b0"
+    },
+    "POL": {
+        "apiUrl": "https://api.polygonscan.com",
+        "explorerUrl": "https://polygonscan.com",
+        "bcoinTokenAddress": "0xB2C63830D4478cB331142FAc075A39671a5541dC",
+        "bheroTokenAddress": "0xd8a06936506379dbBe6e2d8aB1D8C96426320854",
+        "bheroSAddress": "0x27313635E6B7AA3CC8436E24BE2317D4A0e56BeB",
+        "bheroStakeAddress": "0x810570aa7e16cf14defd69d4c9796f3c1abe2d13",
+        "bhouseTokenAddress": "0x2d5F4Ba3E4a2D991bD72EdBf78F607C174636618",
+        "depositAddress": "0x14EDbb72bd3318F84345bbe816bDef37814AC568",
+        "claimAddress": "0x83B5E78c10257bb4990Eba73E00BbC20c5581745",
+        "lockedAddresses": [
+            "0xe5f75be1798a8f5422adcbda950c1e2aaa969f8b",
+            "0x5142f9eb347163a179603493a6da8e152b11d32b",
+            "0x8b4e00810c927bb1c02dee73d714a31121689ab3",
+            "0x318b413c006afd4a0a6e161c18a18f3b1bcafa79",
+            "0xdd56bc2439c31063e418c2e21eb318a108bbc1ef",
+            "0xd467b18286277033ec93e6a31ca82ce21aa5f973"
+        ],
+        "oldSenTokenAddress": "",
+        "senTokenAddress": "0xFe302B8666539d5046cd9aA0707bB327F5f94C22"
+    }
+}

@@ -20,7 +20,10 @@ data class UserControllerMediator(
     val userId: Int,
     val dataType: DataType,
     val userName: String,
+    val walletAddress: String?,
     val userType: UserType,
+    /** Account GỐC là FI dù [userType] đã bị ép TR (adventure). Dùng cho permission gate FI-only. */
+    val isOriginallyFi: Boolean,
     val deviceType: DeviceType,
     val platform: Platform?,
     val services: GlobalServices,

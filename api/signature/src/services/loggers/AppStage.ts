@@ -1,0 +1,1 @@
+export type AppStage = 'local' | 'test' | 'prod';

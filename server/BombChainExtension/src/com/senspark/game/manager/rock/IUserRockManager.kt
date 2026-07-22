@@ -8,5 +8,6 @@ interface IUserRockManager : IServerService {
     val convertHeroRockConfig: Map<Int, RockAmount>
     fun setConfig(convertHeroRockConfig: Map<Int, RockAmount>)
     fun upgradeShieldLevel(userController: IUserController, hero: Hero): Pair<Int, String>
+    fun upgradeShieldLevelV3(userController: IUserController, hero: Hero, debugFakePush: Boolean = false): Pair<Int, String>
     fun createRock(userController: IUserController, tx: String, walletAddress: String, listIdHero: List<Int>): Float
 }

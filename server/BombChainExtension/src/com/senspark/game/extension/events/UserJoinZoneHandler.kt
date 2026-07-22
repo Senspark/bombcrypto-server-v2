@@ -13,7 +13,6 @@ import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.modules.ServerType
 import com.senspark.game.handler.MainGameExtensionBaseEventHandler
 import com.senspark.game.manager.IUsersManager
-import com.senspark.game.manager.ton.IForceLoginManager
 import com.smartfoxserver.v2.core.ISFSEvent
 import com.smartfoxserver.v2.core.SFSEventParam
 import com.smartfoxserver.v2.core.SFSEventType
@@ -30,26 +29,16 @@ class UserJoinZoneHandler : MainGameExtensionBaseEventHandler() {
 
         val userInfo = user.session.getProperty(SFSField.UserInfo) as IUserInfo
         val newUser = user.session.getProperty(SFSField.NewUser) as Boolean
+        val landing = user.session.getProperty(SFSField.LandingSession) as? EnumConstants.Landing
+            ?: EnumConstants.Landing.WILDCARD
+        val forceLogin = user.session.getProperty(SFSField.ForceLoginSession) as? Boolean ?: false
 
         val netServices = globalServices.get<ISvServicesContainer>().get(userInfo.serverType)
-        val loginManger = netServices.get<IForceLoginManager>();
 
-        // Chỉ cho phép user có session hash đã force login ở login handler vào
-        // các user khác sẽ bị kick
-        if (loginManger.checkToKickUser(userInfo.username, user.session.hashId)) {
-            api.kickUser(user, null, "kick", 1)
-            return
-        }
-
-        // Do account Fi và wallet của account đó có thể login trùng network nhưng ở phase login trước chưa đủ thông
-        // tin để check xem có kick ko nên phải cho login vô tới phase này có đc uid rồi mới check đc
-//        if(loginManger.checkToKickAccountFi(userInfo.id, userInfo.dataType)) {
-//            api.kickUser(user, null, "kick", 1)
-//            return
-//        }
-        
+        // Enforcement (kick/từ chối phiên va chạm) nằm trong atomic-admission của createUserController bên dưới,
+        // uid+landing-aware. Bỏ checkToKickUser cũ (key theo username, không landing-aware — đá nhầm tab khác mode).
         val usersManager = netServices.get<IUsersManager>()
-        usersManager.createUserController(parentExtension, globalServices, user, userInfo, ::createController) {
+        usersManager.createUserController(parentExtension, globalServices, user, userInfo, landing, forceLogin, ::createController) {
             if (it != null) {
                 sendResponseToUser(it, newUser, userInfo)
                 it.logger.log("${it.userName} join zone")
@@ -66,6 +55,9 @@ class UserJoinZoneHandler : MainGameExtensionBaseEventHandler() {
         data.putInt(SFSField.ErrorCode, ErrorCode.SUCCESS)
         data.putBool(SFSField.NewUser, newUser)
         data.putUtfString(SFSField.ADDRESS, UserNameSuffix.removeSuffixName(userInfo.username))
+        // Echo lại DataType server đã resolve cho phiên này (chính là key của _rewardsHaving).
+        // Client dùng nó để set _currentDataType thay vì tự đoán từ acc.network. Serialize bằng .name.
+        data.putUtfString(SFSField.DataType, userInfo.dataType.name)
 
         // Kiểm tra xem user này có cần phải gửi log không
         val netServices = globalServices.get<ISvServicesContainer>().get(userInfo.serverType)

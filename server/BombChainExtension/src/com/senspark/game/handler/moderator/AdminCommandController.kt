@@ -20,6 +20,7 @@ import com.senspark.game.manager.ton.IReferralManager
 import com.senspark.game.manager.ton.ITasksManager
 import com.senspark.game.manager.treasureHuntV2.ITreasureHuntV2Manager
 import com.senspark.game.pvp.HandlerCommand
+import com.senspark.game.utils.JsonExtensionBuilder
 import com.senspark.lib.data.manager.IGameConfigManager
 import com.smartfoxserver.v2.entities.Zone
 import com.smartfoxserver.v2.entities.data.ISFSObject
@@ -79,7 +80,7 @@ class AdminCommandController(
         try {
             val loggedUsersJson = _redis.get(CachedKeys.SV_CURRENT_USER_SEND_LOG)
             if (!loggedUsersJson.isNullOrEmpty()) {
-                val loggedUsersList = Json.decodeFromString<LoggedUserList>(loggedUsersJson)
+                val loggedUsersList = JsonExtensionBuilder.json.decodeFromString<LoggedUserList>(loggedUsersJson)
                 synchronized(_loggedUsers) {
                     _loggedUsers.clear()
                     _loggedUsers.addAll(loggedUsersList.users)
@@ -110,6 +111,25 @@ class AdminCommandController(
      */
     fun hotReloadConfigBlockReward() {
         _blockRewardDataManager.setConfig(_dataAccessManager.shopDataAccess.loadBlockReward())
+    }
+
+    // Cross-chain deposit bridge kill-switch (§J): persist to game_config AND flip the in-memory
+    // flag immediately so enforcement (deposit-sync crediting / withdraw prepare) sees it with no lag.
+    fun bridgeSetDepositEnabled(data: String) {
+        bridgeSetFlag("bridge_deposit_enabled", data)
+    }
+
+    fun bridgeSetWithdrawEnabled(data: String) {
+        bridgeSetFlag("bridge_withdraw_enabled", data)
+    }
+
+    private fun bridgeSetFlag(key: String, data: String) {
+        val trimmed = data.trim()
+        val enabled = trimmed == "1" || trimmed.equals("true", ignoreCase = true)
+        val value = if (enabled) "1" else "0"     // game_config booleans are '1'/'0'
+        _dataAccessManager.libDataAccess.updateGameConfig(key, value)
+        _gameConfigManager.setConfigValue(key, value)
+        _logger.log("Bridge kill-switch: $key = $value")
     }
 
     /**
@@ -217,7 +237,7 @@ class AdminCommandController(
                 _logger.error("No data provided for client log request.")
                 return
             }
-            val logData = Json.decodeFromString<ClientLogRequest>(data)
+            val logData = JsonExtensionBuilder.json.decodeFromString<ClientLogRequest>(data)
             _logger.log("Received log request for user ${logData.uid}, type: ${logData.type}, send_log: ${logData.send_log}")
             
             // Update client logging status for the user with network type filter
@@ -236,15 +256,15 @@ class AdminCommandController(
             val userManager = _netServices.get(serverType).get<IUsersManager>()
             userManager.setClientLogging(logData.uid, logData.send_log)
             
-            // Get the user's controller to extract username if available
-            val userController = userManager.getUserController(logData.uid)
-            val userName = userController?.userName
-            
+            // Get the user's controllers (a uid may be online on multiple networks)
+            val userControllers = userManager.getAllUserControllersOfUid(logData.uid)
+            val userName = userControllers.firstOrNull()?.userName
+
             // Update the list of users being logged
             updateLoggedUsersList(logData.uid, userName, serverType.name, logData.send_log)
-            
-            if(logData.send_log && userController != null) {
-                userController.sendDataEncryption(HandlerCommand.ForceClientSendLog, SFSObject())
+
+            if(logData.send_log) {
+                userControllers.forEach { it.sendDataEncryption(HandlerCommand.ForceClientSendLog, SFSObject()) }
             }
             
             _logger.log("Client logging ${if (logData.send_log) "enabled" else "disabled"} for user ID: ${logData.uid} on network type: ${serverType}")

@@ -10,11 +10,7 @@ class SyncBombermanHandlerV3 : BaseEncryptRequestHandler() {
     override val serverCommand = SFSCommand.SYNC_BOMBERMAN_V3
 
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
-        if (!controller.checkHash()) {
-            controller.disconnect(KickReason.CHEAT_LOGIN)
-            return
-        }
-        return try {
+        try {
             val response: ISFSObject = controller.masterUserManager.heroFiManager.syncBomberManV3()
             return sendSuccess(controller, requestId, response)
         } catch (exception: Exception) {

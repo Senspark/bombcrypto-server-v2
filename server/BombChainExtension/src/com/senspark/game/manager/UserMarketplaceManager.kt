@@ -229,7 +229,9 @@ class UserMarketplaceManager(
     }
 
     private fun checkUserPermission() {
-        if (_mediator.userType.isUserTraditional) {
+        // Chợ V3 chỉ cho FI. Phiên adventure là FI bị ép type=TR (forceAdventureTr) -> isOriginallyFi=true
+        // nên KHÔNG bị chặn; chỉ TR/guest THẬT mới bị cấm.
+        if (_mediator.userType.isUserTraditional && !_mediator.isOriginallyFi) {
             throw CustomException(
                 "User traditional can not cancel item"
             )

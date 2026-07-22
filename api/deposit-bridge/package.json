@@ -1,0 +1,32 @@
+{
+  "name": "ap-deposit-bridge",
+  "version": "1.0.0",
+  "description": "Cross-chain bridge withdraw signer (Phase 9): stateless — reads source-chain deposited at confirmed depth and signs an EIP-191 withdraw authorization the user relays themselves. No tx submission, no DB.",
+  "engines": {
+    "node": ">=20.11.x"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "tsc --noEmit && npx vite-node src/Server.ts",
+    "build": "tsc && tsc-alias",
+    "start:release": "npm run build && node dist/Server.js",
+    "deploy": "sh scripts/deploy.sh"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "envalid": "^8.0.0",
+    "ethers": "^6.13.5",
+    "express": "^4.19.2",
+    "pg": "^8.20.0",
+    "redis": "^4.6.14"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.13",
+    "@types/pg": "^8.11.2",
+    "tsc-alias": "^1.8.10",
+    "typescript": "^5.4.5",
+    "vite-node": "^1.6.0",
+    "vitest": "^4.1.10"
+  }
+}

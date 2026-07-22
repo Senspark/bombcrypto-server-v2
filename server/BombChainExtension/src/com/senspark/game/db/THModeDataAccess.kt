@@ -142,12 +142,18 @@ class THModeDataAccess(
         return result
     }
 
-    override fun loadRewardLevelConfig(): Map<Int, RewardLevelConfig> {
-        val statement = "SELECT * FROM config_reward_level_th_v2 ORDER BY level;"
-        val result: MutableMap<Int, RewardLevelConfig> = mutableMapOf()
+    override fun loadRewardLevelConfig(): Map<Int, Map<Int, RewardLevelConfig>> {
+        val statement = """
+            SELECT r.rarity, r.level, n.num_users, r.bcoin, r.sen, r.coin
+            FROM config_reward_level_th_v2_2026 r
+            JOIN config_reward_th_level_num_users n ON n.level = r.level
+            ORDER BY r.rarity, r.level;
+        """.trimIndent()
+        val result: MutableMap<Int, MutableMap<Int, RewardLevelConfig>> = mutableMapOf()
         executeQuery(statement, arrayOf()) {
+            val rarity = it.getInt("rarity")
             val level = it.getInt("level")
-            result[level] = RewardLevelConfig.fromResultSet(it)
+            result.getOrPut(rarity) { mutableMapOf() }[level] = RewardLevelConfig.fromResultSet(it)
         }
         return result
     }

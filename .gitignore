@@ -16,3 +16,4 @@ third-party-licenses/
 
 server/deploy/extensions_volume/
 compose-dev.yaml
+api/deposit-bridge/.env.test

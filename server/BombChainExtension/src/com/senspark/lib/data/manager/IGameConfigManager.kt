@@ -56,10 +56,16 @@ interface IGameConfigManager : IGlobalService {
     val refreshMinPriceClient: Int
     val coinRankingSeasonDay: Int
 
+    // Cross-chain deposit bridge kill-switch (§J). Default ON; flipped live via SV:ADMIN_COMMAND.
+    val bridgeDepositEnabled: Boolean
+    val bridgeWithdrawEnabled: Boolean
+
     // ----------------- Custom -----------------
     fun getString(key: String, default: String = ""): String
     fun getInt(key: String, default: Int = 0): Int
     fun getFloat(key: String, default: Float = 0f): Float
     fun getLong(key: String, default: Long = 0L): Long
+    /** In-memory config mutation (used by hot-reload admin commands; pairs with a DB write). */
+    fun setConfigValue(key: String, value: String)
     fun initialize(hash: Map<String, String>)
 }

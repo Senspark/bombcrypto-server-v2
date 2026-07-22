@@ -55,6 +55,7 @@ interface IUserHeroFiManager {
     fun getEnergyIncrease(bbm: Hero, minutes: Long, uHouse: House?): Int
     fun syncBomberMan(): ISFSObject
     fun syncBomberManV3(): ISFSObject
+    fun syncBomberManV4(forceFresh: Boolean = false): ISFSObject
     fun syncHeroAndGetResponse(dataSync: List<BlockchainHeroResponse>): ISFSObject
     fun repairShield(rewardType: BLOCK_REWARD_TYPE, heroId: Int): ISFSObject
     fun addHeroesServer(detailList: List<ServerHeroDetails>): List<Pair<Int, HeroType>>
@@ -70,4 +71,5 @@ interface IUserHeroFiManager {
         dataType: DataType
     ): ISFSObject
     fun multiFusionHeroServer(targetRarity: Int, heroList: List<Int>, rarity: Int): ISFSObject
+    fun heroToSfsObject(hero: Hero): ISFSObject
 }

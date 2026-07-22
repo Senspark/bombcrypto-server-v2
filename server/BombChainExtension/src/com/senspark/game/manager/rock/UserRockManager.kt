@@ -1,21 +1,32 @@
 package com.senspark.game.manager.rock
 
+import com.senspark.common.utils.ILogger
 import com.senspark.game.api.IRestApi
 import com.senspark.game.api.OkHttpRestApi
 import com.senspark.game.controller.IUserController
 import com.senspark.game.data.manager.hero.IHeroBuilder
+import com.senspark.game.data.model.nft.BlockchainHeroDetails
 import com.senspark.game.data.model.nft.Hero
 import com.senspark.game.db.IGameDataAccess
 import com.senspark.game.db.IRewardDataAccess
 import com.senspark.game.db.IShopDataAccess
+import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
 import com.senspark.game.declare.EnumConstants.DataType
 import com.senspark.game.declare.EnumConstants.HeroType
+import com.senspark.game.declare.SFSField
 import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.exception.CustomException
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.IEnvManager
+import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.hero.IUserHeroFiManager
+import com.senspark.game.pvp.HandlerCommand
 import com.senspark.game.service.IHeroUpgradeShieldManager
+import com.smartfoxserver.v2.entities.data.SFSObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,14 +46,25 @@ class UserRockManager(
     private val _envManager: IEnvManager,
     private val _heroUpgradeShieldManager: IHeroUpgradeShieldManager,
     private val _heroBuilder: IHeroBuilder,
+    private val _coroutineScope: ICoroutineScope,
+    private val _usersManager: IUsersManager,
+    private val _logger: ILogger,
 ) : IUserRockManager {
 
     override lateinit var convertHeroRockConfig: Map<Int, RockAmount>
     private val _pendingTransactions: ConcurrentHashMap<String, Int> = ConcurrentHashMap(mapOf())
     private val _api: IRestApi = OkHttpRestApi()
 
+    private val _upgradeShieldVerifyTag = "[UPGRADE_SHIELD_VERIFY]"
+    private val _upgradeShieldPollIntervalMs = 5_000L
+    private val _upgradeShieldPollMaxAttempts = 12
+
     override fun initialize() {
         convertHeroRockConfig = _shopDataAccess.loadBurnHeroConfig()
+        val missing = (0..9).filterNot { it in convertHeroRockConfig }
+        check(missing.isEmpty()) {
+            "config_burn_hero missing rarities: $missing. Apply rarity 6-9 migration."
+        }
     }
 
     override fun setConfig(convertHeroRockConfig: Map<Int, RockAmount>) {
@@ -50,6 +72,10 @@ class UserRockManager(
     }
 
     override fun upgradeShieldLevel(userController: IUserController, hero: Hero): Pair<Int, String> {
+        val walletAddress = userController.walletAddress
+        if (walletAddress.isNullOrEmpty()) {
+            throw CustomException("Only support BHero")
+        }
         val levelShieldUpgrade = hero.shield.level + 1
         if (levelShieldUpgrade > 3) {
             throw CustomException("Hero max upgrade")
@@ -67,8 +93,123 @@ class UserRockManager(
         )
         userBlockRewardManager.loadUserBlockReward()
 
-        val result = getCommandUpgradeShield(userController.walletAddress, hero.heroId, userController.dataType.name)
+        return getCommandUpgradeShield(walletAddress, hero.heroId, userController.dataType.name)
+    }
+
+    override fun upgradeShieldLevelV3(
+        userController: IUserController,
+        hero: Hero,
+        debugFakePush: Boolean,
+    ): Pair<Int, String> {
+        val expectedLevel = hero.shield.level + 1
+        val result = upgradeShieldLevel(userController, hero)
+        startVerifyUpgradeShield(
+            uid = userController.userId,
+            heroId = hero.heroId,
+            expectedLevel = expectedLevel,
+            dataType = userController.dataType,
+            debugFakePush = debugFakePush,
+        )
         return result
+    }
+
+    private fun startVerifyUpgradeShield(
+        uid: Int,
+        heroId: Int,
+        expectedLevel: Int,
+        dataType: DataType,
+        debugFakePush: Boolean,
+    ) {
+        _coroutineScope.scope.launch(Dispatchers.IO) {
+            try {
+                if (debugFakePush) {
+                    _logger.log("$_upgradeShieldVerifyTag DEBUG fake push uid=$uid heroId=$heroId (level unchanged)")
+                    delay(2_000L)
+                    pushFakeUpgradeResponse(uid, heroId, dataType)
+                    return@launch
+                }
+                repeat(_upgradeShieldPollMaxAttempts) {
+                    delay(_upgradeShieldPollIntervalMs)
+                    val onChainDetails = fetchHeroDetailsOnChain(heroId, dataType)
+                    if (onChainDetails != null && onChainDetails.shieldLevel == expectedLevel) {
+                        applyUpgradeAndPush(uid, heroId, expectedLevel, dataType, onChainDetails)
+                        return@launch
+                    }
+                }
+                _logger.log("$_upgradeShieldVerifyTag Timed out uid=$uid heroId=$heroId expected=$expectedLevel")
+                pushUpgradeError(uid, dataType, "Upgrade verification timed out")
+            } catch (e: Exception) {
+                _logger.error("$_upgradeShieldVerifyTag Error uid=$uid heroId=$heroId: ${e.message}", e)
+                pushUpgradeError(uid, dataType, "Upgrade verification error")
+            }
+        }
+    }
+
+    private fun pushFakeUpgradeResponse(uid: Int, heroId: Int, dataType: DataType) {
+        val controller = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE)
+        val heroFiManager = controller?.masterUserManager?.heroFiManager
+        val hero = heroFiManager?.getHero(heroId, HeroType.FI)
+        if (controller == null || heroFiManager == null || hero == null) {
+            _logger.log("$_upgradeShieldVerifyTag DEBUG fake push skipped (offline or hero missing) uid=$uid heroId=$heroId")
+            return
+        }
+        val payload = SFSObject()
+        payload.putSFSObject(SFSField.Bomber, heroFiManager.heroToSfsObject(hero))
+        payload.putSFSArray(SFSField.Rewards, controller.masterUserManager.blockRewardManager.toSfsArrays())
+        controller.sendDataEncryption(HandlerCommand.UpgradeShieldLevelResponse, payload, true)
+        _logger.log("$_upgradeShieldVerifyTag DEBUG pushed fake uid=$uid heroId=$heroId currentLevel=${hero.shield.level}")
+    }
+
+    private fun fetchHeroDetailsOnChain(heroId: Int, dataType: DataType): BlockchainHeroDetails? {
+        val url = String.format(_envManager.apBlockchainHeroDetailsUrl, heroId.toString(), dataType.name.lowercase())
+        val bodyJson = try {
+            _api.get(url)
+        } catch (e: Exception) {
+            _logger.log("$_upgradeShieldVerifyTag fetch hero_details failed heroId=$heroId: ${e.message}")
+            return null
+        }
+        val jsonData = Json.parseToJsonElement(bodyJson).jsonObject
+        val code = jsonData["code"]?.jsonPrimitive?.intOrNull ?: return null
+        if (code != 0) return null
+        val message = jsonData["message"]?.jsonArray ?: return null
+        val detailsHex = message.firstOrNull()?.jsonPrimitive?.contentOrNull ?: return null
+        if (detailsHex.isEmpty() || detailsHex == "0") return null
+        return BlockchainHeroDetails(detailsHex, dataType)
+    }
+
+    private fun applyUpgradeAndPush(
+        uid: Int,
+        heroId: Int,
+        expectedLevel: Int,
+        dataType: DataType,
+        newDetails: BlockchainHeroDetails,
+    ) {
+        val controller = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE)
+        val heroFiManager = controller?.masterUserManager?.heroFiManager
+        val hero = heroFiManager?.getHero(heroId, HeroType.FI)
+        if (controller == null || heroFiManager == null || hero == null) {
+            _logger.log("$_upgradeShieldVerifyTag User offline or hero not loaded, skip push uid=$uid heroId=$heroId")
+            return
+        }
+        // Swap in fresh on-chain details so gen_id reflects the new shieldLevel,
+        // not just hero.shield.level (which heroToSfsObject doesn't write back into gen_id).
+        hero.updateDetails(newDetails)
+        hero.updateShieldLevel(expectedLevel)
+        _gameDataAccessPostgreSql.updateHeroDetails(uid, dataType, hero)
+
+        val payload = SFSObject()
+        payload.putSFSObject(SFSField.Bomber, heroFiManager.heroToSfsObject(hero))
+        payload.putSFSArray(SFSField.Rewards, controller.masterUserManager.blockRewardManager.toSfsArrays())
+        controller.sendDataEncryption(HandlerCommand.UpgradeShieldLevelResponse, payload, true)
+        _logger.log("$_upgradeShieldVerifyTag Pushed success uid=$uid heroId=$heroId level=$expectedLevel")
+    }
+
+    private fun pushUpgradeError(uid: Int, dataType: DataType, message: String) {
+        val controller = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE) ?: return
+        val payload = SFSObject()
+        payload.putInt("code", 100)
+        payload.putUtfString("message", message)
+        controller.sendDataEncryption(HandlerCommand.UpgradeShieldLevelResponse, payload, true)
     }
 
     override fun createRock(
@@ -159,7 +300,7 @@ class UserRockManager(
         val url = String.format(_envManager.checkValidCreateRockUrl, network.lowercase())
         val bodyJson: String
         try {
-            bodyJson = _api.post(url, _envManager.apSignatureToken, body)
+            bodyJson = _api.post(url, body)
         } catch (ex: Exception) {
             throw CustomException("API fail")
         }
@@ -211,10 +352,10 @@ class UserRockManager(
         }
         val jsonData = Json.parseToJsonElement(bodyJson).jsonObject
 
-        val data = jsonData["data"] ?: throw CustomException("Invalid response: data not found")
-        val nonce = data.jsonObject["nonce"]
+        val message = jsonData["message"] ?: throw CustomException("Invalid response: message not found")
+        val nonce = message.jsonObject["nonce"]
             ?: throw CustomException("Invalid response: nonce not found")
-        val signature = data.jsonObject["signature"]
+        val signature = message.jsonObject["signature"]
             ?: throw CustomException("Invalid response: signature not found")
 
         return Pair(nonce.toString().toInt(), signature.jsonPrimitive.content)

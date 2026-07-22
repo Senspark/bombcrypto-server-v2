@@ -16,6 +16,10 @@ object SFSField {
     const val LoginType: String = "lt"
     const val DeviceType: String = "device_type"
     const val DataType: String = "data_type"
+    const val Landing: String = "landing" // client field: mode chơi của phiên (treasure|adventure)
+    const val LandingSession: String = "landing_session" // session property bắc cầu landing từ login sang join zone
+    const val ForceLogin: String = "force_login" // client field: yêu cầu kick phiên cũ để chiếm chỗ
+    const val ForceLoginSession: String = "force_login_session" // session property bắc cầu force_login từ login sang admission
     const val Platform: String = "platform"
     const val Token: String = "token"
     const val Slogan: String = "slogan"
@@ -82,9 +86,12 @@ object SFSField {
     const val MyDatas: String = "my_data"
 
     const val Bombers: String = "bombers"
+    const val Bomber: String = "bomber"
     const val NewBombers: String = "new_bombers"
     const val DeletedBombers: String = "deleted_bombers"
+    const val ForceFresh: String = "forceFresh"
     const val GenID: String = "gen_id"
+    const val TxHash: String = "tx_hash"
 
     //	public static final String BomberID = "bomber_id";
     const val Power: String = "power"
@@ -106,10 +113,21 @@ object SFSField {
     const val HERO_QUANTITY: String = "hero_quantity"
     const val Rewards: String = "rewards"
     const val AMOUNT: String = "amount"
+    const val CHAIN: String = "chain"
     const val AmountOfBcoin: String = "amount_of_bcoin"
     const val AmountOfBcoinClaimed: String = "amount_of_bcoin_claimed"
     const val Stage: String = "stage"
     const val ALL_IN: String = "all_in"
+    // SYNC_DEPOSITED_V4 routing: "OLD" | "BRIDGE" | "BOTH". Absent → BOTH.
+    const val DEPOSIT_SYNC_TARGET: String = "deposit_sync_target"
+    // Cross-chain bridge withdraw-sign response (Phase 9): the user relays withdraw(...) themselves.
+    const val OTHER_DEPOSITED: String = "other_deposited"
+    const val DEADLINE: String = "deadline"
+    const val BRIDGE_ADDRESS: String = "bridge_address"
+    const val TOKEN_ADDRESS: String = "token_address"
+    // Cross-chain bridge activity notify (Phase 9 smart-sweep): which activity + the on-chain tx hash.
+    const val KIND: String = "kind"
+    const val TX_HASH: String = "tx_hash"
 
     // linhpd sửa từ House_Gen_Id => House_Id
     const val House_Gen_Id: String = "house_gen_id"

@@ -29,7 +29,12 @@ class EnumConstants {
         SOL_DEPOSITED(25, false),
         RON_DEPOSITED(26, false),
         BAS_DEPOSITED(27, false),
-        VIC_DEPOSITED(28, false);
+        VIC_DEPOSITED(28, false),
+
+        // Cross-chain deposit bridge: unified spendable balance, isolated by type = 'BP'
+        // (see cross-chain-balance-impl-plan.md §D). Credited/debited only by the bridge flow.
+        BCOIN_BRIDGE(29, false),
+        SEN_BRIDGE(30, false);
 
         @Throws(CustomException::class)
         fun swapDepositedOrReward(): BLOCK_REWARD_TYPE {
@@ -182,7 +187,12 @@ class EnumConstants {
         GUEST("GUEST"), // mới thêm
         RON("RON"),
         VIC("VIC"),
-        BAS("BAS")
+        BAS("BAS"),
+
+        // Cross-chain deposit bridge unified-balance sentinel: the bridge stores ONE
+        // chain-agnostic spendable balance per token at (uid, reward_type, type = 'BP'),
+        // never a user's live network. See cross-chain-balance-impl-plan.md §D/§I.
+        BP("BP")
         ;
 
         fun isAirdropUser(): Boolean {
@@ -221,6 +231,24 @@ class EnumConstants {
             fun from(value: String?) = entries.firstOrNull {
                 it.value == value
             } ?: UNKNOWN
+        }
+    }
+
+    // Mode chơi của 1 phiên, dùng để tách session ở tầng SmartFox (cho phép 1 account FI
+    // mở đồng thời 1 Treasure + 1 Adventure mà không kick nhau). KHÔNG đụng tới identity/economy/DB.
+    enum class Landing(val value: String) {
+        // Phiên không khai báo mode cụ thể (client cũ chưa migrate, hoặc FI không gửi landing).
+        // WILDCARD đụng (collide) với MỌI landing trên cùng (uid, dataType) — dù ở vai trò phiên đang
+        // lưu hay phiên mới login — để client cũ + client mới same-mode vẫn kick nhau như trước.
+        WILDCARD(""),
+        TREASURE("treasure"),
+        ADVENTURE("adventure")
+        ;
+
+        companion object {
+            fun from(value: String?) = entries.firstOrNull {
+                it.value == value
+            } ?: WILDCARD
         }
     }
 

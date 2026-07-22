@@ -96,4 +96,12 @@ class LibDataAccessPostgreSql(
         }
         return list[0]
     }
+
+    override fun updateGameConfig(key: String, value: String): Boolean {
+        val statement = """
+            INSERT INTO game_config (key, value) VALUES (?, ?)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        """.trimIndent()
+        return executeUpdate(statement, arrayOf(key, value))
+    }
 }

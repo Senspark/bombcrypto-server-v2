@@ -44,11 +44,16 @@ class PropertyEnvManager : IEnvManager {
 
     override val isTournamentGameServer = getEnv("IS_TOURNAMENT_GAME_SERVER", "false").toBoolean()
 
-    override val syncHeroUrl = "${apBlockchainPath}/hero?address=%s&network=%s&mode=1"
+    override val syncHeroUrl = "${apBlockchainPath}/hero?address=%s&network=%s&mode=1&uid=%s"
     override val syncHouseUrl = "${apBlockchainPath}/house?address=%s&network=%s&mode=1"
     override val syncDepositedUrl = "${apBlockchainPath}/v3/deposited?address=%s&network=%s"
+    override val syncHeroUrlV4 = "${apBlockchainPath}/v4/hero?address=%s&network=%s&mode=1&uid=%s&forceFresh=%s"
+    override val syncHouseUrlV4 = "${apBlockchainPath}/v4/house?address=%s&network=%s&mode=1&uid=%s"
+    override val syncDepositedUrlV4 = "${apBlockchainPath}/v4/deposited?address=%s&network=%s&uid=%s"
+    override val refreshHeroStakeUrl = "${apBlockchainPath}/v4/hero-stake/refresh"
     override val getBomberStakeUrl = "${apBlockchainPath}/hero_stake_v2?id=%s&network=%s"
     override val checkValidCreateRockUrl = "${apBlockchainPath}/create_rock?network=%s"
+    override val apBlockchainHeroDetailsUrl = "${apBlockchainPath}/hero_details?id=%s&network=%s&clear=true"
     override val getPriceTokenUrl = "${apBlockchainPath}/coins_price"
     
     override val apSignatureToken = getEnv("AP_SIGNATURE_TOKEN")
@@ -71,7 +76,9 @@ class PropertyEnvManager : IEnvManager {
     override val apSignatureCmdUpdateShieldUrl = "${apSignaturePath}/sign/upgrade-hero-shield?network=%s"
     override val apSignatureCmdCheckTotalClaimedUrl = "${apSignaturePath}/validate/check-total-claim-token?userAddress=%s&tokenType=%d&network=%s"
     override val apSignatureCmdClaimRewardUrl = "${apSignaturePath}/sign/claim-token?userAddress=%s&tokenType=%d&amount=%f&network=%s"
-    
+    override val apSignatureCmdCheckTotalClaimedUrlV4 = "${apSignaturePath}/v4/validate/check-total-claim-token?userAddress=%s&tokenType=%d&network=%s&correlationId=%s"
+    override val apSignatureCmdClaimRewardUrlV4 = "${apSignaturePath}/v4/sign/claim-token?network=%s&correlationId=%s"
+
     override val avatarClubUrl = "https://game.bombcrypto.io/club_avatar/%s"
 
     override val addChildUrl = "${apReferralPath}/add-child?parent-id=%s&child-id=%s&identifier-name=%s"

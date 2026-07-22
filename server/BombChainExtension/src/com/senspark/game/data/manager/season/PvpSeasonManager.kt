@@ -46,6 +46,7 @@ class PvpSeasonManager(
             (now in it.startDate..it.endDate) ||
                     (it.nextSeasonStartDate != null && now in it.endDate until it.nextSeasonStartDate)
         } ?: addNewSeason()
+        _shopDataAccess.createPvpRankingSeasonTables(_currentSeason.id)
     }
 
     private fun getNewSeasonStartTime(): Instant {
@@ -84,6 +85,7 @@ class PvpSeasonManager(
         val endDateNewSeason = getNextSeasonEndTime(startDateNewSeason)
         val idNewSeason = if (!this::_currentSeason.isInitialized) _data.keys.max() + 1 else _currentSeason.id
         _shopDataAccess.addNewPVPRankingSeason(idNewSeason, startDateNewSeason, endDateNewSeason)
+        _shopDataAccess.createPvpRankingSeasonTables(idNewSeason)
         val newSeason = Season(
             idNewSeason,
             startDateNewSeason.toEpochMilli(),

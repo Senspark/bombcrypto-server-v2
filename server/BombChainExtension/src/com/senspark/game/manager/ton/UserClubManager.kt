@@ -211,7 +211,7 @@ class UserClubManager(
         val displayName = userDataAccess.getDisplayNameUser(uid)
         val id = createClub(info.telegram_id, info.name, info.link, info.avatar_name)
         joinClub(uid, displayName, id, true)
-        usersManager.getUserController(uid)?.sendDataEncryption("USER_JOIN_CLUB", getClubInfo(uid))
+        usersManager.getUserController(uid, EnumConstants.DataType.TON, EnumConstants.Landing.WILDCARD)?.sendDataEncryption("USER_JOIN_CLUB", getClubInfo(uid))
     }
 
 
@@ -239,7 +239,7 @@ class UserClubManager(
         val uid = info.uid
         val displayName = userDataAccess.getDisplayNameUser(uid)
         joinClub(uid, displayName, info.club_id, true)
-        usersManager.getUserController(uid)?.sendDataEncryption("USER_JOIN_CLUB", getClubInfo(uid))
+        usersManager.getUserController(uid, EnumConstants.DataType.TON, EnumConstants.Landing.WILDCARD)?.sendDataEncryption("USER_JOIN_CLUB", getClubInfo(uid))
     }
 
     override fun joinClub(uid: Int, displayName: String, clubId: Int, isForceLeave: Boolean) {
@@ -271,7 +271,7 @@ class UserClubManager(
     override fun leaveClub(json: String) {
         val uid = Json.decodeFromString<LeaveClubInfo>(json).uid
         leaveClub(uid)
-        usersManager.getUserController(uid)?.sendDataEncryption("USER_LEAVE_CLUB", SFSObject())
+        usersManager.getUserController(uid, EnumConstants.DataType.TON, EnumConstants.Landing.WILDCARD)?.sendDataEncryption("USER_LEAVE_CLUB", SFSObject())
     }
 
     override fun leaveClub(uid: Int) {

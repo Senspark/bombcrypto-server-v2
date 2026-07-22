@@ -28,6 +28,11 @@ class FusionHeroServerHandler : BaseEncryptRequestHandler() {
             if (targetRarity == 0)
                 throw Exception("Not support fusion hero common")
 
+            // Rarity 6-9 (Mega / Super Mega / Mystic / Super Mystic) is BSC/Polygon-only.
+            // Airdrop-network users (TON / SOL / RON / VIC / BAS) cap at rarity 5.
+            if (targetRarity > 5)
+                throw Exception("Target rarity $targetRarity is not supported on this network (max 5)")
+
             //Convert danh sách hero fusion sang rarity
             val rarityList = convertHeroListToRarityList(controller, heroList)
 

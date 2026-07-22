@@ -12,19 +12,16 @@ interface IUsersManager : IServerService {
     fun getUserId(userName: String): Int
     fun getUserController(userName: String): IUserController?
     fun getUserController(user: User): IUserController?
-    
-    // Legacy method - will return the first available controller or null
-    fun getUserController(userId: Int): IUserController?
-    
-    // New method with DataType - should be used going forward
-    fun getUserController(userId: Int, dataType: EnumConstants.DataType): IUserController?
-    
+    fun getUserController(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): IUserController?
+
     fun checkExistence(userController: IUserController): Boolean
     fun createUserController(
         extension: SFSExtension,
         services: GlobalServices,
         user: User,
         userInfo: IUserInfo,
+        landing: EnumConstants.Landing,
+        forceLogin: Boolean,
         factory: (userInfo: IUserInfo)-> IUserController,
         onCompleted: (userController: IUserController?) -> Unit
     )
@@ -34,9 +31,14 @@ interface IUsersManager : IServerService {
     fun kickAndRemoveUser(userId: Int)
     fun kickAndRemoveUser(userName: String)
     fun isUserLoggedOut(userId: Int, dataType: EnumConstants.DataType): Boolean
-    fun isLoggedIn(userId: Int, dataType: EnumConstants.DataType): Boolean
-    fun updateKeepAliveTime(userId: Int, dataType: EnumConstants.DataType)
-    fun safeCheckAndDisposeOldSession(userName: String)
+
+    /**
+     * Có phiên SỐNG (non-ghost) nào đang va chạm với (uid, dataType, landing) theo bảng xô không.
+     * Ghost (đã timeout) KHÔNG tính — để admission tự RECLAIM, tránh reject oan lúc reconnect.
+     * Key thuần theo (uid, dataType, landing); KHÔNG tra theo username.
+     */
+    fun hasLiveConflict(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): Boolean
+    fun updateKeepAliveTime(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing)
     fun dispose()
 
     /**

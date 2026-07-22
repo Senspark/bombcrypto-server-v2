@@ -11,7 +11,9 @@ object Encoder {
         detail = detail.or(obj.getInt("rare").toBigInteger() shl 40) // rarity
         detail = detail.or(obj.getInt("level").toBigInteger() shl 45) // level
         detail = detail.or(obj.getInt("color").toBigInteger() shl 50) // color
-        detail = detail.or(obj.getInt("skin").toBigInteger() shl 55) // skin
+        val skinValue = obj.getInt("skin")
+        detail = detail.or((skinValue and 0x1F).toBigInteger() shl 55) // skin low 5 bits
+        detail = detail.or(((skinValue shr 5) and 0x1F).toBigInteger() shl 250) // skin high 5 bits
         detail = detail.or(obj.getInt("stamina").toBigInteger() shl 60) // stamina
         detail = detail.or(obj.getInt("speed").toBigInteger() shl 65) // speed
         detail = detail.or(obj.getInt("bomb_skin").toBigInteger() shl 70) // bomb_skin

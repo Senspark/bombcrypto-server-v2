@@ -22,8 +22,10 @@ interface IUserController {
     val user: User?
     val userInfo: IUserInfo
     val userName: String
-    val walletAddress: String
+    val walletAddress: String?
     val dataType: EnumConstants.DataType
+    // Mode chơi của phiên này (gán lúc tạo controller). Dùng để tách/dispose session theo (uid, dataType, landing).
+    var landing: EnumConstants.Landing
     var masterUserManager: IMasterUserManager
     val locker: Any
     val svServices: ServerServices

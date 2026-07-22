@@ -4,6 +4,7 @@ import com.senspark.common.utils.ILogger
 import com.senspark.game.api.BlockchainHeroDatabase.HeroData
 import com.senspark.game.api.BlockchainHeroResponse
 import com.senspark.game.api.BlockchainHouseDatabase.HouseData
+import com.senspark.game.api.IBlockchainDatabaseManager
 import com.senspark.game.api.model.response.DepositResponse
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.data.manager.hero.IHeroBuilder
@@ -14,15 +15,21 @@ import com.senspark.game.data.model.nft.HouseDetails
 import com.senspark.game.db.IUserDataAccess
 import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.SFSField
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.resourceSync.ISyncResourceManager
 import com.senspark.game.pvp.HandlerCommand
-import com.senspark.game.utils.deserializeList
+import com.senspark.game.utils.JsonExtensionBuilder
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.forEach
 
 class BlockchainResponseManager(
@@ -30,8 +37,20 @@ class BlockchainResponseManager(
     private val _userDataAccess: IUserDataAccess,
     private val _usersManager: IUsersManager,
     private val _heroBuilder: IHeroBuilder,
+    private val _databaseManager: IBlockchainDatabaseManager,
+    private val _coroutineScope: ICoroutineScope,
     private val _logger: ILogger
 ) : IBlockchainResponseManager {
+
+    /**
+     * Per-user retry counter for forceFresh sync. Increments when we receive a stream message
+     * matching DB exactly while caller asked for fresh data — this means the upstream RPC node
+     * still returns stale state. We schedule a single retry after [RETRY_DELAY_MS]; if even that
+     * still matches DB we give up (the chain may genuinely have no change).
+     */
+    private val _forceFreshRetries = ConcurrentHashMap<Pair<Int, EnumConstants.DataType>, Int>()
+    private val MAX_FORCE_FRESH_RETRIES = 1
+    private val RETRY_DELAY_MS = 10_000L
 
     private val _userHouseSync = userResourceManger.houseSyncService
     private val _userHeroSync = userResourceManger.heroSyncService
@@ -44,17 +63,18 @@ class BlockchainResponseManager(
     override fun listenSyncHero(message: String): Boolean {
         try {
             _logger.log("$tagSyncHero Received sync hero message: $message")
-            val blockChainResponse = Json.decodeFromString<BlockChainResponse>(message)
+            val blockChainResponse = JsonExtensionBuilder.json.decodeFromString<BlockChainResponse>(message)
             val data = blockChainResponse.data
             val dataType = EnumConstants.DataType.valueOf(blockChainResponse.type)
             val uid = blockChainResponse.uid
-            _logger.log("$tagSyncHero Processing user: $uid, dataType: $dataType")
-            val dataList = deserializeList<HeroData>(data)
+            val forceFresh = blockChainResponse.forceFresh
+            _logger.log("$tagSyncHero Processing user: $uid, dataType: $dataType, forceFresh: $forceFresh")
+            val dataList = JsonExtensionBuilder.json.decodeFromJsonElement<List<HeroData>>(data)
             val dataSync = dataList.map {
                 BlockchainHeroResponse(BlockchainHeroDetails(it.details, dataType), it.stake_bcoin, it.stake_sen)
             }
 
-            val userController = _usersManager.getUserController(uid)
+            val userController = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE)
 
             // Chia làm 2 trường hợp
             // nếu user online thì gọi hàm syncHero của user trong như bình thường
@@ -62,9 +82,33 @@ class BlockchainResponseManager(
 
             //User online, gọi sync hero như bth và notify cho client
             if (userController != null) {
+                if (forceFresh && isIdenticalToDb(uid, dataType, dataSync)) {
+                    val key = Pair(uid, dataType)
+                    val attempts = _forceFreshRetries.getOrDefault(key, 0)
+                    if (attempts < MAX_FORCE_FRESH_RETRIES) {
+                        _forceFreshRetries[key] = attempts + 1
+                        val wallet = userController.walletAddress
+                        if (wallet.isNullOrEmpty()) {
+                            _logger.log("$tagSyncHero forceFresh data identical to DB but wallet missing, skip retry: uid=$uid")
+                            _forceFreshRetries.remove(key)
+                            return true
+                        }
+                        _logger.log("$tagSyncHero forceFresh data identical to DB, scheduling retry attempt=${attempts + 1} after ${RETRY_DELAY_MS}ms: uid=$uid")
+                        _coroutineScope.scope.launch(Dispatchers.IO) {
+                            delay(RETRY_DELAY_MS)
+                            _databaseManager.heroDatabase.queryV4(uid, wallet, dataType, true)
+                        }
+                    } else {
+                        _logger.log("$tagSyncHero forceFresh data still identical after retry, giving up: uid=$uid")
+                        _forceFreshRetries.remove(key)
+                    }
+                    // Don't push: client trusts a forceFresh push to mean "data really changed"
+                    return true
+                }
+                _forceFreshRetries.remove(Pair(uid, dataType))
                 _logger.log("$tagSyncHero User online, syncing hero and notifying client: $uid")
                 val response = userController.masterUserManager.heroFiManager.syncHeroAndGetResponse(dataSync)
-                userController.send(HandlerCommand.SyncHeroResponse, response, true)
+                userController.sendDataEncryption(HandlerCommand.SyncHeroResponse, response, true)
                 return true
             }
 
@@ -80,24 +124,49 @@ class BlockchainResponseManager(
         }
     }
 
+    /**
+     * Returns true if the incoming on-chain hero list matches the current DB FI hero set exactly:
+     * same hero IDs, same details hex, same stake amounts. Used to detect stale RPC responses
+     * after a forceFresh sync — when caller expected change but chain hasn't propagated yet.
+     */
+    private fun isIdenticalToDb(
+        uid: Int,
+        dataType: EnumConstants.DataType,
+        incoming: List<BlockchainHeroResponse>,
+    ): Boolean {
+        val dbHeroes = _heroBuilder.getFiHeroes(uid, dataType, Int.MAX_VALUE, 0).values
+            .filter { it.type == EnumConstants.HeroType.FI }
+        if (incoming.size != dbHeroes.size) return false
+        val incomingMap = incoming.associateBy { it.details.heroId }
+        val dbMap = dbHeroes.associateBy { it.heroId }
+        if (incomingMap.keys != dbMap.keys) return false
+        for ((id, inc) in incomingMap) {
+            val db = dbMap[id] ?: return false
+            if (inc.details.details != db.details.details) return false
+            if (inc.stakeBcoin != db.stakeBcoin) return false
+            if (inc.stakeSen != db.stakeSen) return false
+        }
+        return true
+    }
+
     override fun listenSyncHouse(message: String): Boolean {
         try {
             _logger.log("$tagSyncHouse Received sync house message: $message")
-            val blockChainResponse = Json.decodeFromString<BlockChainResponse>(message)
+            val blockChainResponse = JsonExtensionBuilder.json.decodeFromString<BlockChainResponse>(message)
             val data = blockChainResponse.data
             val dataType = EnumConstants.DataType.valueOf(blockChainResponse.type)
             val uid = blockChainResponse.uid
             _logger.log("$tagSyncHouse Processing user: $uid, dataType: $dataType")
 
-            val houseData = deserializeList<HouseData>(data)
+            val houseData = JsonExtensionBuilder.json.decodeFromJsonElement<List<HouseData>>(data)
             val houseDetailList = houseData.map { HouseDetails(it.details) }
-            val userController = _usersManager.getUserController(uid)
+            val userController = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE)
 
             // User online, gọi sync house như bình thường và notify cho client
             if (userController != null) {
                 _logger.log("$tagSyncHouse User online, syncing house and notifying client: $uid")
                 val data = _userHouseSync.syncHouses(userController, houseDetailList)
-                userController.send(HandlerCommand.SyncHouseResponse, data, true)
+                userController.sendDataEncryption(HandlerCommand.SyncHouseResponse, data, true)
                 return true
             }
             // User offline, cập nhật db
@@ -115,13 +184,13 @@ class BlockchainResponseManager(
     override fun listenSyncDeposit(message: String): Boolean {
         try {
             _logger.log("$tagSyncDeposit Received sync deposit message: $message")
-            val blockChainResponse = Json.decodeFromString<BlockChainResponse>(message)
+            val blockChainResponse = JsonExtensionBuilder.json.decodeFromString<BlockChainResponse>(message)
             val data = blockChainResponse.data
             val dataType = EnumConstants.DataType.valueOf(blockChainResponse.type)
             val uid = blockChainResponse.uid
             _logger.log("$tagSyncDeposit Processing user: $uid, dataType: $dataType")
 
-            val depositData = deserializeList<DepositResponse>(data)
+            val depositData = JsonExtensionBuilder.json.decodeFromJsonElement<List<DepositResponse>>(data)
 
             var bcoinDeposited = 0f
             var senDeposited = 0f
@@ -142,12 +211,12 @@ class BlockchainResponseManager(
             _userDataAccess.syncDeposit(uid, dataType, userDeposited)
 
             //Nếu user online thì update block reward và notify cho client
-            val userController = _usersManager.getUserController(uid)
+            val userController = _usersManager.getUserController(uid, dataType, EnumConstants.Landing.TREASURE)
             if (userController != null) {
                 userController.masterUserManager.blockRewardManager.loadUserBlockReward()
                 val result: ISFSObject = SFSObject()
                 result.putSFSArray(SFSField.Rewards, userController.masterUserManager.blockRewardManager.toSfsArrays())
-                userController.send(HandlerCommand.SyncDepositResponse, result, true)
+                userController.sendDataEncryption(HandlerCommand.SyncDepositResponse, result, true)
             }
             return true
         } catch (e: Exception) {
@@ -163,7 +232,8 @@ class BlockchainResponseManager(
     data class BlockChainResponse(
         val uid: Int,
         val type: String,
-        val data: String
+        val data: JsonElement,
+        val forceFresh: Boolean = false,
     )
 
     data class NewOrUpdatedHero(

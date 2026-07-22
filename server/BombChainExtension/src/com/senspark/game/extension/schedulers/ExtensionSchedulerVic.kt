@@ -168,7 +168,7 @@ class ExtensionSchedulerVic(
                         array.addSFSObject(sfsObject)
                     }
                     data.putSFSArray("data", array)
-                    _usersManager.getUserController(userId.userId)?.let {
+                    _usersManager.getUserController(userId.userId, userId.dataType, EnumConstants.Landing.TREASURE)?.let {
                         it as LegacyUserController
                         it.masterUserManager.blockRewardManager.addRewards(sumRewardsByType)
                         it.setNeedSave(EnumConstants.SAVE.REWARD)

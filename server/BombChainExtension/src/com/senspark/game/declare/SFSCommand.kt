@@ -44,8 +44,6 @@ object SFSCommand {
     const val GET_LUCKY_WHEEL_REWARD: String = "GET_LUCKY_WHEEL_REWARD"
     const val GET_BONUS_REWARD_PVP: String = "GET_BONUS_REWARD_PVP"
     const val GET_BONUS_REWARD_PVP_V2: String = "GET_BONUS_REWARD_PVP_V2"
-    const val APPROVE_CLAIM: String = "APPROVE_CLAIM"
-    const val CONFIRM_CLAIM_REWARD_SUCCESS: String = "CONFIRM_CLAIM_REWARD_SUCCESS"
     const val SYNC_PVP_CONFIG: String = "SYNC_PVP_CONFIG"
     const val SYNC_PVP_HERO_ENERGY: String = "SYNC_PVP_HERO_ENERGY"
     const val LEAVE_PVP_QUEUE: String = "LEAVE_PVP_QUEUE"
@@ -203,6 +201,7 @@ object SFSCommand {
     const val CHANGE_BBM_STAGE_V3: String = "CHANGE_BBM_STAGE_V3" // cập nhật trạng thái cho bomber (nghỉ, làm, nhà)
     const val ACTIVE_HOUSE_V2: String = "ACTIVE_HOUSE_V2"
     const val ACTIVE_BOMBER_V2: String = "ACTIVE_BOMBER_V2"
+    const val ACTIVE_BOMBERS: String = "ACTIVE_BOMBERS"
     const val GET_ACTIVE_BOMBER_V2: String = "GET_ACTIVE_BOMBER_V2"
     const val BUY_AUTO_MINE_V2: String = "BUY_AUTO_MINE_V2"
     const val START_AUTO_MINE_V2: String = "START_AUTO_MINE_V2"
@@ -248,6 +247,8 @@ object SFSCommand {
     const val SYNC_BOMBERMAN_V2: String = "SYNC_BOMBERMAN_V2"
     const val SYNC_DEPOSITED_V2: String = "SYNC_DEPOSITED_V2"
     const val CHECK_BOMBER_STAKE_V2: String = "CHECK_BOMBER_STAKE_V2"
+    const val CHECK_BOMBER_STAKE_V3: String = "CHECK_BOMBER_STAKE_V3"
+    const val REFRESH_HERO_STAKE: String = "REFRESH_HERO_STAKE"
     const val GET_REPAIR_SHIELD_CONFIG_V2: String = "GET_REPAIR_SHIELD_CONFIG_V2"
     const val REPAIR_SHIELD_V2: String = "REPAIR_SHIELD_V2"
     const val CREATE_ROCK_V2: String = "CREATE_ROCK_V2"
@@ -255,6 +256,7 @@ object SFSCommand {
     const val BUY_ROCK_V2: String = "BUY_ROCK_V2"
     const val GET_ROCK_PACK_CONFIG_V2: String = "GET_ROCK_PACK_CONFIG_V2"
     const val UPGRADE_SHIELD_LEVEL_V2: String = "UPGRADE_SHIELD_LEVEL_V2"
+    const val UPGRADE_SHIELD_LEVEL_V3: String = "UPGRADE_SHIELD_LEVEL_V3"
     const val GET_UPGRADE_SHIELD_CONFIG_V2: String = "GET_UPGRADE_SHIELD_CONFIG_V2"
     const val GET_MIN_STAKE_HERO_V2: String = "GET_MIN_STAKE_HERO_V2"
 
@@ -318,7 +320,12 @@ object SFSCommand {
     const val GET_NEWCOMER_GIFTS_V2: String = "GET_NEWCOMER_GIFTS_V2"
     const val GET_START_GAME_CONFIG_V2: String = "GET_START_GAME_CONFIG_V2"
     const val APPROVE_CLAIM_V2: String = "APPROVE_CLAIM_V2"
+    const val APPROVE_CLAIM_V4: String = "APPROVE_CLAIM_V4"
     const val CONFIRM_CLAIM_REWARD_SUCCESS_V2: String = "CONFIRM_CLAIM_REWARD_SUCCESS_V2"
+    const val CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW: String = "CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW"
+    // Client reports a bridge activity (before/after deposit, after withdraw). Fire-and-forget: the server
+    // re-emits it on SV_DEPBRIDGE_NOTIFY_STR so the indexer accelerates its sweep. No business effect.
+    const val CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY: String = "CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY"
     const val USER_STAKE_V2: String = "USER_STAKE_V2"
     const val USER_WITHDRAW_STAKE_V2: String = "USER_WITHDRAW_STAKE_V2"
     const val USER_RENAME_V2: String = "USER_RENAME_V2"
@@ -375,4 +382,8 @@ object SFSCommand {
     const val SYNC_BOMBERMAN_V3: String = "SYNC_BOMBERMAN_V3"
     const val SYNC_HOUSE_V3: String = "SYNC_HOUSE_V3"
     const val SYNC_DEPOSITED_V3: String = "SYNC_DEPOSITED_V3"
+
+    const val SYNC_BOMBERMAN_V4: String = "SYNC_BOMBERMAN_V4"
+    const val SYNC_HOUSE_V4: String = "SYNC_HOUSE_V4"
+    const val SYNC_DEPOSITED_V4: String = "SYNC_DEPOSITED_V4"
 }

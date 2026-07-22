@@ -15,6 +15,7 @@ import com.senspark.game.user.UserPoint
 import com.senspark.lib.data.manager.IGameConfigManager
 import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.SFSArray
+import java.util.concurrent.ConcurrentHashMap
 
 interface IPvpRankingManager : IServerService {
     fun reload()
@@ -37,18 +38,20 @@ class PvpRankingManager(
     private val _usersManager: IUsersManager,
     private val _gameConfigManager: IGameConfigManager,
 ) : IPvpRankingManager {
-    private lateinit var _data: MutableMap<Int, PvPRank>
+    // ConcurrentHashMap: GET_PVP_RANKING_V2 iterate đồng thời với GET_RANK_INFO_V2
+    // (gọi clearDataForOneUser → remove) + scheduler reload/decay → cần weakly-consistent iterator.
+    private lateinit var _data: ConcurrentHashMap<Int, PvPRank>
     private lateinit var _avatarData: MutableMap<Int, Int>
 
     // lưu lại những user bị decay để hiện dialog
-    private lateinit var _decayUsers: MutableMap<Int, Int>
+    private lateinit var _decayUsers: ConcurrentHashMap<Int, Int>
 
     override fun initialize() {
         reload()
     }
 
     override fun reload() {
-        _data = _pvpDataAccess.queryPvPRank(_pvpSeasonManager.currentSeasonNumber, _pvpRankManager)
+        _data = ConcurrentHashMap(_pvpDataAccess.queryPvPRank(_pvpSeasonManager.currentSeasonNumber, _pvpRankManager))
         _avatarData = _userDataAccess.queryAllUserAvatarActive()
 
         // Thêm avatar để client hiển thị trong pvp ranking
@@ -105,7 +108,7 @@ class PvpRankingManager(
     }
 
     override fun decayUserRank() {
-        _decayUsers = mutableMapOf()
+        _decayUsers = ConcurrentHashMap()
         reload()
         val matchUsers = _pvpDataAccess.getAllAmountPvpMatchesCurrentDate(_pvpSeasonManager.currentSeasonNumber)
         val userPoint = mutableMapOf<Int, Int>()
@@ -124,19 +127,16 @@ class PvpRankingManager(
         _pvpDataAccess.decayUserRank(_pvpSeasonManager.currentSeasonNumber, userPoint)
         // trừ điểm của những user đang online, decayPoint đang là số dương
         _decayUsers.forEach { (uid, decayPoint) ->
-            val controller = _usersManager.getUserController(uid) as? LegacyUserController
+            val controller = _usersManager.getAllUserControllersOfUid(uid).firstOrNull() as? LegacyUserController
             controller?.updatePvpRanking(-decayPoint, 0, 0)
         }
     }
 
     override fun getDecayPointUser(uid: Int): Int {
-        if (::_decayUsers.isInitialized && _decayUsers.containsKey(uid)) {
-            val result = _decayUsers[uid]!!
-            // remove để chỉ hiện dialog decay 1 lần trong ngày
-            _decayUsers.remove(uid)
-            return result
-        }
-        return 0
+        if (!::_decayUsers.isInitialized) return 0
+        // atomic remove-and-return tránh race giữa containsKey/get/remove khi
+        // decayUserRank() reassign _decayUsers giữa các lệnh.
+        return _decayUsers.remove(uid) ?: 0
     }
 
     override fun clearDataForOneUser(uid: Int) {

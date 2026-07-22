@@ -2,10 +2,10 @@ package com.senspark.game.handler.moderator
 
 import com.senspark.common.utils.IGlobalLogger
 import com.senspark.game.extension.GlobalServices
+import com.senspark.game.utils.JsonExtensionBuilder
 import com.smartfoxserver.v2.entities.Zone
 import com.smartfoxserver.v2.extensions.SFSExtension
 import kotlinx.serialization.*
-import kotlinx.serialization.json.Json
 
 class AdminCommandStreamProcessor(
     zone: Zone,
@@ -22,7 +22,7 @@ class AdminCommandStreamProcessor(
     fun process(data: String) {
         try {
             _logger.log("Process admin command: $data")
-            val cmdData = Json.decodeFromString<CmdData>(data)
+            val cmdData = JsonExtensionBuilder.json.decodeFromString<CmdData>(data)
             when (cmdData.cmd) {
                 ADMIN_COMMANDS.CMD_DUMP_CONFIG_BLOCK_REWARD -> {
                     _logger.log(_controller.dumpConfigBlockReward())
@@ -74,6 +74,14 @@ class AdminCommandStreamProcessor(
 
                 ADMIN_COMMANDS.CMD_FORCE_CLIENT_SEND_LOG -> {
                     _controller.forceClientSendLog(cmdData.data)
+                }
+
+                ADMIN_COMMANDS.CMD_BRIDGE_SET_DEPOSIT_ENABLED -> {
+                    cmdData.data?.let { _controller.bridgeSetDepositEnabled(it) }
+                }
+
+                ADMIN_COMMANDS.CMD_BRIDGE_SET_WITHDRAW_ENABLED -> {
+                    cmdData.data?.let { _controller.bridgeSetWithdrawEnabled(it) }
                 }
 
                 else -> {

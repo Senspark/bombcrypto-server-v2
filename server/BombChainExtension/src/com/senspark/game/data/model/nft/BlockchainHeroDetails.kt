@@ -11,7 +11,7 @@ class BlockchainHeroDetails(override val details: String, override val dataType:
     override val rarity = extractor.extract(40, 5)
     override val level = extractor.extract(45, 5)
     override val color = extractor.extract(50, 5)
-    override val skin = extractor.extract(55, 5)
+    override val skin = (extractor.extract(250, 5) shl 5) or extractor.extract(55, 5)
     override val stamina = extractor.extract(60, 5)
     override val speed = extractor.extract(65, 5)
     override val bombSkin = extractor.extract(70, 5)

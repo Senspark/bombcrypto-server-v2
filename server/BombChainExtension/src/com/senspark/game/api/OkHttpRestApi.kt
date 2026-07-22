@@ -46,6 +46,14 @@ class OkHttpRestApi : IRestApi {
         return request(request)
     }
 
+    override fun post(url: String, body: JsonObject): String {
+        val request = Request.Builder()
+            .url(url)
+            .post(body.toString().toRequestBody(mediaType))
+            .build()
+        return request(request)
+    }
+
     override fun post(url: String, authorization: String, body: JsonObject): String {
         val request = Request.Builder()
             .url(url)

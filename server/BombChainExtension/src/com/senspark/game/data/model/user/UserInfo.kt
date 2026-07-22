@@ -2,6 +2,7 @@ package com.senspark.game.data.model.user
 
 import com.senspark.game.declare.EnumConstants.*
 import com.senspark.game.declare.ErrorCode
+import com.senspark.game.declare.UserNameSuffix
 import com.senspark.game.exception.CustomException
 import com.senspark.game.extension.modules.ServerType
 import com.smartfoxserver.v2.entities.data.ISFSObject
@@ -12,6 +13,7 @@ import javax.crypto.SecretKey
 class UserInfo(obj: ISFSObject) : IUserInfo {
     private val _id: Int
     private var _username: String
+    private var _walletAddress: String?
     private val _secondUsername: String?
     private val _password: String?
     private var _name: String?
@@ -21,6 +23,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
     private val _isUnderReviewed: Boolean
     private val _activated: Boolean
     private var _type: UserType
+    private var _isOriginallyFi: Boolean = false
     private var _mode: UserMode
     private var _miningMode: TokenType
     private val _newUser: Boolean
@@ -34,6 +37,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
         set(value) {
             _username = value
         }
+    override val walletAddress: String? get() = _walletAddress
     override val secondUsername get() = _secondUsername
     override val name get() = _name
     override var platform: Platform? = null
@@ -48,6 +52,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
             _type = value
         }
     override val newUser get() = _newUser
+    override val isOriginallyFi get() = _isOriginallyFi
     override val privilege: UserPrivilege
 
     override val lastLogout: Instant? get() = _lastLogout
@@ -90,6 +95,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
         _newUser = if (obj.containsKey("new_user")) obj.getInt("new_user") == 1 else false
         val lastLogout = if (obj.containsKey("original_last_logout")) obj.getLong("original_last_logout") else null
         _lastLogout = lastLogout?.let { Instant.ofEpochSecond(it) }
+        _walletAddress = if (_type == UserType.FI) _username else null
     }
 
     override fun setHash(hash: String) {
@@ -107,6 +113,21 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
                 _dataType == DataType.TON ||
                 _dataType == DataType.BAS
 
+    }
+
+    override fun forceAdventureTr() {
+        // Ghi nhớ account GỐC là FI TRƯỚC khi ghi đè type -> permission gate FI-only (chợ V3) vẫn
+        // phân biệt được phiên này với TR/guest thật (xem isOriginallyFi). Chỉ FI mới đi vào đây.
+        _isOriginallyFi = true
+        // Bypass setter guard có chủ đích: setter chặn FI->TR, nhưng adventure là phiên TR thật.
+        // Set thẳng field. Bỏ walletAddress để phiên này hành xử như TR user thuần (không sync hero FI,
+        // không chạy cross-network cleanup theo ví).
+        _type = UserType.TR
+        _dataType = DataType.TR
+        _walletAddress = null
+        // username adventure = "<ví>#tr" (cùng scheme separator '#' với treasure "<ví>#bsc/#polygon").
+        // (PvP validate loginName==username sẽ lệch -> chấp nhận theo yêu cầu.)
+        _username = UserNameSuffix.addSuffixWithSeparator(_username, DataType.TR)
     }
 
     override var dataType: DataType

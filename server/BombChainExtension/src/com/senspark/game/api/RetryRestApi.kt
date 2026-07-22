@@ -42,6 +42,18 @@ class RetryRestApi(
         throw lastEx!!
     }
 
+    override fun post(url: String, body: JsonObject): String {
+        var lastEx: Exception? = null
+        for (i in 0 until _times) {
+            try {
+                return _api.post(url, body)
+            } catch (ex: Exception) {
+                lastEx = ex
+            }
+        }
+        throw lastEx!!
+    }
+
     override fun post(url: String, authorization: String, body: JsonObject): String {
         var lastEx: Exception? = null
         for (i in 0 until _times) {

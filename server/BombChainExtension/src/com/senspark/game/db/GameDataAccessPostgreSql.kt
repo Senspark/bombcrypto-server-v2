@@ -456,10 +456,26 @@ class GameDataAccessPostgreSql(
     override fun loadUserBlockReward(
         uid: Int
     ): MutableMap<BLOCK_REWARD_TYPE, MutableMap<DataType, UserBlockReward>> {
+        // BCOIN_BRIDGE/SEN_BRIDGE keep their pending in cross_chain_bridge_pending (the source of
+        // truth — never in claim_pending). Surface it read-only by injecting gross (wei→token) into
+        // claim_pending for the matching BP row; nothing is persisted. Other rows keep their real
+        // claim_pending. LEFT JOIN → non-bridge rows have no pending match (p.gross NULL) → unchanged.
         val statement = """
-            SELECT *
-            FROM "user_block_reward"
-            WHERE "uid" = ?;
+            SELECT ubr.reward_type,
+                   ubr."type",
+                   ubr."values",
+                   ubr.total_values,
+                   ubr.last_time_claim_success,
+                   CASE WHEN p.gross IS NOT NULL
+                        THEN p.gross / 1e18
+                        ELSE COALESCE(ubr.claim_pending, 0)
+                   END AS claim_pending
+            FROM "user_block_reward" ubr
+            LEFT JOIN cross_chain_bridge_pending p
+                   ON p.uid = ubr."uid"
+                  AND p.reward_type = ubr.reward_type
+                  AND ubr."type" = 'BP'
+            WHERE ubr."uid" = ?;
         """.trimIndent()
         val mapReward: MutableMap<BLOCK_REWARD_TYPE, MutableMap<DataType, UserBlockReward>> =
             EnumMap(BLOCK_REWARD_TYPE::class.java)

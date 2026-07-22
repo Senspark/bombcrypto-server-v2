@@ -15,13 +15,14 @@ class CreateRockHandler : BaseEncryptRequestHandler() {
 
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         try {
-            if (controller.userInfo.type != EnumConstants.UserType.FI) {
+            val walletAddress = controller.walletAddress
+            if (controller.userInfo.type != EnumConstants.UserType.FI || walletAddress.isNullOrEmpty()) {
                 throw CustomException("You aren't user FI")
             }
             val userRockManager = controller.svServices.get<IUserRockManager>()
             val tx = data.getUtfString("tx")
             val listIdHero = data.getIntArray("listIdHero").toList()
-            val totalRockReceived = userRockManager.createRock(controller, tx, controller.walletAddress, listIdHero)
+            val totalRockReceived = userRockManager.createRock(controller, tx, walletAddress, listIdHero)
             val response: ISFSObject = SFSObject()
             if (totalRockReceived == 0f) {
                 response.putInt("code", 100)
