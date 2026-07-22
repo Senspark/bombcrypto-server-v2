@@ -20,7 +20,8 @@ import kotlin.time.Duration.Companion.seconds
 private const val K_USER_NAME = "name"
 private val MAX_LOGGED_OUT_TIME = 5.minutes.inWholeSeconds
 private const val MAX_QUEUE = 5
-private val KEEP_ALIVE_TIMEOUT = 15.seconds.inWholeSeconds // 15 seconds timeout for keep-alive
+// 90s thay vì 15s: tránh evict nhầm tab nền bị browser throttle timer JS (xem chú thích ở LegacyUsersManager).
+private val KEEP_ALIVE_TIMEOUT = 90.seconds.inWholeSeconds
 
 class UsersManager(logger: ILogger) : IUsersManager {
     private val _usersNames: ConcurrentHashMap<String, IUserController> = ConcurrentHashMap()
@@ -33,7 +34,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
     private val _checkAlive = CheckUserAlive(logger, KEEP_ALIVE_TIMEOUT)
     
     // Simple list to track UIDs that have client logging enabled
-    private val _clientLoggingEnabledUids: MutableList<Int> = mutableListOf()
+    private val _clientLoggingEnabledUids: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
     override fun initialize() {
         _scheduler.schedule(
@@ -75,9 +76,14 @@ class UsersManager(logger: ILogger) : IUsersManager {
         services: GlobalServices,
         user: User,
         userInfo: IUserInfo,
+        landing: EnumConstants.Landing,
+        forceLogin: Boolean,
         factory: (userInfo: IUserInfo) -> IUserController,
         onCompleted: (userController: IUserController?) -> Unit
     ) {
+        // Single-mode (TON/SOL/RON/BAS/VIC): ≤1 phiên/(uid,dataType), tên không rename #landing nên SFS-core vẫn
+        // dedup theo tên như cũ. Giữ nguyên hành vi takeover-by-overwrite; force_login đã được xử lý best-effort
+        // ở ForceLoginManager.checkToKickAccountFi (skip dialog) nên không cần admission riêng ở đây.
         val userName = userInfo.username
 
         if (userName.isEmpty()) {
@@ -94,6 +100,8 @@ class UsersManager(logger: ILogger) : IUsersManager {
             userController = factory(userInfo)
             userController.setUserInfo(userInfo)
         }
+        // Các network dùng UsersManager là single-mode nên landing luôn WILDCARD; vẫn lưu để keep-alive nhất quán.
+        userController.landing = landing
         val initSuccess = userController.verifyAndUpdateUserHash()
         if (!initSuccess) {
             extension.api.disconnectUser(user, KickReason.NEED_LOGIN_AGAIN)
@@ -121,7 +129,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
 
         // Chỉ mới áp dụng cho sol, nào ton build lại client mới có gửi ping pong request thì check cái này
         if(userInfo.dataType == EnumConstants.DataType.SOL)
-            _checkAlive.addUserToCheck(userInfo.id, userInfo.dataType)
+            _checkAlive.addUserToCheck(userInfo.id, userInfo.dataType, landing)
 
 
         userController.setUser(user)
@@ -141,10 +149,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
     }
 
     override fun kickAndRemoveUser(userId: Int) {
-        val controller = getUserController(userId)
-        if (controller != null) {
-            kickAndRemoveUser(controller)
-        }
+        getAllUserControllersOfUid(userId).forEach { kickAndRemoveUser(it) }
     }
 
     override fun kickAndRemoveUser(userName: String) {
@@ -158,8 +163,11 @@ class UsersManager(logger: ILogger) : IUsersManager {
         return _loggedOutUsers.containsKey(userId) && _loggedOutUsers[userId]?.containsKey(dataType) == true
     }
 
-    override fun isLoggedIn(userId: Int, dataType: EnumConstants.DataType): Boolean {
-        return _usersIds.containsKey(userId) && _usersIds[userId]?.containsKey(dataType) == true
+    override fun hasLiveConflict(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): Boolean {
+        // Single-mode network: ≤1 phiên/(uid,dataType), bỏ qua landing. Phiên đang tồn tại nhưng đã timeout
+        // (ghost) thì không tính là conflict sống (chỉ SOL track keep-alive; network khác isHaveOldSession=false).
+        if (_usersIds[userId]?.containsKey(dataType) != true) return false
+        return !_checkAlive.isHaveOldSession(userId, dataType, landing)
     }
 
     private fun kickAndRemoveUser(userController: IUserController) {
@@ -180,14 +188,8 @@ class UsersManager(logger: ILogger) : IUsersManager {
         return _usersNames[userName]
     }
 
-    // Legacy method - returns the first available controller or null
-    override fun getUserController(userId: Int): IUserController? {
-        val userControllerMap = _usersIds[userId]
-        return userControllerMap?.values?.firstOrNull()
-    }
-    
-    // New method with DataType - should be used going forward
-    override fun getUserController(userId: Int, dataType: EnumConstants.DataType): IUserController? {
+    override fun getUserController(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): IUserController? {
+        // Single-mode network: bỏ qua landing.
         return _usersIds[userId]?.get(dataType)
     }
 
@@ -195,24 +197,8 @@ class UsersManager(logger: ILogger) : IUsersManager {
         return _usersNames.containsKey(userController.userName)
     }
 
-    override fun updateKeepAliveTime(userId: Int, dataType: EnumConstants.DataType) {
-        _checkAlive.updateKeepAliveTime(userId, dataType)
-    }
-
-    // Kiểm tra session cũ có còn ko để clear đi cho session mới connect vào
-    override fun safeCheckAndDisposeOldSession(userName: String){
-        val uid = getUserId(userName)
-        if(uid == -1){
-            return
-        }
-        val userController = getUserController(userName)
-        if(userController != null) {
-            val userInfo = userController.userInfo
-            val dataType = userInfo?.dataType
-            if(dataType != null && _checkAlive.isHaveOldSession(uid, dataType)){
-                disposeUser(userController)
-            }
-        }
+    override fun updateKeepAliveTime(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing) {
+        _checkAlive.updateKeepAliveTime(userId, dataType, landing)
     }
 
     private fun doJob() {
@@ -245,7 +231,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
                         if (_usersIds[userId]?.isEmpty() == true) {
                             _usersIds.remove(userId)
                         }
-                        _checkAlive.removeKeepAlive(userId, dataType)
+                        _checkAlive.removeKeepAlive(userId, dataType, controller.landing)
                     } else {
                         // Fallback: remove all entries for this user
                         _usersIds.remove(userId)
@@ -269,7 +255,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
         }
         
         removalList.forEach { (userId, dataType) ->
-            val userController = getUserController(userId, dataType)
+            val userController = getUserController(userId, dataType, EnumConstants.Landing.WILDCARD)
             if (userController != null) {
                 disposeUser(userController)
             }
@@ -296,7 +282,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
         }
         
         if (dataType != null) {
-            _checkAlive.removeTimeout(userId, dataType)
+            _checkAlive.removeTimeout(userId, dataType, userController.landing)
         }
         _loggedOutUsers.remove(userId)
         _logger.log("Dispose user ${userController.userName}")

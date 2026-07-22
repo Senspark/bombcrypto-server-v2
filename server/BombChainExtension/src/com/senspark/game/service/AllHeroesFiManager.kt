@@ -13,6 +13,8 @@ typealias Dict = MutableMap<Int, IUserHeroFiManager>
 
 @Serializable
 data class HeroStakeData(
+    @SerialName("uid")
+    val uid: Int? = null,
     @SerialName("hero_id")
     val heroId: Int,
     @SerialName("stake_bcoin")
@@ -48,7 +50,13 @@ class AllHeroesFiManager(
             1 -> DataType.POLYGON
             else -> throw Exception("Invalid network type")
         }
-        val heroFiManager = getSubManagerByHeroId(data.heroId, dataType)
+        // Fast path when client-triggered: uid hint avoids the O(n) sub-manager scan.
+        // Falls back to the scan when the broadcast came from the scheduler (no uid).
+        val heroFiManager = if (data.uid != null) {
+            getSubManager(data.uid, dataType)?.takeIf { it.getHero(data.heroId, HeroType.FI) != null }
+        } else {
+            getSubManagerByHeroId(data.heroId, dataType)
+        }
         val hero = heroFiManager?.getHero(data.heroId, HeroType.FI)
 
         if (hero != null) {

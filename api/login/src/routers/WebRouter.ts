@@ -25,6 +25,8 @@ export function createWebRouter(dependencies: IDependencies): express.Router {
     registerRonRoutes(webRouter, ronHandlers);
     registerBasRoutes(webRouter, basHandlers);
 
+    webRouter.post("/verify_login", webHandlers.verifyLogin.bind(webHandlers));
+
     return webRouter;
 }
 

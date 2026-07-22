@@ -22,8 +22,8 @@ class KeepAliveRequestHandler : BaseEncryptRequestHandler() {
         val usersManager = controller.svServices.get<IUsersManager>()
         val userInfo = controller.userInfo
         if (userInfo != null) {
-            usersManager.updateKeepAliveTime(controller.userId, userInfo.dataType)
+            usersManager.updateKeepAliveTime(controller.userId, userInfo.dataType, controller.landing)
         }
-        
+
     }
 }

@@ -35,6 +35,10 @@ interface IEnvManager : IGlobalService {
     val syncHeroUrl: String
     val syncHouseUrl: String
     val syncDepositedUrl: String
+    val syncHeroUrlV4: String
+    val syncHouseUrlV4: String
+    val syncDepositedUrlV4: String
+    val refreshHeroStakeUrl: String
     val tonVerifyLoginUrl: String
     val solVerifyLoginUrl: String
     val webVerifyLoginUrl: String
@@ -53,6 +57,7 @@ interface IEnvManager : IGlobalService {
     val getBomberStakeUrl: String
     val checkValidCreateRockUrl: String
     val apSignatureCmdUpdateShieldUrl: String
+    val apBlockchainHeroDetailsUrl: String
     val getPriceTokenUrl: String
     val avatarClubUrl: String
 
@@ -66,6 +71,8 @@ interface IEnvManager : IGlobalService {
     //claim signature
     val apSignatureCmdCheckTotalClaimedUrl: String
     val apSignatureCmdClaimRewardUrl: String
+    val apSignatureCmdCheckTotalClaimedUrlV4: String
+    val apSignatureCmdClaimRewardUrlV4: String
 
     val mobileVerifyUrl: String
     val mobileCreateAccount: String

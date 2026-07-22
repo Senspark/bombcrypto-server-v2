@@ -16,7 +16,9 @@ import com.senspark.game.utils.tryGetField
 import com.senspark.lib.data.manager.IGameConfigManager
 import com.smartfoxserver.bitswarm.sessions.ISession
 import com.smartfoxserver.v2.core.ISFSEvent
+import com.smartfoxserver.v2.core.SFSConstants
 import com.smartfoxserver.v2.core.SFSEventParam
+import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
 import com.smartfoxserver.v2.exceptions.SFSErrorData
 import com.smartfoxserver.v2.exceptions.SFSLoginException
@@ -51,18 +53,39 @@ class UserLoginHandler : MainGameExtensionBaseEventHandler() {
             val deviceType = DeviceType.from(tryGetField<String>(innerData, SFSField.DeviceType))
             val platform = Platform.from(tryGetField<Int>(innerData, SFSField.Platform))
             val referralCode = tryGetField<String>(innerData, SFSField.REFERRAL_CODE)
-            
-            identity += " lt=$loginType dt=$dataType d=$deviceType p=$platform"
+            // landing: mode chơi của phiên. TR luôn = ADVENTURE; FI dùng giá trị client gửi, không gửi thì WILDCARD.
+            val landing = if (dataType == DataType.TR) Landing.ADVENTURE
+                          else Landing.from(tryGetField<String>(innerData, SFSField.Landing))
 
-            // Đảm bảo nếu RON và BAS thì phải thêm network type vào cuối userName
+            // Adventure/PvP = game TR (hero TR + kinh tế TR riêng). Nhận biết NGAY từ raw data: chỉ FI mới gửi
+            // BSC/POLYGON, + landing=ADVENTURE -> phiên này sẽ ép sang TR (rơi vào xô (uid, TR), tách treasure).
+            // Client CŨ không gửi landing -> WILDCARD -> false (giữ nguyên network, migration-safe). KHÔNG cần userInfo.
+            val isAdventureFi = landing == Landing.ADVENTURE &&
+                    (dataType == DataType.BSC || dataType == DataType.POLYGON)
+
+            // force_login: client yêu cầu chiếm chỗ (kick phiên cũ va chạm). Dùng ở login (best-effort skip dialog)
+            // lẫn ở admission (quyết kick thật, uid+landing-aware) qua session property.
+            val forceLogin = data.containsKey(SFSField.ForceLogin) && data.getBool(SFSField.ForceLogin)
+
+            identity += " lt=$loginType dt=$dataType d=$deviceType p=$platform landing=$landing"
+
+            // Log TRƯỚC khi xử lý: thấy chính xác client gửi gì kể cả khi throw sớm ở các bước check bên dưới.
+            _logger.log(
+                "User login request: name=$userNameFromClient lt=$loginType dt=$dataType d=$deviceType " +
+                "p=$platform landing=$landing force_login=$forceLogin session=${session.hashId}"
+            )
+
+            // Rename tên đăng ký phía SFS thành "<tên client>#<landing>" để SFS-core coi 2 tab khác landing
+            // (vd treasure vs adventure) là 2 user khác nhau -> không auto-kick theo LOGIN_NAME nữa.
+            // CHỈ append khi landing cụ thể (TREASURE/ADVENTURE); WILDCARD/client cũ giữ nguyên tên -> kick như cũ
+            // (migration-safe). Chỉ ghi vào LOGIN_OUT_DATA; KHÔNG đổi userName dùng cho verify/DB bên dưới.
+            if (landing == Landing.TREASURE || landing == Landing.ADVENTURE) {
+                val outData = event.getParameter(SFSEventParam.LOGIN_OUT_DATA) as? ISFSObject
+                outData?.putUtfString(SFSConstants.NEW_LOGIN_NAME, "$userNameFromClient#${landing.value}")
+            }
+
+            // userName (có suffix network) dùng cho auth/verify ở strategy.login bên dưới.
             val userName = UserNameSuffix.tryAddNameSuffix(userNameFromClient, dataType)
-            
-
-            // Check coi có force login hay ko
-            // Cần check force login trước khi tạo controller để tránh tự kiểm tra với chính account của mình đang login
-            val forceLoginService = globalServices.get<ISvServicesContainer>()
-                .get(ServerType.from(dataType)).get<IForceLoginManager>()
-            forceLoginService.checkToForceLogin(data, userName, dataType,session.hashId)
 
             val strategy = findStrategy(loginType, dataType)
             val extra = LoginExtraData(loginType, dataType, platform, deviceType, referralCode)
@@ -70,8 +93,18 @@ class UserLoginHandler : MainGameExtensionBaseEventHandler() {
 
             identity += " id=${userInfo.id}"
 
-            // check lại lần nữa vì bây giờ mới có uid để đảm bảo ko login cùng account với network đó
-            forceLoginService.checkToKickAccountFi(userInfo.id, userInfo.dataType)
+            // Ép phiên FI-vào-adventure sang TR (quyết định đã chốt từ raw data ở isAdventureFi). Chạy SAU auth
+            // (auth dùng network thật) -> mọi check + admission bên dưới thấy đúng xô (uid, TR).
+            if (isAdventureFi) {
+                userInfo.forceAdventureTr()
+                identity += " forcedTR"
+            }
+
+            // Check login DUY NHẤT (post-login, đã có uid): key theo (uid, dataType, landing) qua hasLiveConflict
+            // (bỏ qua ghost), KHÔNG tra theo username. Atomic-admission ở join zone là chốt cuối.
+            val forceLoginService = globalServices.get<ISvServicesContainer>()
+                .get(userInfo.serverType).get<IForceLoginManager>()
+            forceLoginService.checkToKickAccountFi(userInfo.id, userInfo.dataType, landing, forceLogin)
 
 
             checkBanOrReview(userInfo, identity)
@@ -80,12 +113,16 @@ class UserLoginHandler : MainGameExtensionBaseEventHandler() {
             
             // Prepare data for user
             session.setProperty(SFSField.UserInfo, userInfo)
+            session.setProperty(SFSField.LandingSession, landing) // bắc cầu landing sang UserJoinZoneHandler
+            // bắc cầu force_login sang admission ở UserJoinZoneHandler -> createUserController (uid+landing-aware)
+            session.setProperty(SFSField.ForceLoginSession, forceLogin)
             session.setProperty(SFSField.NewUser, userInfo.hash.isEmpty()) // do user mới tạo chưa được set hash
 
             findLogger(loginType, dataType).log("User login success: $identity")
             
             // Track user online status in Redis using UserOnlineManager
-            _userOnlineManager.trackUserOnline(userInfo.id, userName, dataType, deviceType, platform)
+            // Dùng userInfo.dataType (đã có thể bị ép TR cho adventure) để online registry tách đúng xô.
+            _userOnlineManager.trackUserOnline(userInfo.id, userName, userInfo.dataType, deviceType, platform)
         } catch (ex: ApiException) {
             val msg = "Error: $identity ${ex.message} ${ex.stackTraceToString()}"
             throw SFSLoginException(msg, SFSErrorData(ServerError.LOGIN_FAILED))

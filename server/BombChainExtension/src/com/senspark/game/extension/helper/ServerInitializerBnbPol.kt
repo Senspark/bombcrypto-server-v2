@@ -12,6 +12,7 @@ import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.modules.ServerType
 import com.senspark.game.extension.schedulers.ExtensionSchedulerBnbPol
 import com.senspark.game.handler.nft.*
+import com.senspark.game.handler.request.ApproveClaimHandlerV4
 import com.senspark.game.handler.rock.*
 import com.senspark.game.handler.shield.GetRepairShieldConfigHandler
 import com.senspark.game.handler.shield.RepairShieldHandler
@@ -19,6 +20,8 @@ import com.senspark.game.handler.stake.GetMinStakeHeroHandler
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.blockChain.IBlockchainResponseManager
+import com.senspark.game.manager.claim.IClaimResponseManager
+import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeResponseManager
 import com.senspark.game.pvp.IPvpResultManager
 import com.senspark.game.pvp.manager.IPvpQueueManager
 import com.senspark.game.service.IAllHeroesFiManager
@@ -42,8 +45,11 @@ class ServerInitializerBnbPol(
         helper.addRequestHandler(SFSCommand.CREATE_ROCK_V2, CreateRockHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_BURN_HERO_CONFIG_V2, GetBurnHeroConfigHandler::class.java)
         helper.addRequestHandler(SFSCommand.UPGRADE_SHIELD_LEVEL_V2, UpgradeShieldLevelHandler::class.java)
+        helper.addRequestHandler(SFSCommand.UPGRADE_SHIELD_LEVEL_V3, UpgradeShieldLevelV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.GET_UPGRADE_SHIELD_CONFIG_V2, GetUpgradeShieldConfigHandler::class.java)
         helper.addRequestHandler(SFSCommand.CHECK_BOMBER_STAKE_V2, CheckBomberStakeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.CHECK_BOMBER_STAKE_V3, CheckBomberStakeV3Handler::class.java)
+        helper.addRequestHandler(SFSCommand.REFRESH_HERO_STAKE, RefreshHeroStakeHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_MIN_STAKE_HERO_V2, GetMinStakeHeroHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_ROCK_PACK_CONFIG_V2, GetRockConfigPackHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_REPAIR_SHIELD_CONFIG_V2, GetRepairShieldConfigHandler::class.java)
@@ -51,6 +57,8 @@ class ServerInitializerBnbPol(
         // new handler not wait api response
         helper.addRequestHandler(SFSCommand.SYNC_BOMBERMAN_V3, SyncBombermanHandlerV3::class.java)
         helper.addRequestHandler(SFSCommand.SYNC_DEPOSITED_V3, SyncDepositedHandlerV3::class.java)
+        helper.addRequestHandler(SFSCommand.SYNC_BOMBERMAN_V4, SyncBombermanHandlerV4::class.java)
+        helper.addRequestHandler(SFSCommand.SYNC_DEPOSITED_V4, SyncDepositedHandlerV4::class.java)
     }
 
     override fun initStreamListeners() {
@@ -84,7 +92,7 @@ class ServerInitializerBnbPol(
             }
             messenger.listen(StreamKeys.AP_BL_HERO_STAKE_STR) { data ->
                 heroes.processHeroStake(data.value)
-                false
+                true
             }
             messenger.listen(StreamKeys.AP_MONETIZATION_ADS_VERIFY) { data ->
                 adsManager.processAdsReward(data.value)
@@ -101,6 +109,19 @@ class ServerInitializerBnbPol(
             }
             messenger.listen(StreamKeys.AP_BL_SYNC_DEPOSIT) { data ->
                 blockchainManager.listenSyncDeposit(data.value)
+            }
+
+            val claimResponseManager = _netServices.get<IClaimResponseManager>()
+            messenger.listen(StreamKeys.AP_SIG_CLAIM_CHECK_RESPONSE_STR) { data ->
+                claimResponseManager.listenClaimCheck(data.value)
+            }
+            messenger.listen(StreamKeys.AP_SIG_CLAIM_SIGN_RESPONSE_STR) { data ->
+                claimResponseManager.listenClaimSign(data.value)
+            }
+
+            val crosschainDepositBridgeResponseManager = _netServices.get<ICrosschainDepositBridgeResponseManager>()
+            messenger.listen(StreamKeys.AP_DEPBRIDGE_RESULT_STR) { data ->
+                crosschainDepositBridgeResponseManager.listenBridgeResult(data.value)
             }
         }
     }

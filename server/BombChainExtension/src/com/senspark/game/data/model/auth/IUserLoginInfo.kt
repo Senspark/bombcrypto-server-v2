@@ -9,6 +9,9 @@ interface IUserLoginInfo {
 
     /** Unique text user ID (wallet address/facebook ID...). */
     val username: String
+    
+    /** username may have suffix by network, walletAddress do not */
+    val walletAddress: String?
 
     /** Unique user-generated text ID, used to login. */
     val loginUsername: String?

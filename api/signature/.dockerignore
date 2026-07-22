@@ -1,0 +1,10 @@
+.gcloudignore
+.dockerignore
+.git
+.gitignore
+.env
+.env.*
+dist
+node_modules/
+test
+__tests__

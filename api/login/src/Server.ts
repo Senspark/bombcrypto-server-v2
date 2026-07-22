@@ -9,7 +9,7 @@ import extendResponse from "./consts/ExpressExtension";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import {monitorPendingRequests, recordRequest} from "./utils/PendingRequestTracker";
-import {requestLogger} from "./utils/RequestLogger";
+import {createRequestLogger} from "./utils/RequestLogger";
 import {printRoutes} from "./utils/PrintRoutes";
 import { createTonRouter } from "./routers/TonRouter";
 import { createSolRouter } from "./routers/SolRouter";
@@ -51,7 +51,7 @@ app.use(bodyParser.urlencoded({limit: '5kb', extended: true})); // Limit URL-enc
 app.use(cookieParser());
 
 if (envConfig.enableRequestLogging) {
-    app.use(requestLogger);
+    app.use(createRequestLogger(logger));
 }
 
 app.use(recordRequest);

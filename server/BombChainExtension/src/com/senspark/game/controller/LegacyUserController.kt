@@ -27,6 +27,7 @@ import com.senspark.game.declare.SFSField
 import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.exception.CustomException
 import com.senspark.game.extension.GlobalServices
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.modules.ServerType
 import com.senspark.game.handler.sol.EncryptionHelper
@@ -52,6 +53,8 @@ import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
 import com.smartfoxserver.v2.extensions.SFSExtension
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.sql.Timestamp
 import java.time.Instant
@@ -177,12 +180,68 @@ class LegacyUserController(
             )
             sendDataEncryption(USER_INITIALIZED, SFSObject())
             logger.log("User $userName initialized")
+            fireBackgroundClaimSync()
+            fireOneTimeCrossNetworkCleanupSync()
             return true
         } catch (e: Exception) {
             logger.log("Error: ${e.message}")
             _initializeStatus = InitializeStatus.FAILED
             _isDisposed = true
             return false
+        }
+    }
+
+    private fun fireBackgroundClaimSync() {
+        // Bridge tokens surface their pending via claim_pending (read-only inject) but are NOT
+        // handled by the legacy claim-sync whitelist — exclude them so they don't launch a no-op sync.
+        val bridgeTypes = setOf(
+            EnumConstants.BLOCK_REWARD_TYPE.BCOIN_BRIDGE,
+            EnumConstants.BLOCK_REWARD_TYPE.SEN_BRIDGE,
+        )
+        val pendingTypes = masterUserManager.blockRewardManager.list()
+            .filter { it.claimPending > 0 && it.rewardType !in bridgeTypes }
+            .map { "${it.rewardType}=${it.claimPending}" }
+        if (pendingTypes.isEmpty()) return
+
+        logger.log("[fireBackgroundClaimSync] launching for uid=${_userInfo.id} pending=$pendingTypes")
+        val coroutineScope = _services.get<ICoroutineScope>()
+        coroutineScope.scope.launch(Dispatchers.IO) {
+            try {
+                masterUserManager.claimManager.syncPendingClaimsFromChain()
+            } catch (e: Exception) {
+                logger.error("[fireBackgroundClaimSync] failed for uid=${_userInfo.id}", e)
+            }
+        }
+    }
+
+    /**
+     * One-time cleanup cho bug clone BHero/BHouse cross-network (BSC<->POLYGON).
+     * Force sync hero + house từ blockchain để listener (đã fix scope theo dataType)
+     * reconcile lại, tự xoá hero/house không chính chủ của network này.
+     * Chỉ chạy 1 lần / (wallet + network); đánh dấu vào Redis sau khi cả 2 trigger thành công.
+     * Tạm thời cho bản này — xoá cả method + key sau khi toàn bộ user đã được dọn.
+     */
+    private fun fireOneTimeCrossNetworkCleanupSync() {
+        val wallet = _userInfo.walletAddress
+        if (wallet.isNullOrEmpty()) return
+
+        val member = "$wallet:${_userInfo.dataType.name}"
+        if (_cacheService.isExistFromSet(CachedKeys.CLEANUP_CROSS_NETWORK_SYNC_DONE, member)) return
+
+        val coroutineScope = _services.get<ICoroutineScope>()
+        coroutineScope.scope.launch(Dispatchers.IO) {
+            try {
+                val heroOk = _blockchainDatabase.heroDatabase.queryV4(_userInfo.id, wallet, _userInfo.dataType, true)
+                val houseOk = _blockchainDatabase.houseDatabase.queryV4(_userInfo, _userInfo.dataType)
+                if (heroOk && houseOk) {
+                    _cacheService.addToSet(CachedKeys.CLEANUP_CROSS_NETWORK_SYNC_DONE, member)
+                    logger.log("[CrossNetworkCleanup] done $member")
+                } else {
+                    logger.log("[CrossNetworkCleanup] trigger failed heroOk=$heroOk houseOk=$houseOk, retry next login: $member")
+                }
+            } catch (e: Exception) {
+                logger.error("[CrossNetworkCleanup] error $member", e)
+            }
         }
     }
 
@@ -195,6 +254,9 @@ class LegacyUserController(
     }
 
     override fun dispose() {
+        // Idempotent: takeover/reclaim ở admission có thể dispose phiên cũ song song với logout-handler (SFS-core
+        // kick tên trùng) -> gọi dispose 2 lần. Guard để không chạy lại saveGame/endGame.
+        if (_isDisposed) return
         if (_initializeStatus == InitializeStatus.INITIALIZING) {
             _initializeStatus = InitializeStatus.CANCELED
         }
@@ -227,6 +289,8 @@ class LegacyUserController(
         get(): EnumConstants.DataType {
             return _userInfo.dataType
         }
+
+    override var landing: EnumConstants.Landing = EnumConstants.Landing.WILDCARD
 
     override fun isAirdropUser(): Boolean {
         return false;
@@ -345,10 +409,11 @@ class LegacyUserController(
     }
 
     fun checkValidBomberMan(): Boolean {
+        if (_userInfo.walletAddress.isNullOrEmpty()) return false
         val database = _blockchainDatabase.heroDatabase
         val detailList: List<BlockchainHeroResponse>
         try {
-            detailList = database.query(_userInfo.id,_userInfo.username, _userInfo.dataType)
+            detailList = database.query(_userInfo.id,_userInfo.walletAddress!!, _userInfo.dataType)
         } catch (ex: Exception) {
             // Cho nay khong quan trong lam nen return true de tranh truong hop API fail.
             return true
@@ -404,8 +469,7 @@ class LegacyUserController(
 
     override fun logOut() {
         masterUserManager.userDailyTaskManager.saveToDatabase()
-        masterUserManager.updateLogoutMediator()
-        masterUserManager.userDataManager.updateLogoutInfo()
+        masterUserManager.onLogout()
     }
 
     override fun setUserInfo(userInfo: IUserInfo) {
@@ -668,14 +732,14 @@ class LegacyUserController(
 
     private fun getPvPHistoryManager(): IPvPHistory {
         if (_pvpHistory == null) {
-            _pvpHistory = DefaultPvPHistory(walletAddress) { message ->
+            _pvpHistory = DefaultPvPHistory(userName) { message ->
                 message?.let {
                     logger.log(it)
                 }
             }
         }
         _pvpHistory?.clear()
-        val logs = _pvpDataAccess.queryLogPlayPvP(walletAddress)
+        val logs = _pvpDataAccess.queryLogPlayPvP(userName)
         _pvpHistory?.setItems(logs)
         return _pvpHistory!!
     }
@@ -686,8 +750,8 @@ class LegacyUserController(
         }
 
     override val walletAddress
-        get(): String {
-            return userName
+        get(): String? {
+            return _userInfo.walletAddress
         }
 
     override fun countUserRanked(): Int {
@@ -808,6 +872,9 @@ class LegacyUserController(
             logger.log("User $userName is disposed")
             return
         }
+        if (!data.containsKey("code")) {
+            data.putInt("code", 0)
+        }
         val encryptedData = EncryptionHelper.encryptToBytes(data.toJson(), userInfo.aesKey)
         val responseData = SFSObject()
         responseData.putByteArray(SFSField.Data, encryptedData)
@@ -855,7 +922,9 @@ class LegacyUserController(
             _userInfo.id,
             _userInfo.dataType,
             _userInfo.username,
+            _userInfo.walletAddress,
             _userInfo.type,
+            _userInfo.isOriginallyFi,
             _userInfo.deviceType,
             _userInfo.platform,
             _services,
@@ -881,7 +950,11 @@ class LegacyUserController(
     }
 
     private fun log(serverCommand: String, msg: () -> String) {
-        val tag = "[OUT] ${userName}: $serverCommand"
+        // Kèm dt + landing + session id: 2 tab cùng account có userName y hệt -> thiếu cái này không biết
+        // log thuộc mode nào (treasure dt=BSC vs adventure dt=TR), và push có vào nhầm phiên cũ (stale)
+        // cùng (uid,dt,landing) khi reconnect hay không.
+        val sess = _userRef?.get()?.session?.hashId ?: "-"
+        val tag = "[OUT] ${userName} dt=${_userInfo.dataType} landing=$landing s=$sess: $serverCommand"
         logger.log2(tag, msg)
     }
 }

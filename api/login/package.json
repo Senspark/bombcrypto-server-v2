@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsc --noEmit && npx vite-node src/Server.ts",
     "build": "tsc && tsc-alias",
+    "issue-jwt": "npx vite-node scripts/issueJwt.ts",
     "test": "vitest --disable-console-intercept"
   },
   "dependencies": {

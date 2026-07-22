@@ -41,7 +41,7 @@ class UserLogoutHandler : MainGameExtensionBaseEventHandler() {
                 .firstNotNullOf { e -> e.getUserController(user) }
 
 
-            userController.logger.log("User logout: ${userController.userName}")
+            userController.logger.log("User logout: ${userController.userName} landing=${userController.landing} dt=${userController.dataType} session=${user.session?.hashId} (SFS user disconnect/logout -> dispose)")
 
             // remove user này ra khỏi ds đang chơi pvp và adventure mode
             val trGamePlayManager = globalServices.get<ITrGameplayManager>()

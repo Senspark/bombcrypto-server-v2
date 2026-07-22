@@ -32,6 +32,10 @@ class THModeV2Room(
         const val V_REMAINING_POOL_E = "remaining_pool_epic"
         const val V_REMAINING_POOL_L = "remaining_pool_legend"
         const val V_REMAINING_POOL_SL = "remaining_pool_super_legend"
+        const val V_REMAINING_POOL_MEGA = "remaining_pool_mega"
+        const val V_REMAINING_POOL_SUPER_MEGA = "remaining_pool_super_mega"
+        const val V_REMAINING_POOL_MYSTIC = "remaining_pool_mystic"
+        const val V_REMAINING_POOL_SUPER_MYSTIC = "remaining_pool_super_mystic"
     }
 
     private val _api = extension.api
@@ -44,7 +48,9 @@ class THModeV2Room(
         settings.name = ROOM_NAME
         settings.maxUsers = 10_000
 
-        settings.maxVariablesAllowed = 10
+        // 4 config vars (V_NEVER_CHANGED, V_PERIOD, V_MAX_POOL, V_NEXT_TIME_REFILL_POOL)
+        // + 10 pool vars (V_REMAINING_POOL_C..SUPER_MYSTIC) = 14 needed; 20 for future headroom.
+        settings.maxVariablesAllowed = 20
         settings.roomSettings = setOf(
             SFSRoomSettings.USER_VARIABLES_UPDATE_EVENT,
             SFSRoomSettings.USER_ENTER_EVENT,
@@ -96,18 +102,19 @@ class THModeV2Room(
     }
 
     override fun poolIdToKey(poolId: Int): String {
-        if (poolId == 0) {
-            return V_REMAINING_POOL_C
-        } else if (poolId == 1) {
-            return V_REMAINING_POOL_R
-        } else if (poolId == 2) {
-            return V_REMAINING_POOL_SR
-        } else if (poolId == 3) {
-            return V_REMAINING_POOL_E
-        } else if (poolId == 4) {
-            return V_REMAINING_POOL_L
+        return when (poolId) {
+            0 -> V_REMAINING_POOL_C
+            1 -> V_REMAINING_POOL_R
+            2 -> V_REMAINING_POOL_SR
+            3 -> V_REMAINING_POOL_E
+            4 -> V_REMAINING_POOL_L
+            5 -> V_REMAINING_POOL_SL
+            6 -> V_REMAINING_POOL_MEGA
+            7 -> V_REMAINING_POOL_SUPER_MEGA
+            8 -> V_REMAINING_POOL_MYSTIC
+            9 -> V_REMAINING_POOL_SUPER_MYSTIC
+            else -> throw IllegalArgumentException("Invalid TH Mode poolId: $poolId (expected 0..9)")
         }
-        return V_REMAINING_POOL_SL
     }
     
 

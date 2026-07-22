@@ -8,6 +8,7 @@ import com.senspark.game.manager.blockMap.IUserBlockMapManager
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
 import com.senspark.game.manager.blockReward.IUserMiningModeManager
 import com.senspark.game.manager.claim.IClaimManager
+import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeManager
 import com.senspark.game.manager.config.IUserConfigManager
 import com.senspark.game.manager.costumePreset.IUserCostumePresetManager
 import com.senspark.game.manager.dailyMission.IUserMissionManager
@@ -25,7 +26,7 @@ import com.senspark.game.manager.stake.IUserStakeManager
 import com.senspark.game.manager.stake.UserStakeVipManager
 import com.senspark.game.manager.subscription.IUserSubscriptionManager
 import com.senspark.game.manager.ton.IUserDepositedTransactionManager
-import com.senspark.game.manager.user.IUserDataManager
+import com.senspark.game.manager.user.IUserDepositManager
 import com.senspark.game.manager.user.IUserOldItemManager
 import com.senspark.game.user.IUserInventoryManager
 
@@ -42,11 +43,12 @@ interface IMasterUserManager {
     val userPvPBoosterManager: IUserBoosterManager
     val userPvpRankingManager: IUserPvpRankingManager
     val claimManager: IClaimManager
+    val crosschainDepositBridgeManager: ICrosschainDepositBridgeManager
     val userAutoMineManager: UserAutoMineManager
     val userBuyRockManager: IUserBuyRockManager
     val userMarketplaceManager: IUserMarketplaceManager
     val userInventoryManager: IUserInventoryManager
-    val userDataManager: IUserDataManager
+    val userDepositManager: IUserDepositManager
     val userMiningModeManager: IUserMiningModeManager
     val userAdventureModeManager: IUserAdventureModeManager
     val userConfigManager: IUserConfigManager
@@ -61,5 +63,5 @@ interface IMasterUserManager {
     val userDailyTaskManager : IUserDailyTaskManager
     
 
-    fun updateLogoutMediator()
+    fun onLogout()
 }

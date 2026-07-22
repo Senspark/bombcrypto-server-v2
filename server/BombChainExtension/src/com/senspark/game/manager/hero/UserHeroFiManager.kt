@@ -22,9 +22,11 @@ import com.senspark.game.declare.GameConstants
 import com.senspark.game.declare.SFSField
 import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.exception.CustomException
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
 import com.senspark.game.manager.resourceSync.ISyncResourceManager
 import com.senspark.game.manager.stake.IHeroStakeManager
+import com.senspark.game.pvp.HandlerCommand
 import com.senspark.game.utils.Extractor
 import com.senspark.game.utils.serialize
 import com.senspark.lib.data.manager.IGameConfigManager
@@ -32,6 +34,8 @@ import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSArray
 import com.smartfoxserver.v2.entities.data.SFSObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -50,6 +54,7 @@ class UserHeroFiManager(
     private val _heroAbilityConfigManager = _mediator.services.get<IHeroAbilityConfigManager>()
     private val _treasureHuntDataManager = _mediator.services.get<ITreasureHuntConfigManager>()
     private val _gameConfigManager = _mediator.services.get<IGameConfigManager>()
+    private val _coroutine = _mediator.services.get<ICoroutineScope>()
 
     private val _heroStakeManager = _mediator.svServices.get<IHeroStakeManager>()
     private val _heroSyncService = _mediator.svServices.get<ISyncResourceManager>().heroSyncService
@@ -355,10 +360,10 @@ class UserHeroFiManager(
         if (_mediator.dataType.isAirdropUser()) {
             return sendServerHeroToClient(_mediator.dataType)
         }
-        if (_mediator.userType != UserType.FI) {
+        if (_mediator.userType != UserType.FI || _mediator.walletAddress.isNullOrEmpty()) {
             throw CustomException("User type is not FI", ErrorCode.SERVER_ERROR)
         }
-        val dataSync = _databaseManager.heroDatabase.query(_mediator.userId,_mediator.userName, _mediator.dataType)
+        val dataSync = _databaseManager.heroDatabase.query(_mediator.userId,_mediator.walletAddress, _mediator.dataType)
 
         val syncHeroData = _heroSyncService.syncHero(_mediator, getItems(), dataSync)
         return sendSyncBomberToClient(syncHeroData.newDetail, syncHeroData.changedHero)
@@ -376,11 +381,11 @@ class UserHeroFiManager(
             return sendServerHeroToClient(_mediator.dataType)
         }
 
-        if (_mediator.userType != UserType.FI) {
+        if (_mediator.userType != UserType.FI || _mediator.walletAddress.isNullOrEmpty()) {
             throw CustomException("User type is not FI", ErrorCode.SERVER_ERROR)
         }
 
-        val callApiSuccess = _databaseManager.heroDatabase.queryV3(_mediator.userId,_mediator.userName, _mediator.dataType)
+        val callApiSuccess = _databaseManager.heroDatabase.queryV3(_mediator.userId,_mediator.walletAddress, _mediator.dataType)
 
         _mediator.logger.log("[SYNC_BOMBERMAN_V3] call api with result = $callApiSuccess")
 
@@ -390,6 +395,39 @@ class UserHeroFiManager(
         val heroes = heroesMap.values.filter { it.type == HeroType.FI }
         val sfsBombers: ISFSArray = SFSArray()
 
+        for (hero in heroes) {
+            sfsBombers.addSFSObject(heroToSfsObject(hero))
+        }
+        data.putSFSArray(SFSField.Bombers, sfsBombers)
+        data.putSFSArray(SFSField.NewBombers, SFSArray())
+        return data
+    }
+
+    // V4: fire-and-forget the blockchain API call and return the cached snapshot immediately.
+    // Fresh data arrives to the client later via Redis stream AP_BL_SYNC_HERO → SYNC_HERO_RESPONSE push.
+    // forceFresh=true tells ap-blockchain to bypass its 2-min dedupe cache; set after on-chain
+    // mutations (buy/fusion/stake) so the user sees the new state on next push.
+    override fun syncBomberManV4(forceFresh: Boolean): ISFSObject {
+        if (_mediator.dataType.isAirdropUser()) {
+            return sendServerHeroToClient(_mediator.dataType)
+        }
+
+        if (_mediator.userType != UserType.FI || _mediator.walletAddress.isNullOrEmpty()) {
+            throw CustomException("User type is not FI", ErrorCode.SERVER_ERROR)
+        }
+
+        val userId = _mediator.userId
+        val wallet = _mediator.walletAddress
+        val dataType = _mediator.dataType
+        _coroutine.scope.launch(Dispatchers.IO) {
+            val ok = _databaseManager.heroDatabase.queryV4(userId, wallet, dataType, forceFresh)
+            _mediator.logger.log("[SYNC_BOMBERMAN_V4] call api with result = $ok forceFresh=$forceFresh")
+        }
+
+        val heroesMap = _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType, 1000000, 0)
+        val data: ISFSObject = SFSObject()
+        val heroes = heroesMap.values.filter { it.type == HeroType.FI }
+        val sfsBombers: ISFSArray = SFSArray()
         for (hero in heroes) {
             sfsBombers.addSFSObject(heroToSfsObject(hero))
         }
@@ -440,7 +478,7 @@ class UserHeroFiManager(
         return data
     }
 
-    private fun heroToSfsObject(hero: Hero): ISFSObject {
+    override fun heroToSfsObject(hero: Hero): ISFSObject {
         val sfsBomber: ISFSObject = SFSObject()
         sfsBomber.putLong(SFSField.ID, hero.heroId.toLong())
         sfsBomber.putUtfString(SFSField.GenID, hero.details.details)
@@ -553,8 +591,8 @@ class UserHeroFiManager(
     ) {
         val detail = hero.details
         val minStakeHeroConfig = _heroStakeManager.minStakeHeroConfig
-        // update database
-        if (stakeBcoin != hero.stakeBcoin || stakeSen != hero.stakeSen) {
+        val changed = stakeBcoin != hero.stakeBcoin || stakeSen != hero.stakeSen
+        if (changed) {
             hero.stakeBcoin = stakeBcoin
             hero.stakeSen = stakeSen
             _gameDataAccess.updateBomberStakeAmount(
@@ -563,23 +601,27 @@ class UserHeroFiManager(
             )
         }
 
-        if (hero.isHeroS) {
-            return
+        if (!hero.isHeroS) {
+            // không phải hero S thì kiểm tra để thêm shield
+            if (stakeBcoin >= minStakeHeroConfig[hero.rarity]!!) {
+                val shieldInDatabase = _gameDataAccess.getShieldHeroFromDatabase(
+                    detail.dataType, hero.heroId,
+                    hero.type.value
+                )
+                if (shieldInDatabase == "[]") {
+                    hero.addBasicShield()
+                    _gameDataAccess.addShieldToBomber(
+                        detail.dataType, hero.heroId,
+                        hero.type.value, hero.shield.toString()
+                    )
+                }
+            }
         }
 
-        // không phải hero S thì kiểm tra để thêm shield
-        if (stakeBcoin >= minStakeHeroConfig[hero.rarity]!!) {
-            val shieldInDatabase = _gameDataAccess.getShieldHeroFromDatabase(
-                detail.dataType, hero.heroId,
-                hero.type.value
-            )
-            if (shieldInDatabase == "[]") {
-                hero.addBasicShield()
-                _gameDataAccess.addShieldToBomber(
-                    detail.dataType, hero.heroId,
-                    hero.type.value, hero.shield.toString()
-                )
-            }
+        // Push only on actual change — V4 refresh endpoint + scheduler may both fire for the same
+        // on-chain event; without this gate the client would receive two identical BheroStakePush.
+        if (changed) {
+            _mediator.sendDataEncryption(HandlerCommand.BheroStakePush, heroToSfsObject(hero), true)
         }
     }
 
@@ -873,8 +915,7 @@ class UserHeroFiManager(
             rarityMap.forEach { (rarity, quantity) ->
                 repeat(quantity) {
                     val newHeroDetail = ServerHeroDetails.generateByRarity(1, dataType, rarity)
-                    // chỉ tạo skin dưới mega (rarity 5)
-                    if (skin != -1 && rarity <= 5) {
+                    if (skin != -1 && rarity <= 9) {
                         newHeroDetail.color = _gameConfigManager.heroSpecialColor
                         newHeroDetail.skin = skin
                     }

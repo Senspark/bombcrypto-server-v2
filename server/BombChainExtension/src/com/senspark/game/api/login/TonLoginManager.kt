@@ -32,6 +32,7 @@ class TonLoginManager(
         val userInfo = UserLoginInfo(
             userId = info.userId,
             username = info.walletAddress,
+            walletAddress = info.walletAddress,
             loginUsername = null,
             displayName = info.telegramUserName?.ifBlank { null },
             email = null,

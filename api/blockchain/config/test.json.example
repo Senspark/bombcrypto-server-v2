@@ -1,0 +1,30 @@
+{
+    "BSC": {
+        "apiUrl": "https://api-testnet.bscscan.com",
+        "explorerUrl": "https://testnet.bscscan.com",
+        "bcoinTokenAddress": "0x0000000000000000000000000000000000000000",
+        "bheroTokenAddress": "0x0000000000000000000000000000000000000000",
+        "bheroSAddress": "0x0000000000000000000000000000000000000000",
+        "bheroStakeAddress": "0x0000000000000000000000000000000000000000",
+        "bhouseTokenAddress": "0x0000000000000000000000000000000000000000",
+        "depositAddress": "0x0000000000000000000000000000000000000000",
+        "claimAddress": "0x0000000000000000000000000000000000000000",
+        "lockedAddresses": [],
+        "oldSenTokenAddress": "",
+        "senTokenAddress": "0x0000000000000000000000000000000000000000"
+    },
+    "POL": {
+        "apiUrl": "https://api-amoy.polygonscan.com",
+        "explorerUrl": "https://amoy.polygonscan.com",
+        "bcoinTokenAddress": "0x0000000000000000000000000000000000000000",
+        "bheroTokenAddress": "0x0000000000000000000000000000000000000000",
+        "bheroSAddress": "0x0000000000000000000000000000000000000000",
+        "bheroStakeAddress": "0x0000000000000000000000000000000000000000",
+        "bhouseTokenAddress": "0x0000000000000000000000000000000000000000",
+        "depositAddress": "0x0000000000000000000000000000000000000000",
+        "claimAddress": "0x0000000000000000000000000000000000000000",
+        "lockedAddresses": [],
+        "oldSenTokenAddress": "",
+        "senTokenAddress": "0x0000000000000000000000000000000000000000"
+    }
+}

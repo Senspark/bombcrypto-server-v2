@@ -9,6 +9,7 @@ import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
 import com.senspark.game.declare.EnumConstants.DataType
 import com.senspark.game.declare.customTypeAlias.ProductId
 import kotlinx.serialization.json.JsonObject
+import java.math.BigDecimal
 import java.sql.SQLException
 
 interface IRewardDataAccess : IGlobalService {
@@ -63,8 +64,14 @@ interface IRewardDataAccess : IGlobalService {
         rewardType: BLOCK_REWARD_TYPE,
         minClaim: Float,
         apiSyncedValue: Double,
-        claimConfirmed: Boolean
     ): JsonObject
+
+    fun syncUserClaimSynced(
+        uid: Int,
+        dataType: DataType,
+        rewardType: BLOCK_REWARD_TYPE,
+        apiSyncedValue: Double,
+    ): Double
 
     fun subUserGem(uid: Int, amount: Float): Map<String, Float>
 
@@ -83,4 +90,19 @@ interface IRewardDataAccess : IGlobalService {
 
     fun subUserReward(uid: Int, rewardType: BLOCK_REWARD_TYPE, value: Float, dataType: DataType, reason: String)
     fun checkBillTokenExist(billToken: String): Boolean
+
+    // --- Cross-chain deposit bridge (see cross-chain-balance-impl-plan.md §D). ---
+    // Under Option 2 (server-submitted withdraw) all fn_bridge_* mutations live in ap-deposit-bridge;
+    // SmartFox only reads open pendings (to reflect a resume). reward_type = BCOIN_BRIDGE|SEN_BRIDGE.
+
+    /** Open pending withdraws for a user (reward_type, chain, gross, before_value as wei strings). */
+    fun loadCrosschainDepositBridgeOpenPendings(uid: Int): List<BridgeOpenPending>
 }
+
+/** An open cross-chain bridge withdraw pending as raw DB strings (wei as integer strings). */
+data class BridgeOpenPending(
+    val rewardType: String,
+    val chain: String,
+    val grossWei: String,
+    val beforeWei: String,
+)

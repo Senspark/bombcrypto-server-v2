@@ -37,7 +37,7 @@ BEGIN
     END IF;
 
 END;
-$function$
+$function$;
 
 
 --
@@ -80,7 +80,7 @@ BEGIN
         VALUES (_uid, _tx, _heroes_ids, _amount, _network, 'DONE');
     END IF;
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -156,7 +156,7 @@ EXCEPTION
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -219,7 +219,7 @@ BEGIN
             RETURN QUERY SELECT FALSE, 'Error deleting tournament match: ' || SQLERRM;
     END;
 END;
-$function$
+$function$;
 
 
 --
@@ -256,7 +256,7 @@ BEGIN
         FROM result AS r
                  INNER JOIN "user" AS u ON r.uid = u.id_user;
 END;
-$function$
+$function$;
 
 
 --
@@ -352,7 +352,7 @@ BEGIN
                     RETURNING ub.uid, ub.bomber_id::INT AS bid, ub.hero_tr_type;
 
 END;
-$function$
+$function$;
 
 
 --
@@ -434,7 +434,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%',SQLERRM;
 END;
-$function$
+$function$;
 
 
 --
@@ -492,7 +492,7 @@ BEGIN
         RAISE EXCEPTION 'Transaction hash already exists for user id: %', _id;
     END IF;
 END;
-$function$
+$function$;
 
 
 --
@@ -677,7 +677,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%, %',SQLSTATE, SQLERRM;
 END
-$procedure$
+$procedure$;
 
 
 --
@@ -786,7 +786,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%, %',SQLSTATE, SQLERRM;
 END
-$procedure$
+$procedure$;
 
 
 --
@@ -828,7 +828,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -916,7 +916,7 @@ EXCEPTION
         RAISE EXCEPTION '%,%',SQLSTATE,SQLERRM;
 
 END ;
-$procedure$
+$procedure$;
 
 
 --
@@ -992,7 +992,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%, %',SQLSTATE, SQLERRM;
 END
-$procedure$
+$procedure$;
 
 
 --
@@ -1076,7 +1076,7 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 END
-$procedure$
+$procedure$;
 
 
 --
@@ -1138,7 +1138,7 @@ BEGIN
     END IF;
 
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -1176,7 +1176,7 @@ EXCEPTION
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -1213,7 +1213,7 @@ BEGIN
     VALUES (_uid, CURRENT_TIMESTAMP, _pack_name, _rock_amount, _price, _reward_type, _network);
 
 END;
-$procedure$
+$procedure$;
 
 
 --
@@ -1247,7 +1247,7 @@ BEGIN
         FROM result AS r
                  INNER JOIN "user" AS u ON r.uid = u.id_user;
 END;
-$function$
+$function$;
 
 
 --
@@ -1288,7 +1288,7 @@ BEGIN
         FROM result AS r
                  INNER JOIN "user" AS u ON r.uid = u.id_user;
 END;
-$function$
+$function$;
 
 
 --
@@ -1353,4 +1353,4 @@ BEGIN
     RETURN _bomber_id;
 END;
 
-$function$
+$function$;

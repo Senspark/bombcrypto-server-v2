@@ -5,6 +5,7 @@ import com.senspark.game.api.OkHttpRestApi
 import com.senspark.game.api.subscription.SubscriptionApi
 import com.senspark.game.controller.UserControllerMediator
 import com.senspark.game.controller.UserHouseManager
+import com.senspark.game.db.IUserDataAccess
 import com.senspark.game.manager.ads.UserBonusRewardManager
 import com.senspark.game.manager.adventure.UserAdventureModeManager
 import com.senspark.game.manager.autoMine.UserAutoMineManager
@@ -12,6 +13,7 @@ import com.senspark.game.manager.blockMap.UserBlockMapManagerImpl
 import com.senspark.game.manager.blockReward.UserBlockRewardManager
 import com.senspark.game.manager.blockReward.UserMiningModeManager
 import com.senspark.game.manager.claim.ClaimManagerPolygon
+import com.senspark.game.manager.crosschainDepositBridge.CrosschainDepositBridgeManager
 import com.senspark.game.manager.config.UserConfigManager
 import com.senspark.game.manager.costumePreset.UserCostumePresetManager
 import com.senspark.game.manager.dailyMission.UserMissionManager
@@ -29,7 +31,7 @@ import com.senspark.game.manager.stake.UserStakeManager
 import com.senspark.game.manager.stake.UserStakeVipManagerImpl
 import com.senspark.game.manager.subscription.UserSubscriptionManager
 import com.senspark.game.manager.ton.UserDepositedTransactionManager
-import com.senspark.game.manager.user.UserDataManager
+import com.senspark.game.manager.user.UserDepositManager
 import com.senspark.game.manager.user.UserOldItemManager
 import com.senspark.game.user.IUserPermissions
 import com.senspark.game.user.UserInventoryManager
@@ -59,6 +61,7 @@ class MasterUserManager(
     override val userPvPBoosterManager = UserBoosterManager(_mediator, userOldItemManager)
     override val userPvpRankingManager = UserPvpRankingManagerImpl(_mediator)
     override val claimManager = ClaimManagerPolygon(_mediator, blockRewardManager)
+    override val crosschainDepositBridgeManager = CrosschainDepositBridgeManager(_mediator, blockRewardManager)
     override val userAutoMineManager = UserAutoMineManager(_mediator)
     override val userBuyRockManager = UserBuyRockManager(_mediator)
     override val userMarketplaceManager = UserMarketplaceManager(
@@ -69,7 +72,7 @@ class MasterUserManager(
         blockRewardManager
     )
     override val userInventoryManager = UserInventoryManager(_mediator, blockRewardManager, heroTRManager, userMaterialManager)
-    override val userDataManager = UserDataManager(_mediator, blockRewardManager)
+    override val userDepositManager = UserDepositManager(_mediator, blockRewardManager)
     override val userMiningModeManager = UserMiningModeManager(_mediator)
     override val userGachaChestManager =
         UserGachaChestController(_mediator, userConfigManager, heroTRManager, blockRewardManager, verifyAdApi)
@@ -104,8 +107,9 @@ class MasterUserManager(
         userSubscriptionManager.initUserConfigManager(userConfigManager)
     }
 
-    override fun updateLogoutMediator() {
+    override fun onLogout() {
         _mediator.lastLogOut = { Instant.now() }
+        _mediator.services.get<IUserDataAccess>().updateLogoutInfo(_mediator.userId, _mediator.deviceType)
     }
 
     private fun reloadUserReward() {

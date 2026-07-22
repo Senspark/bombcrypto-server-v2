@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.javatime.JavaLocalDateTimeColumnType
 import org.jetbrains.exposed.sql.statements.StatementType
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.math.BigDecimal
 import java.sql.ResultSet
 import java.sql.Timestamp
 
@@ -124,6 +125,8 @@ class DefaultDatabase(
                     is String -> VarCharColumnType()
                     is Timestamp -> JavaLocalDateTimeColumnType()
                     is ByteArray -> BinaryColumnType(Int.MAX_VALUE)
+                    // Exact uint256 wei (bridge) binds as BigDecimal → numeric; preserve the value's own scale.
+                    is BigDecimal -> DecimalColumnType(precision = 100, scale = maxOf(it.scale(), 0))
                     is Boolean? -> BooleanColumnType().apply { nullable = true }
                     is Int? -> IntegerColumnType().apply { nullable = true }
                     is Long? -> LongColumnType().apply { nullable = true }

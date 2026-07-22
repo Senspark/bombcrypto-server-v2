@@ -40,9 +40,11 @@ class BnbLoginManager(
         else {
             info = _authApi.verifyAuth(username, authorizationToken, dataType)
         }
+        val walletAddress = info.address?.lowercase()
         val userLoginInfo = UserLoginInfo(
             info.userId,
-            if (info.address.isNullOrEmpty()) info.userName!! else info.address.lowercase(),
+            if (walletAddress.isNullOrEmpty()) info.userName!! else walletAddress,
+            walletAddress,
             info.userName,
             if (info.nickName.isNullOrEmpty()) null else info.nickName,
             null,
@@ -76,7 +78,10 @@ class BnbLoginManager(
         }
         userInfo.deviceType = deviceType
         userInfo.aesKey = AesEncryption.importKeyFromBase64(info.aesKey)
-        userInfo.username = UserNameSuffix.tryAddNameSuffix(userInfo.username, dataType)
+        // FI (BSC/POLYGON): chuẩn hoá username identity về "<ví>#<network>" (separator '#') cho nhất quán
+        // với phiên adventure ("<ví>#tr"). Chạy SAU verifyAuth (auth dùng userNameFromClient thô) + SAU
+        // saveUserLoginInfo (DB lưu ví trần) -> không đụng auth/DB.
+        userInfo.username = UserNameSuffix.addSuffixWithSeparator(userInfo.username, dataType)
         return userInfo
     }
 
@@ -85,6 +90,7 @@ class BnbLoginManager(
         val userLoginInfo = UserLoginInfo(
             info.userId,
             info.userName!!,
+            null,
             info.userName,
             null,
             null,
@@ -141,6 +147,7 @@ class BnbLoginManager(
         return UserLoginInfo(
             userId = linkedToUserId,
             username = info.username, // No effect.
+            walletAddress = info.walletAddress,
             loginUsername = info.loginUsername, // No effect.
             displayName = info.displayName,
             email = info.email,

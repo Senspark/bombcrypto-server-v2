@@ -11,6 +11,7 @@ import com.senspark.game.data.manager.season.IPvpSeasonManager
 import com.senspark.game.data.model.user.UserGachaChest
 import com.senspark.game.db.IUserDataAccess
 import com.senspark.game.db.gachaChest.IGachaChestDataAccess
+import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
 import com.senspark.game.declare.EnumConstants.DataType
 import com.senspark.game.declare.customEnum.ChangeRewardReason
@@ -87,9 +88,9 @@ class PvpResultManager(
         // Do có nhiều controller đang sử dụng nên cần lấy đúng cotroller để update cho đúng
         if (user != null) {
             controller = if(dataType == null) {
-                _usersManager.getUserController(userInfo.userId)
+                _usersManager.getAllUserControllersOfUid(userInfo.userId).firstOrNull()
             } else{
-                _usersManager.getUserController(userInfo.userId, dataType)
+                _usersManager.getUserController(userInfo.userId, dataType, EnumConstants.Landing.ADVENTURE)
             }
         }
 

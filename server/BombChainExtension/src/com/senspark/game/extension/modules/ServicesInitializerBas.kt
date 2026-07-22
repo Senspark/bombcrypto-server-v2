@@ -55,6 +55,7 @@ import com.senspark.game.extension.ServerServices
 import com.senspark.game.extension.events.IUserTournamentWhitelistManager
 import com.senspark.game.extension.events.UserTournamentWhitelistManager
 import com.senspark.game.manager.IEnvManager
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.UsersManager
 import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
@@ -283,7 +284,10 @@ class ServicesInitializerBas(
                 g.get<IGameDataAccess>(),
                 env,
                 n.get<IHeroUpgradeShieldManager>(),
-                n.get<IHeroBuilder>()
+                n.get<IHeroBuilder>(),
+                g.get<ICoroutineScope>(),
+                n.get<IUsersManager>(),
+                logger,
             )
         }
         n.register(ITreasureHuntV2Manager::class) { NullTreasureHuntV2Manager() }

@@ -20,6 +20,7 @@ import RegisterService from "../services-impl/auth/RegisterService";
 import ProfileService from "../services-impl/auth/ProfileService";
 import {v7 as uuid} from "uuid";
 import BscWalletService from "../services-impl/auth/BscWalletService";
+import {isEvmWalletAddress} from "../utils/WalletAddressUtils";
 
 import IAutoExpireMap from "../services-impl/utils/IAutoExpireMap";
 import RedisExpireMap from "../services-impl/utils/RedisExpireMap";
@@ -253,7 +254,14 @@ export class MobileHandlers {
         try {
             await this._dep.bearerService.verifyBearer(req);
 
-            const userName = req.body.userName;
+            let userName: string = req.body.userName;
+            if (typeof userName === 'string' && !isEvmWalletAddress(userName)) {
+                if (userName.endsWith('bsc')) {
+                    userName = userName.slice(0, -3);
+                } else if (userName.endsWith('polygon')) {
+                    userName = userName.slice(0, -7);
+                }
+            }
             const loginData = req.body.loginData;
 
             if (!loginData) {

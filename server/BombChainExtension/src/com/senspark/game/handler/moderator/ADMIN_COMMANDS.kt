@@ -17,4 +17,6 @@ object ADMIN_COMMANDS {
     const val CMD_CHANGE_TODAY_TASK = "change_today_task"
     const val CMD_RELOAD_DAILY_TASK_CONFIG = "reload_daily_task_config"
     const val CMD_FORCE_CLIENT_SEND_LOG = "force_client_send_log"
+    const val CMD_BRIDGE_SET_DEPOSIT_ENABLED = "bridge_set_deposit_enabled"
+    const val CMD_BRIDGE_SET_WITHDRAW_ENABLED = "bridge_set_withdraw_enabled"
 }

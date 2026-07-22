@@ -24,6 +24,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.math.BigDecimal
 
 class RewardDataAccessPostgreSql(
     database: IDatabase,
@@ -113,21 +114,32 @@ class RewardDataAccessPostgreSql(
         rewardType: BLOCK_REWARD_TYPE,
         minClaim: Float,
         apiSyncedValue: Double,
-        claimConfirmed: Boolean,
     ): JsonObject {
         val statement = """
         SELECT fn_save_user_claim_reward_data(?,
                                               ?,
                                               ?,
                                               ?,
-                                              ?,
                                               ?) AS value;
         """.trimIndent()
-        val params = arrayOf<Any?>(uid, dataType.name, rewardType.name, minClaim, apiSyncedValue, claimConfirmed)
+        val params = arrayOf<Any?>(uid, dataType.name, rewardType.name, minClaim, apiSyncedValue)
         val result = mutableListOf<String>()
         executeQueryAndThrowException(statement, params) { result.add(it.getString("value")) }
 
         return Json.parseToJsonElement(result[0]).jsonObject
+    }
+
+    override fun syncUserClaimSynced(
+        uid: Int,
+        dataType: DataType,
+        rewardType: BLOCK_REWARD_TYPE,
+        apiSyncedValue: Double,
+    ): Double {
+        val statement = "SELECT fn_sync_user_claim_synced(?, ?, ?, ?) AS value;"
+        val params = arrayOf<Any?>(uid, dataType.name, rewardType.name, apiSyncedValue)
+        val result = mutableListOf<Double>()
+        executeQueryAndThrowException(statement, params) { result.add(it.getDouble("value")) }
+        return result[0]
     }
 
     override fun subUserGem(uid: Int, amount: Float): Map<String, Float> {
@@ -156,6 +168,22 @@ class RewardDataAccessPostgreSql(
         return transaction {
             !TableBuyGemTransaction.select { TableBuyGemTransaction.billToken eq billToken }.empty()
         }
+    }
+
+    override fun loadCrosschainDepositBridgeOpenPendings(uid: Int): List<BridgeOpenPending> {
+        val statement = "SELECT reward_type, chain, gross, before_value FROM cross_chain_bridge_pending WHERE uid = ?;"
+        val result = mutableListOf<BridgeOpenPending>()
+        executeQueryAndThrowException(statement, arrayOf(uid)) {
+            result.add(
+                BridgeOpenPending(
+                    rewardType = it.getString("reward_type"),
+                    chain = it.getString("chain"),
+                    grossWei = it.getBigDecimal("gross").toBigInteger().toString(),
+                    beforeWei = it.getBigDecimal("before_value").toBigInteger().toString(),
+                )
+            )
+        }
+        return result
     }
 
     override fun addTRRewardForUser(

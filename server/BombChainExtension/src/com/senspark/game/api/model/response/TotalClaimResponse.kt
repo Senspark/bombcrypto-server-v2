@@ -4,4 +4,4 @@ import kotlinx.serialization.Serializable
 
 
 @Serializable
-data class TotalClaimResponse(val data: Double)
+data class TotalClaimResponse(val code: Int, val message: String)

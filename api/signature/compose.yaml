@@ -1,0 +1,25 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  ap-signature:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ap-signature
+    ports:
+      - "8103:80"
+    networks:
+      - base_default
+    env_file:
+      - .env
+    environment:
+      TZ: 'Asia/Bangkok'
+      PORT: '80'
+      IS_PROD: false
+      BLOCKCHAIN_CENTER_API: 'http://ap-blockchain-center'
+      ENABLE_REQUEST_LOGGING: true
+      REDIS_CONNECTION_STRING: 'redis://@redis:6379/0'

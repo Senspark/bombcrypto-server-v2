@@ -198,6 +198,8 @@ class AirdropUserController(
     }
 
     override fun dispose() {
+        // Idempotent: xem chú thích ở LegacyUserController.dispose() — chống double-dispose do admission takeover.
+        if (_isDisposed) return
         if (_initializeStatus == InitializeStatus.INITIALIZING) {
             _initializeStatus = InitializeStatus.CANCELED
         }
@@ -230,6 +232,8 @@ class AirdropUserController(
         get(): EnumConstants.DataType {
             return _userInfo.dataType
         }
+
+    override var landing: EnumConstants.Landing = EnumConstants.Landing.WILDCARD
 
     override fun isAirdropUser(): Boolean {
         return true;
@@ -348,10 +352,11 @@ class AirdropUserController(
     }
 
     fun checkValidBomberMan(): Boolean {
+        if (_userInfo.walletAddress.isNullOrEmpty()) return false
         val database = _blockchainDatabase.heroDatabase
         val detailList: List<BlockchainHeroResponse>
         try {
-            detailList = database.query(_userInfo.id,_userInfo.username, _userInfo.dataType)
+            detailList = database.query(_userInfo.id,_userInfo.walletAddress!!, _userInfo.dataType)
         } catch (ex: Exception) {
             // Cho nay khong quan trong lam nen return true de tranh truong hop API fail.
             return true
@@ -405,8 +410,7 @@ class AirdropUserController(
 
     override fun logOut() {
         masterUserManager.userDailyTaskManager.saveToDatabase()
-        masterUserManager.updateLogoutMediator()
-        masterUserManager.userDataManager.updateLogoutInfo()
+        masterUserManager.onLogout()
     }
 
     override fun setUserInfo(userInfo: IUserInfo) {
@@ -681,14 +685,14 @@ class AirdropUserController(
 
     private fun getPvPHistoryManager(): IPvPHistory {
         if (_pvpHistory == null) {
-            _pvpHistory = DefaultPvPHistory(walletAddress) { message ->
+            _pvpHistory = DefaultPvPHistory(userName) { message ->
                 message?.let {
                     logger.log(it)
                 }
             }
         }
         _pvpHistory?.clear()
-        val logs = _pvpDataAccess.queryLogPlayPvP(walletAddress)
+        val logs = _pvpDataAccess.queryLogPlayPvP(userName)
         _pvpHistory?.setItems(logs)
         return _pvpHistory!!
     }
@@ -699,8 +703,8 @@ class AirdropUserController(
         }
 
     override val walletAddress
-        get(): String {
-            return userName
+        get(): String? {
+            return _userInfo.walletAddress
         }
 
     override fun countUserRanked(): Int {
@@ -821,6 +825,9 @@ class AirdropUserController(
             logger.log("User $userName is disposed")
             return
         }
+        if (!data.containsKey("code")) {
+            data.putInt("code", 0)
+        }
         val encryptedData = EncryptionHelper.encryptToBytes(data.toJson(), userInfo.aesKey)
         val responseData = SFSObject()
         responseData.putByteArray(SFSField.Data, encryptedData)
@@ -867,7 +874,9 @@ class AirdropUserController(
             _userInfo.id,
             _userInfo.dataType,
             _userInfo.username,
+            _userInfo.walletAddress,
             _userInfo.type,
+            _userInfo.isOriginallyFi,
             _userInfo.deviceType,
             _userInfo.platform,
             _services,

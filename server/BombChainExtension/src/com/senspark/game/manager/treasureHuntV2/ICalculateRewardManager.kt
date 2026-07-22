@@ -6,7 +6,7 @@ import com.senspark.game.data.model.nft.Hero
 import com.senspark.game.declare.EnumConstants.DataType
 
 interface ICalculateRewardManager {
-    fun setConfig(config: TreasureHuntV2Config, rewardLevelConfig: Map<Int, RewardLevelConfig>)
+    fun setConfig(config: TreasureHuntV2Config, rewardLevelConfig: Map<Int, Map<Int, RewardLevelConfig>>)
     fun calculateReward(): Map<UserId, List<RewardResult>>
     fun addHeroToPool(hero: Hero, userId: UserId, raceId: Int)
 }

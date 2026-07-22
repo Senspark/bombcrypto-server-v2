@@ -156,12 +156,19 @@ class ServerHeroDetails(
         private val abilityRate = mutableListOf(1f, 2f, 1f, 1f, 1f, 2f, 2f, 0f, 0f, 0f)
         private val abilityRateNew = mutableListOf(10f, 15f, 10f, 10f, 10f, 15f, 15f, 5f, 7f, 3f)
         val dropRate = listOf(8287f, 1036f, 518f, 104f, 52f, 4f)
+        // RESERVED — mirror of the on-chain V2 drop rate for rarity 0-9. Not currently used:
+        // server-side hero generation (ServerHeroDetails) only runs for airdrop networks
+        // (TON / SOL / RON / VIC / BAS), and rarity 6-9 is BSC/Polygon-only. Kept here as
+        // a record so it can be wired back in if a non-airdrop server-side flow ever needs it.
+        @Suppress("unused")
         private val dropRateNew = listOf(8118f, 962f, 481f, 240f, 112f, 51f, 22f, 9f, 4f, 1f)
         private val skinArr = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16)
 
         fun generate(heroId: Int, dataType: EnumConstants.DataType): ServerHeroDetails {
+            // Server-side generation is airdrop-only — caps at rarity 0-5 because rarity 6-9
+            // (Mega / Super Mega / Mystic / Super Mystic) is reserved for BSC/Polygon on-chain mints.
             val random = Random.Default
-            val rarity = WeightedRandom(dropRateNew).random(random)
+            val rarity = WeightedRandom(dropRate).random(random)
             return generateByRarity(heroId, dataType, rarity)
         }
 
@@ -172,6 +179,12 @@ class ServerHeroDetails(
         }
 
         fun generateByRarity(heroId: Int, dataType: EnumConstants.DataType, rarity: Int): ServerHeroDetails {
+            // Defense-in-depth: rarity 6-9 is BSC/Polygon-only and must never be produced by
+            // the server-side (airdrop) hero generator. Loud failure if any caller violates this.
+            require(rarity in 0..5) {
+                "ServerHeroDetails.generateByRarity: rarity $rarity is not supported for airdrop networks " +
+                        "(rarity 6-9 is reserved for BSC/Polygon on-chain mints). dataType=$dataType"
+            }
             val random = Random.Default
             val rarityStat = rarityStats[rarity]!!
             val bombPower = random.nextInt(rarityStat.bombPower.min, rarityStat.bombPower.max)

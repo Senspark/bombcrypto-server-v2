@@ -38,6 +38,10 @@ class HeroStakeManager(
 
     override fun initialize() {
         _minStakeHeroConfig = _shopDataAccess.loadMinStakeHeroConfig()
+        val missing = (0..9).filterNot { it in _minStakeHeroConfig }
+        check(missing.isEmpty()) {
+            "config_min_stake_hero missing rarities: $missing. Apply rarity 6-9 migration."
+        }
     }
 
     override fun setConfig(minStakeHeroList: Map<Int, Int>) {

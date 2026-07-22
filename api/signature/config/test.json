@@ -1,0 +1,22 @@
+{
+    "BSC": {
+        "claimAirdropAddress": "",
+        "claimManageAddress": "0xc3835d85059f6454433213Ff7A16FA2be40d9a0A",
+        "bheroBscAddress": "0xC1A4C06426B4Df799E455964A20FDe866E86fbd1",
+        "bridgeAddress": "0xb34e148821082C7c73f094Be1E194b3474209bba",
+        "bridgeTokens": {
+            "BCOIN": "0x648a9cf8e95c73110d28e7e2329b2d0910bd36b8",
+            "SEN": "0x4B5828F31550aFe15C61D7a765D9597ad4282325"
+        }
+    },
+    "POL": {
+        "claimAirdropAddress": "",
+        "claimManageAddress": "0x66e25f1de0a5b33e804be1a4e8c5e9376952b7c9",
+        "bheroBscAddress": "0xF9f21032bcCCe8997bB29Ab9FBE19502191B7596",
+        "bridgeAddress": "0x97D80e2914bcBd6F957eE804c7B6fe844A0A1cd7",
+        "bridgeTokens": {
+            "BCOIN": "0xcF693b54F86c49bbBa54Ff887488Bbf84C5D05BF",
+            "SEN": "0x93567522610828695F36178b180989996082404A"
+        }
+    }
+}

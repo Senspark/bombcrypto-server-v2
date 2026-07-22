@@ -75,6 +75,9 @@ import com.senspark.game.handler.nonFi.GetNewcomerGiftsHandler
 import com.senspark.game.handler.onBoarding.GetOnBoardingConfigHandler
 import com.senspark.game.handler.onBoarding.UpdateUserOnBoardingHandler
 import com.senspark.game.handler.pvp.*
+import com.senspark.game.handler.request.ApproveClaimHandlerV4
+import com.senspark.game.handler.request.CrosschainDepositBridgeWithdrawHandler
+import com.senspark.game.handler.request.CrosschainDepositBridgeNotifyHandler
 import com.senspark.game.handler.request.ApproveClaimWithoutConfirmHandler
 import com.senspark.game.handler.request.ConfirmClaimHandler
 import com.senspark.game.handler.request.GetSkinInventoryHandler
@@ -118,6 +121,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.CHANGE_BBM_STAGE_V3, ChangeBomberManStageV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.ACTIVE_HOUSE_V2, ActiveHouseV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.ACTIVE_BOMBER_V2, ActiveBomberV2Handler::class.java)
+        helper.addRequestHandler(SFSCommand.ACTIVE_BOMBERS, ActiveBombersHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_ACTIVE_BOMBER_V2, GetActiveBomberV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.BUY_AUTO_MINE_V2, UserBuyAutoMineV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.START_AUTO_MINE_V2, UserStartAutoMineV2Handler::class.java)
@@ -220,6 +224,9 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.GET_START_GAME_CONFIG_V2, GetStartGameConfigHandler::class.java)
 //        helper.addRequestHandler(SFSCommand.GET_GAME_DATA, GetGameDataHandler::class.java)
         helper.addRequestHandler(SFSCommand.APPROVE_CLAIM_V2, ApproveClaimWithoutConfirmHandler::class.java)
+        helper.addRequestHandler(SFSCommand.APPROVE_CLAIM_V4, ApproveClaimHandlerV4::class.java)
+        helper.addRequestHandler(SFSCommand.CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW, CrosschainDepositBridgeWithdrawHandler::class.java)
+        helper.addRequestHandler(SFSCommand.CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY, CrosschainDepositBridgeNotifyHandler::class.java)
         helper.addRequestHandler(SFSCommand.CONFIRM_CLAIM_REWARD_SUCCESS_V2, ConfirmClaimHandler::class.java)
 //        helper.addRequestHandler(SFSCommand.USER_STAKE_V2, UserStakeHandler::class.java)
 //        helper.addRequestHandler(SFSCommand.USER_WITHDRAW_STAKE_V2, UserWithdrawStakeHandler::class.java)
@@ -253,6 +260,7 @@ class ServerInitializerAll(
 
         // new handler not wait api response
         helper.addRequestHandler(SFSCommand.SYNC_HOUSE_V3, SyncHouseV3Handler::class.java)
+        helper.addRequestHandler(SFSCommand.SYNC_HOUSE_V4, SyncHouseV4Handler::class.java)
     }
 
     override fun initStreamListeners() {

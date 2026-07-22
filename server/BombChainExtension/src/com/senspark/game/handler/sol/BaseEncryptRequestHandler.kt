@@ -118,8 +118,13 @@ abstract class BaseEncryptRequestHandler : MainGameExtensionBaseRequestHandler()
     }
 
     private fun log(controller: IUserController, send: Boolean, msg: String) {
+        if (serverCommand == "PING_PONG") return
         val prefix = if (send) "[OUT]" else "[IN]"
-        val tag = "$prefix ${controller.userId}-${controller.userName}: $serverCommand"
+        // dt + landing + session id: 2 tab cùng account có userId-userName y hệt (vd treasure-BSC vs
+        // adventure-TR cùng username, hoặc 2 phiên cùng (uid,dt,landing) khi reconnect) -> thiếu các field
+        // này không biết log thuộc phiên nào / có gửi nhầm phiên cũ không.
+        val sess = controller.user?.session?.hashId ?: "-"
+        val tag = "$prefix ${controller.userId}-${controller.userName} dt=${controller.dataType} landing=${controller.landing} s=$sess: $serverCommand"
         controller.logger.log2(tag, msg)
     }
 

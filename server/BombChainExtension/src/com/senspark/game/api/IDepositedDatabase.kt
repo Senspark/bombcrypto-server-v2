@@ -6,4 +6,5 @@ import com.senspark.game.declare.EnumConstants
 interface IDepositedDatabase {
     fun query(uid: Int, username: String, dataType: EnumConstants.DataType): UserDeposited
     fun queryV3(uid: Int, username: String, dataType: EnumConstants.DataType)
+    fun queryV4(uid: Int, username: String, dataType: EnumConstants.DataType)
 }

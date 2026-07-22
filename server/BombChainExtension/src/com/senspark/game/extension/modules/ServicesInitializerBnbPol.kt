@@ -59,6 +59,11 @@ import com.senspark.game.manager.LegacyUsersManager
 import com.senspark.game.manager.UsersManager
 import com.senspark.game.manager.blockChain.BlockchainResponseManager
 import com.senspark.game.manager.blockChain.IBlockchainResponseManager
+import com.senspark.game.manager.claim.ClaimResponseManager
+import com.senspark.game.manager.claim.IClaimResponseManager
+import com.senspark.game.manager.crosschainDepositBridge.CrosschainDepositBridgeResponseManager
+import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeResponseManager
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
 import com.senspark.game.manager.convertToken.SwapTokenRealtimeManager
 import com.senspark.game.manager.dailyTask.DailyTaskManager
@@ -272,7 +277,10 @@ class ServicesInitializerBnbPol(
                 g.get<IGameDataAccess>(),
                 env,
                 n.get<IHeroUpgradeShieldManager>(),
-                n.get<IHeroBuilder>()
+                n.get<IHeroBuilder>(),
+                g.get<ICoroutineScope>(),
+                n.get<IUsersManager>(),
+                logger,
             )
         }
         n.register(ITreasureHuntV2Manager::class) {
@@ -355,8 +363,27 @@ class ServicesInitializerBnbPol(
                 g.get<IUserDataAccess>(),
                 n.get<IUsersManager>(),
                 n.get<IHeroBuilder>(),
+                n.get<IBlockchainDatabaseManager>(),
+                g.get<ICoroutineScope>(),
                 logger
-            ) 
+            )
+        }
+        n.register(IClaimResponseManager::class) {
+            ClaimResponseManager(
+                env,
+                http,
+                n.get<IUsersManager>(),
+                g.get<ICoroutineScope>(),
+                logger,
+            )
+        }
+        n.register(ICrosschainDepositBridgeResponseManager::class) {
+            CrosschainDepositBridgeResponseManager(
+                g.get<IMessengerService>(),
+                n.get<IUsersManager>(),
+                g.get<ICoroutineScope>(),
+                logger,
+            )
         }
 
         return n

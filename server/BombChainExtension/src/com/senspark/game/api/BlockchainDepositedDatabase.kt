@@ -12,7 +12,8 @@ import java.io.IOException
 
 class BlockchainDepositedDatabase(
     private val _api: IRestApi,
-    private val _urlFormat: String
+    private val _urlFormat: String,
+    private val _urlFormatV4: String,
 ) : IDepositedDatabase {
     override fun query(uid: Int, username: String, dataType: DataType): UserDeposited {
         val url = String.format(_urlFormat, username, dataType.name.lowercase(), uid)
@@ -41,6 +42,15 @@ class BlockchainDepositedDatabase(
     override fun queryV3(uid: Int, username: String, dataType: DataType) {
          try {
             val url = String.format(_urlFormat, username, dataType.name.lowercase(), uid)
+            _api.get(url)
+        } catch (e: Exception) {
+            // Do nothing here
+        }
+    }
+
+    override fun queryV4(uid: Int, username: String, dataType: DataType) {
+        try {
+            val url = String.format(_urlFormatV4, username, dataType.name.lowercase(), uid)
             _api.get(url)
         } catch (e: Exception) {
             // Do nothing here

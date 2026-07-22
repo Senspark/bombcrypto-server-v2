@@ -366,6 +366,10 @@ COPY public.config_burn_hero (rarity, hero_s_rock, hero_l_rock) FROM stdin;
 3	35	7
 4	55	11
 5	80	16
+6	110	0
+7	145	0
+8	185	0
+9	230	0
 \.
 
 
@@ -766,6 +770,22 @@ COPY public.config_hero_repair_shield (id, rarity, shield_level, price, price_ro
 2	0	1	10	2
 4	0	3	10	4
 18	4	1	40	16
+25	6	0	60	12
+26	6	1	60	24
+27	6	2	60	36
+28	6	3	60	48
+29	7	0	70	14
+30	7	1	70	28
+31	7	2	70	42
+32	7	3	70	56
+33	8	0	80	16
+34	8	1	80	32
+35	8	2	80	48
+36	8	3	80	64
+37	9	0	90	18
+38	9	1	90	36
+39	9	2	90	54
+40	9	3	90	72
 \.
 
 
@@ -829,6 +849,10 @@ COPY public.config_hero_upgrade_shield (rarity, data, price) FROM stdin;
 5	[2000, 4000, 6000, 8000]	[0,10,10,10]
 0	[1000, 2000, 3000, 4000]	[0,1,1,1]
 4	[1750, 3500, 5250, 7000]	[0,8,8,8]
+6	[2250, 4500, 6750, 9000]	[0,12,12,12]
+7	[2500, 5000, 7500, 10000]	[0,14,14,14]
+8	[2750, 5500, 8250, 11000]	[0,16,16,16]
+9	[3000, 6000, 9000, 12000]	[0,18,18,18]
 \.
 
 
@@ -1156,6 +1180,10 @@ COPY public.config_min_stake_hero (rarity, min_stake_amount) FROM stdin;
 3	1942
 4	4854
 5	9709
+6	0
+7	0
+8	0
+9	0
 \.
 
 
@@ -1457,24 +1485,36 @@ COPY public.config_reward_level_th_v2 (level, num_users, bcoin, sen, coin) FROM 
 --
 
 COPY public.config_reward_pool_th_v2 (pool_id, remaining_reward, type, max_reward) FROM stdin;
-0	1250	BCOIN	1250
-1	2000	BCOIN	2000
-2	3000	BCOIN	3000
-3	3750	BCOIN	3750
-4	6250	BCOIN	6250
-5	8750	BCOIN	8750
-0	8333	SENSPARK	8333
-1	8333	SENSPARK	8333
-2	8333	SENSPARK	8333
-3	8333	SENSPARK	8333
-4	8333	SENSPARK	8333
-5	8333	SENSPARK	8333
+0	250	BCOIN	250
+1	500	BCOIN	500
+2	1000	BCOIN	1000
+3	1500	BCOIN	1500
+4	2000	BCOIN	2000
+5	2250	BCOIN	2250
+6	2500	BCOIN	2500
+7	3750	BCOIN	3750
+8	5000	BCOIN	5000
+9	6250	BCOIN	6250
+0	500	SENSPARK	500
+1	1000	SENSPARK	1000
+2	2000	SENSPARK	2000
+3	3000	SENSPARK	3000
+4	4000	SENSPARK	4000
+5	4500	SENSPARK	4500
+6	5000	SENSPARK	5000
+7	7500	SENSPARK	7500
+8	10000	SENSPARK	10000
+9	12500	SENSPARK	12500
 0	500000	COIN	500000
 1	500000	COIN	500000
 2	500000	COIN	500000
 3	500000	COIN	500000
 4	500000	COIN	500000
 5	500000	COIN	500000
+6	500000	COIN	500000
+7	500000	COIN	500000
+8	500000	COIN	500000
+9	500000	COIN	500000
 \.
 
 
@@ -1535,15 +1575,15 @@ hero_limit	500	BSC
 hero_limit	500	POLYGON
 house_mint_limits	[2500,1250,750,250,200,50]	BSC
 house_mint_limits	[2500,1250,750,250,200,50]	POLYGON
-hero_upgrade_cost	[[1,2,4,7],[2,4,5,9],[2,4,5,10],[3,7,11,22],[7,18,40,146],[9,25,56,199]]	POLYGON
+hero_upgrade_cost	[[1,2,4,7],[2,4,5,9],[2,4,5,10],[3,7,11,22],[7,18,40,146],[9,25,56,199],[12,34,76,269],[16,46,102,363],[22,62,138,490],[30,84,186,661]]	POLYGON
 house_stats	[{"recovery":120,"capacity":4},{"recovery":300,"capacity":6},{"recovery":480,"capacity":8},{"recovery":660,"capacity":10},{"recovery":840,"capacity":12},{"recovery":1020,"capacity":14}]	POLYGON
-hero_ability_designs	[{"min_cost":2,"max_cost":2,"incremental_cost":0},{"min_cost":5,"max_cost":10,"incremental_cost":1},{"min_cost":10,"max_cost":20,"incremental_cost":2},{"min_cost":20,"max_cost":40,"incremental_cost":4},{"min_cost":35,"max_cost":60,"incremental_cost":5},{"min_cost":50,"max_cost":80,"incremental_cost":6}]	BSC
+hero_ability_designs	[{"min_cost":2,"max_cost":2,"incremental_cost":0},{"min_cost":5,"max_cost":10,"incremental_cost":1},{"min_cost":10,"max_cost":20,"incremental_cost":2},{"min_cost":20,"max_cost":40,"incremental_cost":4},{"min_cost":35,"max_cost":60,"incremental_cost":5},{"min_cost":50,"max_cost":80,"incremental_cost":6},{"min_cost":65,"max_cost":100,"incremental_cost":7},{"min_cost":80,"max_cost":120,"incremental_cost":8},{"min_cost":95,"max_cost":140,"incremental_cost":9},{"min_cost":110,"max_cost":160,"incremental_cost":10}]	BSC
 house_prices	[720,2400,5400,9600,15000,21600]	BSC
 house_limit	5	POLYGON
 house_stats	[{"recovery":120,"capacity":4},{"recovery":300,"capacity":6},{"recovery":480,"capacity":8},{"recovery":660,"capacity":10},{"recovery":840,"capacity":12},{"recovery":1020,"capacity":14}]	BSC
 house_limit	5	BSC
-hero_ability_designs	[{"min_cost":2,"max_cost":2,"incremental_cost":0},{"min_cost":5,"max_cost":10,"incremental_cost":1},{"min_cost":10,"max_cost":20,"incremental_cost":2},{"min_cost":20,"max_cost":40,"incremental_cost":4},{"min_cost":35,"max_cost":60,"incremental_cost":5},{"min_cost":50,"max_cost":80,"incremental_cost":6}]	POLYGON
-hero_upgrade_cost	[[1,2,4,7],[2,4,5,9],[2,4,5,10],[3,7,11,22],[7,18,40,146],[9,25,56,199]]	BSC
+hero_ability_designs	[{"min_cost":2,"max_cost":2,"incremental_cost":0},{"min_cost":5,"max_cost":10,"incremental_cost":1},{"min_cost":10,"max_cost":20,"incremental_cost":2},{"min_cost":20,"max_cost":40,"incremental_cost":4},{"min_cost":35,"max_cost":60,"incremental_cost":5},{"min_cost":50,"max_cost":80,"incremental_cost":6},{"min_cost":65,"max_cost":100,"incremental_cost":7},{"min_cost":80,"max_cost":120,"incremental_cost":8},{"min_cost":95,"max_cost":140,"incremental_cost":9},{"min_cost":110,"max_cost":160,"incremental_cost":10}]	POLYGON
+hero_upgrade_cost	[[1,2,4,7],[2,4,5,9],[2,4,5,10],[3,7,11,22],[7,18,40,146],[9,25,56,199],[12,34,76,269],[16,46,102,363],[22,62,138,490],[30,84,186,661]]	BSC
 house_prices	[720,2400,5400,9600,15000,21600]	POLYGON
 house_stats	[{"recovery":120,"capacity":4},{"recovery":300,"capacity":6},{"recovery":480,"capacity":8},{"recovery":660,"capacity":10},{"recovery":840,"capacity":12},{"recovery":1020,"capacity":14}]	TON
 house_stats	[{"recovery":120,"capacity":4},{"recovery":300,"capacity":6},{"recovery":480,"capacity":8},{"recovery":660,"capacity":10},{"recovery":840,"capacity":12},{"recovery":1020,"capacity":14}]	SOL
@@ -1591,8 +1631,8 @@ period	60	2024-05-17 03:05:20	BCOIN
 reward_pool	{"0":0.2468750001,"1":499985.7675,"2":499996.4575,"3":499989.0175,"4":499997.06,"5":499995.2675}	2024-05-17 03:05:20	BCOIN
 reward_pool	{"0":0.29937500024,"1":499985.7675,"2":499996.4575,"3":499989.0175,"4":499997.06,"5":499995.2675}	2024-05-17 07:05:08	SENSPARK
 reward_pool	{"0":0.29937500024,"1":499985.7675,"2":499996.4575,"3":499989.0175,"4":499997.06,"5":499995.2675}	2024-05-17 14:04:57	COIN
-min_stake	[0,0,0,0,0,0]	2024-07-12 08:32:42	SENSPARK
-min_stake	[0,0,0,0,0,0]	2024-07-12 08:32:42	BCOIN
+min_stake	[0,0,0,0,0,0,0,0,0,0]	2024-07-12 08:32:42	SENSPARK
+min_stake	[0,0,0,0,0,0,0,0,0,0]	2024-07-12 08:32:42	BCOIN
 max_pool	8333	2024-05-23 04:45:21	SENSPARK
 max_pool	8333	2024-05-23 04:45:21	BCOIN
 \.
@@ -1852,8 +1892,8 @@ chanel_slack_id	null	2024-05-06 08:29:36
 token_bot_slack	null	2024-05-06 08:29:36
 is_explode_v2_handler	1	2024-05-28 09:49:31
 is_explode_v3_handler	1	2024-06-11 06:37:20
-min_stake_bcoin_th_v1	[60,194,388,777,1942,3883]	2024-06-21 03:57:46
-min_stake_sen_th_v1	[300,971,1942,3884,9709,19417]	2024-07-12 08:32:26
+min_stake_bcoin_th_v1	[60,194,388,777,1942,3883,7766,19415,38830,77660]	2024-06-21 03:57:46
+min_stake_sen_th_v1	[300,971,1942,3884,9709,19417,38834,77668,194170,388340]	2024-07-12 08:32:26
 enable_claim_token	1	2024-08-09 10:40:14
 ios_hero_loaded	100	2024-10-14 09:06:18
 min_claim_referral	50	2024-10-14 09:55:37
@@ -1921,7 +1961,7 @@ SELECT pg_catalog.setval('public.config_gacha_chest_slot_id_seq', 6, true);
 -- Name: config_hero_repair_shield_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.config_hero_repair_shield_id_seq', 1, false);
+SELECT pg_catalog.setval('public.config_hero_repair_shield_id_seq', 40, true);
 
 
 --

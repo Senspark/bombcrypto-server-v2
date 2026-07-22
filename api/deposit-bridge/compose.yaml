@@ -1,0 +1,34 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  ap-deposit-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    container_name: ap-deposit-bridge
+    ports:
+      - "8108:80"
+    networks:
+      - base_default
+    env_file:
+      - .env
+    environment:
+      TZ: 'Asia/Bangkok'
+      PORT: '80'
+      IS_PROD: false
+      REDIS_CONNECTION_STRING: 'redis://@redis:6379/0'
+      BLOCKCHAIN_CENTER_API: 'http://ap-blockchain-center'
+      INDEXER_ENABLED: true
+      INDEXER_DATABASE_URL: 'postgres://postgres:123456@postgres:5432/bombcrypto_bridge_report'
+      INDEXER_START_BLOCK_BSC: 119616307
+      INDEXER_START_BLOCK_POLYGON: 42453991
+      INDEXER_SWEEP_INTERVAL_MS: 90000
+      INDEXER_SWEEP_ACTIVE_INTERVAL_MS: 3000
+      INDEXER_SWEEP_ACTIVE_WINDOW_MS: 60000
+    restart: unless-stopped

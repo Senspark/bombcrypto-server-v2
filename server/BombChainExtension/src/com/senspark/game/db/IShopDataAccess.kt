@@ -39,6 +39,7 @@ interface IShopDataAccess : IGlobalService {
     fun loadResetShieldBomber(): Map<Int, ResetShieldBomber>
     fun loadRankingSeason(): MutableMap<Int, Season>
     fun addNewPVPRankingSeason(newSeasonId: Int, timeStartNextSeason: Instant, timeEndNextSeason: Instant)
+    fun createPvpRankingSeasonTables(seasonId: Int)
     fun loadCoinRankingSeason(): MutableMap<Int, Season>
     fun queryHeroUpgradeShield(): List<HeroUpgradeShieldData>
     fun loadHeroRepairShield(): Map<Int, Map<Int, HeroRepairShield>>

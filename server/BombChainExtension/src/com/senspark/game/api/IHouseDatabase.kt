@@ -7,4 +7,5 @@ import com.senspark.game.declare.EnumConstants.DataType
 interface IHouseDatabase {
     fun query(userInfo: IUserInfo, dataType: DataType): List<HouseDetails>
     fun queryV3(userInfo: IUserInfo, dataType: DataType): Boolean
+    fun queryV4(userInfo: IUserInfo, dataType: DataType): Boolean
 }

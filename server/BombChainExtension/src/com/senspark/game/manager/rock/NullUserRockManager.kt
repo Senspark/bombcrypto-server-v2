@@ -17,6 +17,10 @@ class NullUserRockManager : IUserRockManager {
         throw CustomException("Feature not support")
     }
 
+    override fun upgradeShieldLevelV3(userController: IUserController, hero: Hero, debugFakePush: Boolean): Pair<Int, String> {
+        throw CustomException("Feature not support")
+    }
+
     override fun createRock(
         userController: IUserController,
         tx: String,

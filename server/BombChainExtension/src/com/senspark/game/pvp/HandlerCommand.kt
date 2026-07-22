@@ -52,5 +52,12 @@ object HandlerCommand {
     const val SyncHeroResponse = "SYNC_HERO_RESPONSE"
     const val SyncHouseResponse = "SYNC_HOUSE_RESPONSE"
     const val SyncDepositResponse = "SYNC_DEPOSIT_RESPONSE"
-    
+
+    const val ApproveClaimResponse = "APPROVE_CLAIM_RESPONSE"
+
+    const val CrosschainDepositBridgeWithdrawResponse = "CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW_RESPONSE"
+
+    const val UpgradeShieldLevelResponse = "UPGRADE_SHIELD_LEVEL_RESPONSE"
+
+    const val BheroStakePush = "BHERO_STAKE_PUSH"
 }

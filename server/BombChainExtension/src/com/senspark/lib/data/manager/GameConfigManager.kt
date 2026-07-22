@@ -95,9 +95,18 @@ class GameConfigManager(logger: ILogger) : BaseDataManager<String, String>(logge
     override val refreshMinPriceClient get() = getFloat("refresh_min_price_client", 60f).toInt() // 60 seconds
     override val coinRankingSeasonDay get() = getInt("coin_ranking_season_day", 27) // Default is day 27
 
+    // Kill-switch flags stored as '1'/'0' (migration 20260701_..._add_cross_chain_bridge). getInt reads
+    // hashData directly (no error log when absent); default 1 = ON, matching the seeded value.
+    override val bridgeDepositEnabled get() = getInt("bridge_deposit_enabled", 1) == 1
+    override val bridgeWithdrawEnabled get() = getInt("bridge_withdraw_enabled", 1) == 1
+
     // ----------------- Custom -----------------
     override fun getString(key: String, default: String): String {
         return get(key) ?: default
+    }
+
+    override fun setConfigValue(key: String, value: String) {
+        put(key, value)
     }
 
     override fun getInt(key: String, default: Int): Int {

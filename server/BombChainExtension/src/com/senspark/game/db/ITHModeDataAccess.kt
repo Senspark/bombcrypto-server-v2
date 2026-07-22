@@ -20,7 +20,7 @@ interface ITHModeDataAccess : IGlobalService {
     fun refillTHModeV2Pool()
     fun loadMaxTHModeV2Pool(): Map<BLOCK_REWARD_TYPE, Map<Int, Double>>
     fun writeLogTHModeRewards(raceId: Int, data: Map<UserId, List<MultipleRewardResult>>)
-    fun loadRewardLevelConfig(): Map<Int, RewardLevelConfig>
+    fun loadRewardLevelConfig(): Map<Int, Map<Int, RewardLevelConfig>>
     fun loadTreasureHuntDataConfig(): TreasureHuntDataConfig
     fun saveRankingCoin(uid: Int, coin: Float, network: DataType, currentSeason: Int)
     fun getRankingCoin(currentSeason: Int, dataType: DataType): List<CoinRank>

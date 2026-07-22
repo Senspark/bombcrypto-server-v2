@@ -37,6 +37,7 @@ class SolLoginManager(
             UserLoginInfo(
                 info.userId,
                 info.walletAddress,
+                info.walletAddress,
                 null,
                 null,
                 null,

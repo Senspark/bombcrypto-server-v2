@@ -1059,8 +1059,11 @@ BEGIN
                            _shieldLevel,
                            _heroType,
                            _dataType,
-                           CASE WHEN (SELECT count FROM has_hero) >= 1 THEN 'SOUL' ELSE 'HERO' END
-                    FROM GENERATE_SERIES(1, _quantity)
+                           CASE
+                               WHEN (SELECT count FROM has_hero) = 0 AND gs.idx = 1
+                                   THEN 'HERO'
+                               ELSE 'SOUL' END
+                    FROM GENERATE_SERIES(1, _quantity) AS gs(idx)
                     ON CONFLICT ("bomber_id", "type", "data_type")
                         DO UPDATE SET "hasDelete" = 0,
                             active = excluded.active,
@@ -1351,10 +1354,10 @@ $$;
 
 
 --
--- Name: fn_save_user_claim_reward_data(integer, character varying, character varying, double precision, double precision, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: fn_save_user_claim_reward_data(integer, character varying, character varying, double precision, double precision); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.fn_save_user_claim_reward_data(_uid integer, _data_type character varying, _reward_type character varying, _min_claim double precision, _api_synced_value double precision, _claim_confirmed boolean) RETURNS text
+CREATE FUNCTION public.fn_save_user_claim_reward_data(_uid integer, _data_type character varying, _reward_type character varying, _min_claim double precision, _api_synced_value double precision) RETURNS text
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1363,13 +1366,11 @@ DECLARE
     _claim_fee_percent DOUBLE PRECISION;
     _reward_gift       json := '[]';
 BEGIN
+    -- Step 1: bring DB.claim_synced up to chain. No-op if already in sync.
+    -- After this call, claim_pending may have been wiped (if sync forwarded).
+    CALL sp_sync_user_claim_synced(_uid, _data_type, _reward_type, _api_synced_value);
 
-    IF NOT _claim_confirmed
-    THEN
-        -- Fix trường hợp user đã từng claim trên blockchain rồi nhưng database chưa có ghi nhận
-        CALL sp_fix_user_claim_reward_data(_uid, _data_type, _reward_type, _api_synced_value);
-    END IF;
-
+    -- Step 2: re-read state after sync.
     SELECT values + claim_pending
     INTO _claim_value
     FROM user_block_reward
@@ -1377,6 +1378,7 @@ BEGIN
       AND reward_type = _reward_type
       AND type = _data_type;
 
+    -- Step 3: compute fee tier from the post-sync claim value.
     SELECT CASE
                WHEN _reward_type IN ('BOMBERMAN', 'BCOIN_DEPOSITED') THEN 0
                WHEN _claim_value >= 80 THEN 3
@@ -1384,12 +1386,8 @@ BEGIN
                ELSE 10 END
     INTO _claim_fee_percent;
 
-    CALL sp_save_user_claim_reward_data(_uid,
-                                        _data_type,
-                                        _reward_type,
-                                        _min_claim,
-                                        _claim_fee_percent,
-                                        _api_synced_value);
+    -- Step 4: execute the claim (will throw 'Not enough reward to claim' if below min).
+    CALL sp_save_user_claim_reward_data(_uid, _data_type, _reward_type, _min_claim, _claim_fee_percent);
 
     result = (SELECT claim_synced + claim_pending - (claim_pending * _claim_fee_percent / 100)
               FROM user_block_reward
@@ -1405,7 +1403,7 @@ BEGIN
 
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE EXCEPTION '%,%',SQLSTATE,SQLERRM;
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
 END;
 $$;
 
@@ -1461,6 +1459,15 @@ DECLARE
     _new_gem_locked_amount DOUBLE PRECISION;
     _new_gem_amount        DOUBLE PRECISION;
 BEGIN
+
+    -- Row-level lock trước khi đọc balance để tránh race condition (TOCTOU double-spend).
+    -- Đồng bộ với migration 20260315_214108_fix_race_condition_fn_sub_user_gem.sql (PR #2).
+    PERFORM 1
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type IN ('GEM_LOCKED', 'GEM')
+      AND "type" = _dataType
+    FOR UPDATE;
 
     SELECT COALESCE(SUM(CASE WHEN reward_type = 'GEM_LOCKED' THEN values ELSE 0 END), 0),
            COALESCE(SUM(CASE WHEN reward_type = 'GEM' THEN values ELSE 0 END), 0)
@@ -1659,6 +1666,36 @@ EXCEPTION
     WHEN SQLSTATE '45000' THEN
         GET STACKED DIAGNOSTICS message = MESSAGE_TEXT;
         RAISE EXCEPTION '%', message;
+END;
+$$;
+
+
+--
+-- Name: fn_sync_user_claim_synced(integer, character varying, character varying, double precision); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_sync_user_claim_synced(_uid integer, _data_type character varying, _reward_type character varying, _api_synced_value double precision) RETURNS double precision
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    _old_pending DOUBLE PRECISION := 0;
+BEGIN
+    SELECT claim_pending
+    INTO _old_pending
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type = _reward_type
+      AND type = _data_type;
+
+    CALL sp_sync_user_claim_synced(_uid, _data_type, _reward_type, _api_synced_value);
+
+    -- Returns the amount that was wiped (= the amount that landed on chain since last sync).
+    -- Used by the client to display "you received X".
+    RETURN _old_pending;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
 END;
 $$;
 
@@ -3065,54 +3102,6 @@ $$;
 
 
 --
--- Name: sp_fix_user_claim_reward_data(integer, character varying, character varying, double precision); Type: PROCEDURE; Schema: public; Owner: -
---
-
-CREATE PROCEDURE public.sp_fix_user_claim_reward_data(IN _uid integer, IN _data_type character varying, IN _reward_type character varying, IN _api_synced_value double precision)
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    _claim_pending double precision;
-    _synced_value DECIMAL;
-BEGIN
-
-    SELECT claim_pending, claim_synced
-    INTO _claim_pending, _synced_value
-    FROM user_block_reward
-    WHERE uid = _uid
-      AND reward_type = _reward_type
-      AND type = _data_type;
-
-    IF _claim_pending > 0 OR _synced_value > 0 OR _api_synced_value = 0
-    THEN
-        -- nothing to do
-        RETURN;
-    END IF;
-
-    -- Sở dĩ phải làm như vầy là vì blockchain lưu lại lịch sử claim thông qua _api_synced_value
-    -- Nhưng database này chưa hề có dữ liệu ở cột claim_synced cho nên sẽ gây ra lỗi
-
-    UPDATE user_block_reward
-    SET claim_synced = _api_synced_value,
-        modify_date  = NOW() AT TIME ZONE 'utc'
-    WHERE uid = _uid
-      AND reward_type = _reward_type
-      AND type = _data_type;
-
-    INSERT INTO logs.user_block_reward (uid, reward_type, network, claim_synced, claim_synced_changed,
-                                        claim_synced_new, reason)
-    VALUES (_uid, _reward_type, _data_type, _synced_value, _api_synced_value - _synced_value, _api_synced_value,
-            'Fix user claim reward data');
-
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE EXCEPTION '%,%',SQLSTATE,SQLERRM;
-
-END ;
-$$;
-
-
---
 -- Name: sp_insert_new_ton_hero(integer, integer, integer, integer, integer, integer, integer, character varying, integer, integer, integer, integer, character varying, character varying, character varying, integer); Type: PROCEDURE; Schema: public; Owner: -
 --
 
@@ -3183,6 +3172,14 @@ BEGIN
 
     -- If user exists
     IF _uid IS NOT NULL THEN
+        -- Idempotency: only status = 'DONE' counts as already credited. If this (tx, uid) is
+        -- already DONE, do nothing. PENDING / FALSE / ERROR rows (e.g. the game's rejected
+        -- verify of a smart-account delegated burn) are NOT credited yet and must proceed.
+        IF EXISTS (SELECT 1 FROM public.user_create_rock
+                   WHERE tx = _tx AND uid = _uid AND status = 'DONE') THEN
+            RETURN;
+        END IF;
+
         -- Get current rock value
         SELECT COALESCE((SELECT values FROM user_block_reward WHERE uid = _uid AND reward_type = 'ROCK'), 0)
         INTO _current_value;
@@ -3199,8 +3196,16 @@ BEGIN
                                                   token_name, network)
         VALUES (_uid, CURRENT_TIMESTAMP, 'BURN_FAILED', _amount, 0, 'ROCK', 'TR');
 
+        -- Upsert on the (tx, uid) unique key: flip a prior PENDING/FALSE/ERROR row to DONE
+        -- instead of colliding with it (which raised the duplicate-key error on retry).
         INSERT INTO public.user_create_rock(uid, tx, heroes, rock_amount, network, status)
-        VALUES (_uid, _tx, _heroes_ids, _amount, _network, 'DONE');
+        VALUES (_uid, _tx, _heroes_ids, _amount, _network, 'DONE')
+        ON CONFLICT (tx, uid) DO UPDATE
+            SET heroes = excluded.heroes,
+                rock_amount = excluded.rock_amount,
+                network = excluded.network,
+                status = 'DONE',
+                "timestamp" = CURRENT_TIMESTAMP;
     END IF;
 END;
 $$;
@@ -3451,89 +3456,59 @@ $$;
 
 
 --
--- Name: sp_save_user_claim_reward_data(integer, character varying, character varying, double precision, double precision, double precision); Type: PROCEDURE; Schema: public; Owner: -
+-- Name: sp_save_user_claim_reward_data(integer, character varying, character varying, double precision, double precision); Type: PROCEDURE; Schema: public; Owner: -
 --
 
-CREATE PROCEDURE public.sp_save_user_claim_reward_data(IN _uid integer, IN _data_type character varying,
-                                                                  IN _reward_type character varying,
-                                                                  IN _min_claim double precision,
-                                                                  IN _claim_fee_percent double precision,
-                                                                  IN _api_synced_value double precision)
+CREATE PROCEDURE public.sp_save_user_claim_reward_data(IN _uid integer, IN _data_type character varying, IN _reward_type character varying, IN _min_claim double precision, IN _claim_fee_percent double precision)
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    _current_value           FLOAT   := 0;
-    _pending_value           DECIMAL := 0;
-    _claim_value             DECIMAL := 0;
-    _synced_value            DECIMAL := 0;
-    _last_time_claim_success TIMESTAMP;
-    _old_value               FLOAT   := 0;
-    _old_pending_value       DECIMAL := 0;
-    _old_synced_value        DECIMAL := 0;
-    _reason                  VARCHAR := 0;
+    _current_value     DECIMAL := 0;
+    _pending_value     DECIMAL := 0;
+    _claim_value       DECIMAL := 0;
+    _old_value         DECIMAL := 0;
+    _old_pending_value DECIMAL := 0;
 BEGIN
-
-    SELECT values,
-           claim_pending,
-           values + claim_pending,
-           claim_synced
-    INTO _current_value,
-        _pending_value,
-        _claim_value,
-        _synced_value
+    SELECT values, claim_pending, values + claim_pending
+    INTO _current_value, _pending_value, _claim_value
     FROM user_block_reward
     WHERE uid = _uid
       AND reward_type = _reward_type
       AND type = _data_type;
 
-    _old_value = _current_value;
+    _old_value         = _current_value;
     _old_pending_value = _pending_value;
-    _old_synced_value = _synced_value;
 
-    IF _claim_value < _min_claim
-    THEN
-        RAISE EXCEPTION '%,%','Not enough reward to claim',1019;
+    IF _claim_value < _min_claim THEN
+        RAISE EXCEPTION '%,%', 'Not enough reward to claim', 1019;
     END IF;
 
-    IF ROUND(_synced_value) >= ROUND(_api_synced_value)
-    THEN
-        _current_value = 0;
-        _pending_value = _claim_value;
-        _reason = 'Claim';
-    ELSE
-        _synced_value = _api_synced_value;
-        _pending_value = 0;
-        _last_time_claim_success = CURRENT_TIMESTAMP;
-        _reason = 'Claim successful';
+    -- Pre-condition guaranteed by fn_save: caller has already invoked sp_sync,
+    -- so claim_synced == on-chain totalClaim. We only execute the claim here.
+    _current_value = 0;
+    _pending_value = _claim_value;
 
-        INSERT INTO log_user_claim_reward(uid, claim_date, value, reward_type, data_type)
-        VALUES (_uid, CURRENT_TIMESTAMP, _claim_value - (_claim_value * _claim_fee_percent / 100), _reward_type,
-                _data_type);
-    END IF;
-
---     trừ reward
     UPDATE user_block_reward
-    SET values                  = _current_value,
-        claim_pending           = _pending_value,
-        claim_synced            = _synced_value,
-        modify_date             = NOW() AT TIME ZONE 'utc',
-        last_time_claim_success = COALESCE(_last_time_claim_success, user_block_reward.last_time_claim_success)
+    SET values        = _current_value,
+        claim_pending = _pending_value,
+        modify_date   = NOW() AT TIME ZONE 'utc'
     WHERE uid = _uid
       AND reward_type = _reward_type
       AND type = _data_type;
 
-    INSERT INTO logs.user_block_reward (uid, reward_type, network, values_old, values_changed, values_new,
+    INSERT INTO logs.user_block_reward (uid, reward_type, network,
+                                        values_old, values_changed, values_new,
                                         claim_pending_old, claim_pending_changed, claim_pending_new,
-                                        claim_synced, claim_synced_changed, claim_synced_new, reason)
-    VALUES (_uid, _reward_type, _data_type, _old_value, _current_value - _old_value, _current_value, _old_pending_value,
-            _pending_value - _old_pending_value, _pending_value, _old_synced_value, _synced_value - _old_synced_value,
-            _synced_value, _reason);
+                                        reason)
+    VALUES (_uid, _reward_type, _data_type,
+            _old_value, _current_value - _old_value, _current_value,
+            _old_pending_value, _pending_value - _old_pending_value, _pending_value,
+            'Claim');
 
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE EXCEPTION '%,%',SQLSTATE,SQLERRM;
-
-END ;
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
 $$;
 
 
@@ -3660,21 +3635,58 @@ CREATE PROCEDURE public.sp_setup_next_pvp_season()
     LANGUAGE plpgsql
     AS $$
 DECLARE
+    _pending              RECORD;
     _current_season       INT;
-    _is_calculated_reward bool;
     _next_season          INT;
     _current_season_ended BOOLEAN;
 BEGIN
+    -- Backfill: tính reward cho MỌI season đã end nhưng is_calculated_reward = FALSE.
+    -- Logic SELECT _current_season ở dưới chỉ lấy 1 season theo end_date DESC nên khi
+    -- season kế tiếp đã được insert sớm vào config_ranking_season, các season cũ chưa
+    -- tính reward sẽ bị bỏ sót vĩnh viễn. Loop này xử lý dứt điểm.
+    FOR _pending IN
+        SELECT id
+        FROM config_ranking_season
+        WHERE is_calculated_reward = FALSE
+          AND end_date < (NOW() AT TIME ZONE 'utc')
+        ORDER BY id
+    LOOP
+        EXECUTE FORMAT('CREATE SEQUENCE IF NOT EXISTS user_pvp_rank_ss_%1$s_seq START 1;', _pending.id);
+        EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_ss_%1$s
+                       (
+                            LIKE user_pvp_rank_template INCLUDING ALL
+                       )', _pending.id);
+        EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_reward_ss_%1$s
+                       (
+                            LIKE user_pvp_rank_reward_template INCLUDING ALL
+                       )', _pending.id);
+        EXECUTE FORMAT('TRUNCATE TABLE user_pvp_rank_reward_ss_%1$s;', _pending.id);
+        EXECUTE FORMAT('INSERT INTO user_pvp_rank_reward_ss_%1$s (uid,
+                                                                  rank,
+                                                                  reward,
+                                                                  total_match)
+                                          SELECT r.uid,
+                                                 r.rank,
+                                                 bsr.reward,
+                                                 r.total_match
+                                          FROM user_pvp_rank_ss_%1$s AS r
+                                                   LEFT JOIN config_pvp_ranking_reward bsr
+                                                             ON r.rank >= bsr.rank_min AND r.rank <= bsr.rank_max AND r.total_match >= 30
+                                          WHERE r.rank IS NOT NULL', _pending.id);
 
+        UPDATE config_ranking_season
+        SET is_calculated_reward = TRUE
+        WHERE id = _pending.id;
+    END LOOP;
+
+    -- Xác định current/next để tạo bảng rank cho mùa đang diễn ra (và mùa kế).
     SELECT ps.id             AS current_season,
-           ps.is_calculated_reward,
            ns.id             AS next_season,
            CASE
                WHEN NOW() AT TIME ZONE 'utc' BETWEEN ps.start_date AND ps.end_date
                    THEN FALSE
                ELSE TRUE END AS current_season_ended
     INTO _current_season,
-        _is_calculated_reward,
         _next_season,
         _current_season_ended
     FROM config_ranking_season AS ps
@@ -3686,52 +3698,92 @@ BEGIN
     LIMIT 1;
 
     -- tạo bảng ranking cho mùa hiện tại nếu chưa có
-    EXECUTE FORMAT('CREATE SEQUENCE if NOT EXISTS user_pvp_rank_ss_%1$s_seq START 1;', _current_season);
-    EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_ss_%1$s
-                   (
-                        LIKE user_pvp_rank_template INCLUDING ALL
-                   )', _current_season);
-
--- calculate reward khi kết thúc mùa
-    IF _current_season_ended AND _is_calculated_reward = FALSE THEN
-        EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_reward_ss_%1$s
-                   (
-                        LIKE user_pvp_rank_reward_template INCLUDING ALL
-                   )', _current_season);
-        EXECUTE FORMAT('TRUNCATE TABLE user_pvp_rank_reward_ss_%1$s;', _current_season);
-
-        EXECUTE FORMAT('INSERT INTO user_pvp_rank_reward_ss_%1$s (uid,
-                                                              rank,
-                                                              reward,
-                                                              total_match)
-                                      SELECT r.uid,
-                                             r.rank,
-                                             bsr.reward,
-                                             r.total_match
-                                      FROM user_pvp_rank_ss_%2$s AS r
-                                               LEFT JOIN config_pvp_ranking_reward bsr
-                                                         ON r.rank >= bsr.rank_min AND r.rank <= bsr.rank_max AND r.total_match >= 30
-                                      WHERE r.rank IS NOT NULL', _current_season, _current_season
-                );
-
-        UPDATE config_ranking_season
-        SET is_calculated_reward = TRUE
-        WHERE id = _current_season;
-
+    IF _current_season IS NOT NULL THEN
+        EXECUTE FORMAT('CREATE SEQUENCE if NOT EXISTS user_pvp_rank_ss_%1$s_seq START 1;', _current_season);
+        EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_ss_%1$s
+                       (
+                            LIKE user_pvp_rank_template INCLUDING ALL
+                       )', _current_season);
     END IF;
 
---     nếu có mùa tiếp theo thì tạo mùa tiếp theo
+    -- nếu có mùa tiếp theo thì tạo bảng cho mùa tiếp theo
     IF _next_season IS NOT NULL AND _current_season_ended THEN
         EXECUTE FORMAT('CREATE SEQUENCE if NOT EXISTS user_pvp_rank_ss_%1$s_seq START 1;', _next_season);
         EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS user_pvp_rank_ss_%1$s
-                   (
-                        LIKE user_pvp_rank_template INCLUDING ALL
-                   )', _next_season);
+                       (
+                            LIKE user_pvp_rank_template INCLUDING ALL
+                       )', _next_season);
     END IF;
 EXCEPTION
     WHEN OTHERS THEN
         RAISE EXCEPTION '%,%',SQLERRM,SQLSTATE;
 END
+$$;
+
+
+--
+-- Name: sp_sync_user_claim_synced(integer, character varying, character varying, double precision); Type: PROCEDURE; Schema: public; Owner: -
+--
+
+CREATE PROCEDURE public.sp_sync_user_claim_synced(IN _uid integer, IN _data_type character varying, IN _reward_type character varying, IN _api_synced_value double precision)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    _old_pending DECIMAL          := 0;
+    _old_synced  DECIMAL          := 0;
+    _fee_percent DOUBLE PRECISION := 0;
+BEGIN
+    SELECT claim_pending, claim_synced
+    INTO _old_pending, _old_synced
+    FROM user_block_reward
+    WHERE uid = _uid
+      AND reward_type = _reward_type
+      AND type = _data_type;
+
+    IF ROUND(_old_synced) >= ROUND(_api_synced_value) THEN
+        -- DB already in sync (or ahead). No-op.
+        RETURN;
+    END IF;
+
+    -- Catch up: chain has advanced past DB. Conservative semantic — assume any pending
+    -- has already been minted on-chain (we cannot tell otherwise). Wipe pending, advance synced.
+    -- `values` (new earnings since last claim) is preserved.
+    UPDATE user_block_reward
+    SET claim_pending           = 0,
+        claim_synced            = _api_synced_value,
+        modify_date             = NOW() AT TIME ZONE 'utc',
+        last_time_claim_success = CURRENT_TIMESTAMP
+    WHERE uid = _uid
+      AND reward_type = _reward_type
+      AND type = _data_type;
+
+    -- Audit log: matches the old sp_save Branch B "Claim successful" log entry.
+    -- Fee tier is recomputed from _old_pending (the amount that landed on chain).
+    _fee_percent = CASE
+                       WHEN _reward_type IN ('BOMBERMAN', 'BCOIN_DEPOSITED') THEN 0
+                       WHEN _old_pending >= 80 THEN 3
+                       WHEN _old_pending >= 60 THEN 6
+                       ELSE 10 END;
+
+    IF _old_pending > 0 THEN
+        INSERT INTO log_user_claim_reward(uid, claim_date, value, reward_type, data_type)
+        VALUES (_uid, CURRENT_TIMESTAMP, _old_pending - (_old_pending * _fee_percent / 100),
+                _reward_type, _data_type);
+    END IF;
+
+    INSERT INTO logs.user_block_reward (uid, reward_type, network,
+                                        claim_pending_old, claim_pending_changed, claim_pending_new,
+                                        claim_synced, claim_synced_changed, claim_synced_new,
+                                        reason)
+    VALUES (_uid, _reward_type, _data_type,
+            _old_pending, -_old_pending, 0,
+            _old_synced, _api_synced_value - _old_synced, _api_synced_value,
+            'Sync claim_synced from chain');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
 $$;
 
 
@@ -4186,6 +4238,13 @@ DECLARE
     i_last_update    timestamp with time zone;
     i_interval_value INT;
 BEGIN
+    -- Self-bootstrap: đảm bảo row 'PVP' tồn tại trước khi đọc.
+    -- Nếu schedule_status rỗng, SELECT trả NULL → guard "(NULL + ...) < NOW()" = NULL
+    -- → IF body skip vĩnh viễn → INSERT bên trong IF không bao giờ chạy → deadlock.
+    INSERT INTO schedule_status(schedule, status, last_update)
+    VALUES ('PVP', 0, '2000-01-01 00:00:00+00')
+    ON CONFLICT (schedule) DO NOTHING;
+
     -- Check if interval + last_update < now
     SELECT last_update,
            COALESCE(interval_update, 300)
@@ -9666,7 +9725,7 @@ CREATE TABLE public.config_swap_token_realtime (
 
 CREATE TABLE public.config_th_mode (
     key character varying(30) NOT NULL,
-    value character varying(512),
+    value text,
     network character varying(10) NOT NULL
 );
 
@@ -10868,7 +10927,7 @@ ALTER SEQUENCE public.user_costume_preset_id_seq OWNED BY public.user_costume_pr
 
 CREATE TABLE public.user_create_rock (
     uid integer,
-    tx character varying(20),
+    tx character varying(100),
     heroes jsonb,
     rock_amount real,
     network character varying(10),
@@ -13070,3 +13129,387 @@ CREATE TRIGGER user_block_reward_check_values_negative BEFORE INSERT OR UPDATE O
 
 \unrestrict SrJR32Ye34b8ONLQfcfd5zOvoS8QoXHQikYMmdW6PJGFFahxk0lmYTHfJ8o4IjF
 
+
+
+--
+-- Cross-chain bridge objects (from migration 20260708_120000_add_cross_chain_bridge_server_submit.sql)
+-- Hand-maintained to match the migration. See docs/cross-chain-balance-impl-plan.md §D.1/§I
+-- and docs/cross-chain-bridge-phase8-server-submit-plan.md §9 (server-submitted withdraw).
+-- The game_config kill-switch seed (§J) is data and lives only in the migration.
+--
+
+-- Per-network watermarks of the on-chain cumulative counters (exact wei).
+CREATE TABLE public.cross_chain_bridge_sync (
+    uid             integer NOT NULL,
+    reward_type     character varying(50) NOT NULL,   -- BCOIN_BRIDGE | SEN_BRIDGE
+    chain           character varying(20) NOT NULL,   -- BSC | POLYGON
+    synced_deposit  numeric DEFAULT 0 NOT NULL,       -- exact on-chain deposited[user][token] wei
+    synced_withdraw numeric DEFAULT 0 NOT NULL,       -- exact on-chain withdrawn[user][token] wei
+    PRIMARY KEY (uid, reward_type, chain)
+);
+
+-- At most ONE active withdraw per (user, token) — enforced by the PK (no chain).
+-- The tx-lifecycle columns (status .. updated_at) let the restartable backend own submission
+-- and reconciliation: REQUESTED -> SUBMITTED -> (deleted on confirm) | FAILED -> (refund/retry).
+CREATE TABLE public.cross_chain_bridge_pending (
+    uid           integer NOT NULL,
+    reward_type   character varying(50) NOT NULL,
+    chain         character varying(20) NOT NULL,       -- target chain of this withdraw
+    gross         numeric NOT NULL,                     -- exact wei
+    before_value  numeric NOT NULL,                     -- on-chain withdrawn[user] at request (CAS anchor)
+    created_at    timestamptz DEFAULT now() NOT NULL,
+    status        character varying(20) NOT NULL DEFAULT 'REQUESTED',  -- REQUESTED | SUBMITTED | FAILED
+    tx_hash       character varying(80),                -- null until broadcast
+    nonce         bigint,                               -- relayer nonce used (RBF/tracking)
+    submitting_at timestamptz,                          -- in-flight lease; null = not in-flight
+    attempts      integer NOT NULL DEFAULT 0,
+    last_error    text,
+    updated_at    timestamptz DEFAULT now() NOT NULL,
+    PRIMARY KEY (uid, reward_type)
+);
+
+-- Append-only audit trail; id is the monotonic cursor the monitor reads (§H).
+CREATE TABLE public.cross_chain_bridge_history (
+    id              bigserial PRIMARY KEY,
+    uid             integer NOT NULL,
+    reward_type     character varying(50) NOT NULL,
+    chain           character varying(20) NOT NULL,
+    action          character varying(30) NOT NULL,    -- DEPOSIT | WITHDRAW_REQUEST | WITHDRAW_CONFIRM | WITHDRAW_REFUND | ANOMALY
+    amount          numeric NOT NULL,                  -- delta (deposit) or gross (withdraw), exact wei
+    balance_after   double precision,                  -- game balance snapshot (values)
+    onchain_counter numeric,                           -- on-chain counter read at this transition
+    before_value    numeric,                           -- CAS anchor (withdraw)
+    signature       character varying,                 -- vestigial (Option 2 hands out no signatures); kept nullable for compat
+    created_at      timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE INDEX idx_ccb_history_uid ON public.cross_chain_bridge_history (uid, reward_type);
+CREATE INDEX idx_ccb_history_action ON public.cross_chain_bridge_history (action);
+
+-- ---------------------------------------------------------------------------
+-- Functions
+-- ---------------------------------------------------------------------------
+
+-- Deposit sync (add-only): credit the delta between the on-chain cumulative
+-- deposited counter and our watermark, then advance the watermark to exact.
+CREATE OR REPLACE FUNCTION public.fn_bridge_sync_deposit(
+    _uid integer,
+    _reward_type character varying,
+    _balance_type character varying,   -- unified-balance sentinel (server-owned constant, e.g. 'BP')
+    _chain character varying,
+    _onchain_deposited numeric
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _synced   numeric          := 0;
+    _delta    numeric          := 0;
+    _credited double precision := 0;
+    _balance  double precision := 0;
+    _hid      bigint;
+BEGIN
+    SELECT synced_deposit INTO _synced
+    FROM cross_chain_bridge_sync
+    WHERE uid = _uid AND reward_type = _reward_type AND chain = _chain;
+    IF _synced IS NULL THEN _synced := 0; END IF;
+
+    _delta := _onchain_deposited - _synced;
+
+    IF _delta = 0 THEN
+        RETURN json_build_object('credited_wei', '0', 'id', NULL, 'balance', COALESCE((
+            SELECT "values" FROM user_block_reward
+            WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type), 0))::text;
+    END IF;
+
+    IF _delta < 0 THEN
+        RAISE EXCEPTION 'bridge deposit watermark went backwards: onchain=% < synced=% (uid=%, %, %)',
+            _onchain_deposited, _synced, _uid, _reward_type, _chain;
+    END IF;
+
+    _credited := (_delta / 1000000000000000000::numeric)::double precision;
+
+    -- advance the per-chain watermark to the exact on-chain value
+    INSERT INTO cross_chain_bridge_sync (uid, reward_type, chain, synced_deposit, synced_withdraw)
+    VALUES (_uid, _reward_type, _chain, _onchain_deposited, 0)
+    ON CONFLICT (uid, reward_type, chain)
+        DO UPDATE SET synced_deposit = EXCLUDED.synced_deposit;
+
+    -- credit the unified spendable balance row (uid, reward_type, 'BP')
+    INSERT INTO user_block_reward (uid, reward_type, type, "values", total_values, modify_date, last_time_claim_success)
+    VALUES (_uid, _reward_type, _balance_type, _credited, _credited, NOW() AT TIME ZONE 'utc', NOW() AT TIME ZONE 'utc')
+    ON CONFLICT (uid, type, reward_type)
+        DO UPDATE SET "values"      = user_block_reward."values" + EXCLUDED."values",
+                      total_values  = user_block_reward.total_values + EXCLUDED.total_values,
+                      modify_date   = NOW() AT TIME ZONE 'utc'
+    RETURNING "values" INTO _balance;
+
+    INSERT INTO cross_chain_bridge_history (uid, reward_type, chain, action, amount, balance_after, onchain_counter, before_value, signature, created_at)
+    VALUES (_uid, _reward_type, _chain, 'DEPOSIT', _delta, _balance, _onchain_deposited, NULL, NULL, now())
+    RETURNING id INTO _hid;
+
+    RETURN json_build_object('credited_wei', _delta::text, 'id', _hid, 'balance', _balance)::text;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
+$function$;
+
+-- Withdraw request: lock the balance, enforce single-pending, debit, record the
+-- CAS anchor (on-chain withdrawn before this withdraw). New pending starts in REQUESTED;
+-- the backend advances it to SUBMITTED once it broadcasts the tx. Returns {before, gross, id}.
+CREATE OR REPLACE FUNCTION public.fn_bridge_request_withdraw(
+    _uid integer,
+    _reward_type character varying,
+    _balance_type character varying,   -- unified-balance sentinel (server-owned constant, e.g. 'BP')
+    _chain character varying,
+    _gross numeric,
+    _onchain_before numeric
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _balance double precision := 0;
+    _need    double precision := 0;
+    _hid     bigint;
+BEGIN
+    -- One in-flight withdraw per user across ALL tokens/chains. Advisory lock (auto-released at commit)
+    -- serializes concurrent requests for this uid — the per-token FOR UPDATE below can't span tokens.
+    PERFORM pg_advisory_xact_lock(778811, _uid);
+
+    SELECT "values" INTO _balance
+    FROM user_block_reward
+    WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type
+    FOR UPDATE;
+
+    IF _balance IS NULL THEN
+        RAISE EXCEPTION 'no bridge balance for uid=%, %', _uid, _reward_type;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM cross_chain_bridge_pending WHERE uid = _uid) THEN
+        RAISE EXCEPTION 'a withdraw is already pending for uid=%', _uid;
+    END IF;
+
+    _need := (_gross / 1000000000000000000::numeric)::double precision;
+    IF _balance < _need THEN
+        RAISE EXCEPTION 'insufficient balance: have %, need % (uid=%, %)', _balance, _need, _uid, _reward_type;
+    END IF;
+
+    UPDATE user_block_reward
+    SET "values"    = "values" - _need,
+        modify_date = NOW() AT TIME ZONE 'utc'
+    WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type
+    RETURNING "values" INTO _balance;
+
+    INSERT INTO cross_chain_bridge_pending (uid, reward_type, chain, gross, before_value, status, created_at)
+    VALUES (_uid, _reward_type, _chain, _gross, _onchain_before, 'REQUESTED', now());
+
+    INSERT INTO cross_chain_bridge_history (uid, reward_type, chain, action, amount, balance_after, onchain_counter, before_value, signature, created_at)
+    VALUES (_uid, _reward_type, _chain, 'WITHDRAW_REQUEST', _gross, _balance, NULL, _onchain_before, NULL, now())
+    RETURNING id INTO _hid;
+
+    RETURN json_build_object('before', _onchain_before::text, 'gross', _gross::text, 'id', _hid)::text;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
+$function$;
+
+-- Withdraw sync (conservative-complete, mirrors sp_sync_user_claim_synced): when the
+-- on-chain withdrawn counter shows the pending withdraw has landed, clear pending and
+-- advance the watermark. Balance is NOT touched (already debited at request).
+-- Now called by the backend (ap-deposit-bridge) after it observes its own tx receipt.
+CREATE OR REPLACE FUNCTION public.fn_bridge_sync_withdraw(
+    _uid integer,
+    _reward_type character varying,
+    _balance_type character varying,   -- unified-balance sentinel (server-owned constant, e.g. 'BP')
+    _chain character varying,
+    _onchain_withdrawn numeric
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _synced    numeric          := 0;
+    _pgross    numeric;
+    _pbefore   numeric;
+    _balance   double precision := 0;
+    _confirmed boolean          := false;
+    _hid       bigint;
+BEGIN
+    SELECT synced_withdraw INTO _synced
+    FROM cross_chain_bridge_sync
+    WHERE uid = _uid AND reward_type = _reward_type AND chain = _chain;
+    IF _synced IS NULL THEN _synced := 0; END IF;
+
+    IF _onchain_withdrawn <= _synced THEN
+        RETURN json_build_object('confirmed', false, 'gross', '0', 'id', NULL)::text;   -- nothing new
+    END IF;
+
+    SELECT gross, before_value INTO _pgross, _pbefore
+    FROM cross_chain_bridge_pending
+    WHERE uid = _uid AND reward_type = _reward_type AND chain = _chain;
+
+    SELECT "values" INTO _balance
+    FROM user_block_reward
+    WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type;
+
+    IF _pgross IS NOT NULL AND _onchain_withdrawn >= _pbefore + _pgross THEN
+        -- the pending withdraw landed on-chain: confirm & clear
+        DELETE FROM cross_chain_bridge_pending
+        WHERE uid = _uid AND reward_type = _reward_type;
+        _confirmed := true;
+
+        INSERT INTO cross_chain_bridge_history (uid, reward_type, chain, action, amount, balance_after, onchain_counter, before_value, signature, created_at)
+        VALUES (_uid, _reward_type, _chain, 'WITHDRAW_CONFIRM', _pgross, _balance, _onchain_withdrawn, _pbefore, NULL, now())
+        RETURNING id INTO _hid;
+    ELSIF _pgross IS NULL THEN
+        -- on-chain withdrawn advanced on this chain with NO pending here: record for the monitor (§H.3.4)
+        INSERT INTO cross_chain_bridge_history (uid, reward_type, chain, action, amount, balance_after, onchain_counter, before_value, signature, created_at)
+        VALUES (_uid, _reward_type, _chain, 'ANOMALY', _onchain_withdrawn - _synced, _balance, _onchain_withdrawn, NULL, NULL, now())
+        RETURNING id INTO _hid;
+    END IF;
+    -- (pending exists but not yet fully landed → just advance the watermark below)
+
+    INSERT INTO cross_chain_bridge_sync (uid, reward_type, chain, synced_deposit, synced_withdraw)
+    VALUES (_uid, _reward_type, _chain, 0, _onchain_withdrawn)
+    ON CONFLICT (uid, reward_type, chain)
+        DO UPDATE SET synced_withdraw = EXCLUDED.synced_withdraw;
+
+    RETURN json_build_object('confirmed', _confirmed, 'gross', COALESCE(_pgross, 0)::text, 'id', _hid)::text;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
+$function$;
+
+-- Withdraw refund (Option 2): the atomic DB half of a cancel. Restores the debited balance
+-- and clears the pending. SAFE ONLY when the caller (ap-deposit-bridge, sole submitter) has
+-- already proven the tx is definitively dead: nonce consumed AND on-chain withdrawn == before
+-- (§4.5). This function does NOT re-check the chain — it trusts the caller's proof, but it does
+-- enforce that the pending is in FAILED state and that _expected_gross matches (defensive).
+CREATE OR REPLACE FUNCTION public.fn_bridge_refund(
+    _uid integer,
+    _reward_type character varying,
+    _balance_type character varying,   -- unified-balance sentinel (server-owned constant, e.g. 'BP')
+    _chain character varying,
+    _expected_gross numeric
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _pgross  numeric;
+    _pstatus character varying;
+    _restore double precision := 0;
+    _balance double precision := 0;
+    _hid     bigint;
+BEGIN
+    -- lock the balance row (serializes against deposit-sync / request on the same uid)
+    SELECT "values" INTO _balance
+    FROM user_block_reward
+    WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type
+    FOR UPDATE;
+
+    IF _balance IS NULL THEN
+        RAISE EXCEPTION 'no bridge balance for uid=%, %', _uid, _reward_type;
+    END IF;
+
+    SELECT gross, status INTO _pgross, _pstatus
+    FROM cross_chain_bridge_pending
+    WHERE uid = _uid AND reward_type = _reward_type;
+
+    IF _pgross IS NULL THEN
+        RAISE EXCEPTION 'no pending to refund for uid=%, %', _uid, _reward_type;
+    END IF;
+
+    IF _pstatus <> 'FAILED' THEN
+        RAISE EXCEPTION 'refund requires pending in FAILED state, got % (uid=%, %)', _pstatus, _uid, _reward_type;
+    END IF;
+
+    IF _pgross <> _expected_gross THEN
+        RAISE EXCEPTION 'refund gross mismatch: pending=%, expected=% (uid=%, %)', _pgross, _expected_gross, _uid, _reward_type;
+    END IF;
+
+    _restore := (_expected_gross / 1000000000000000000::numeric)::double precision;
+
+    UPDATE user_block_reward
+    SET "values"    = "values" + _restore,
+        modify_date = NOW() AT TIME ZONE 'utc'
+    WHERE uid = _uid AND reward_type = _reward_type AND type = _balance_type
+    RETURNING "values" INTO _balance;
+
+    DELETE FROM cross_chain_bridge_pending
+    WHERE uid = _uid AND reward_type = _reward_type;
+
+    INSERT INTO cross_chain_bridge_history (uid, reward_type, chain, action, amount, balance_after, onchain_counter, before_value, signature, created_at)
+    VALUES (_uid, _reward_type, _chain, 'WITHDRAW_REFUND', _expected_gross, _balance, NULL, NULL, NULL, now())
+    RETURNING id INTO _hid;
+
+    RETURN json_build_object('refunded', true, 'balance', _balance, 'id', _hid)::text;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION '%,%', SQLSTATE, SQLERRM;
+END;
+$function$;
+
+-- Status helper: claim-once transition to SUBMITTED. The backend calls this right before (or
+-- after) broadcasting; only the caller that wins the lease proceeds to submit. Guards against a
+-- second submitter racing (double-broadcast) and against a crashed submitter that never cleared
+-- its lease — the lease expires after _lease_seconds, letting the reconciler reclaim it.
+-- Touches no balance. Returns {claimed:boolean}.
+CREATE OR REPLACE FUNCTION public.fn_bridge_mark_submitted(
+    _uid integer,
+    _reward_type character varying,
+    _chain character varying,
+    _tx_hash character varying,
+    _nonce bigint,
+    _lease_seconds integer DEFAULT 120
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _rows integer := 0;
+BEGIN
+    UPDATE cross_chain_bridge_pending
+    SET status        = 'SUBMITTED',
+        tx_hash       = _tx_hash,
+        nonce         = _nonce,
+        submitting_at = now(),
+        attempts      = attempts + 1,
+        updated_at    = now()
+    WHERE uid = _uid AND reward_type = _reward_type AND chain = _chain
+      AND (submitting_at IS NULL OR submitting_at < now() - (_lease_seconds * interval '1 second'));
+
+    GET DIAGNOSTICS _rows = ROW_COUNT;
+    RETURN json_build_object('claimed', _rows > 0)::text;
+END;
+$function$;
+
+-- Status helper: mark the pending FAILED and release the lease so the reconciler can retry or
+-- refund it. Touches no balance. Returns {failed:boolean}.
+CREATE OR REPLACE FUNCTION public.fn_bridge_mark_failed(
+    _uid integer,
+    _reward_type character varying,
+    _chain character varying,
+    _error text
+) RETURNS text
+    LANGUAGE plpgsql
+AS
+$function$
+DECLARE
+    _rows integer := 0;
+BEGIN
+    UPDATE cross_chain_bridge_pending
+    SET status        = 'FAILED',
+        submitting_at = NULL,
+        last_error    = _error,
+        updated_at    = now()
+    WHERE uid = _uid AND reward_type = _reward_type AND chain = _chain;
+
+    GET DIAGNOSTICS _rows = ROW_COUNT;
+    RETURN json_build_object('failed', _rows > 0)::text;
+END;
+$function$;
