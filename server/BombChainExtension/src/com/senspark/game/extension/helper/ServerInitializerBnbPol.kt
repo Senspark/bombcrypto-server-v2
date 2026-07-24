@@ -15,6 +15,7 @@ import com.senspark.game.handler.nft.*
 import com.senspark.game.handler.request.ApproveClaimHandlerV4
 import com.senspark.game.handler.rock.*
 import com.senspark.game.handler.shield.GetRepairShieldConfigHandler
+import com.senspark.game.handler.shield.RepairShieldBatchHandler
 import com.senspark.game.handler.shield.RepairShieldHandler
 import com.senspark.game.handler.stake.GetMinStakeHeroHandler
 import com.senspark.game.manager.IEnvManager
@@ -41,6 +42,7 @@ class ServerInitializerBnbPol(
         helper.addRequestHandler(SFSCommand.SYNC_BOMBERMAN_V2, SyncBombermanHandler::class.java)
         helper.addRequestHandler(SFSCommand.SYNC_DEPOSITED_V2, SyncDepositedHandler::class.java)
         helper.addRequestHandler(SFSCommand.REPAIR_SHIELD_V2, RepairShieldHandler::class.java)
+        helper.addRequestHandler(SFSCommand.REPAIR_SHIELD_BATCH, RepairShieldBatchHandler::class.java)
         helper.addRequestHandler(SFSCommand.BUY_ROCK_V2, UserBuyRockPackHandler::class.java)
         helper.addRequestHandler(SFSCommand.CREATE_ROCK_V2, CreateRockHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_BURN_HERO_CONFIG_V2, GetBurnHeroConfigHandler::class.java)
