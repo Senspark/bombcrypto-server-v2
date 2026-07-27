@@ -602,6 +602,72 @@ class GameDataAccessPostgreSql(
         return mapHouse
     }
 
+    override fun loadRentedHouses(dataType: DataType, uid: Int): Map<Int, House> {
+        // The house still belongs to the owner in user_house; the renter gets to
+        // use it while the P2P contract is ACTIVE. It never comes back active
+        // (active = 0) because activation is an explicit client action.
+        val statement = """
+            SELECT uh.gen_house_id,
+                   uh.house_id,
+                   CASE WHEN hr.renter_active THEN 1 ELSE 0 END AS active,
+                   (EXTRACT(EPOCH FROM hr.current_period_end) * 1000)::BIGINT AS end_time_rent_convert
+            FROM house_rental hr
+                     JOIN user_house uh ON uh.house_id = hr.house_id AND uh.type = hr.type
+            WHERE hr.renter_uid = ? AND hr.type = ? AND hr.status = 'ACTIVE';
+            """.trimIndent()
+        val mapHouse: MutableMap<Int, House> = HashMap()
+        val params = arrayOf<Any?>(uid, dataType.name)
+        executeQuery(statement, params) {
+            val house = House.fromResultSet(it)
+            mapHouse[house.houseId] = house
+        }
+        return mapHouse
+    }
+
+    override fun setRentedHouseActive(dataType: DataType, renterUid: Int, houseId: Int, active: Boolean) {
+        val statement = """
+            UPDATE house_rental
+            SET renter_active = ?
+            WHERE renter_uid = ? AND house_id = ? AND type = ? AND status = 'ACTIVE';
+            """.trimIndent()
+        executeUpdate(statement, arrayOf<Any?>(active, renterUid, houseId, dataType.name))
+    }
+
+    override fun findActiveRental(dataType: DataType, houseId: Int): ActiveRental? {
+        val statement = """
+            SELECT renter_uid,
+                   (EXTRACT(EPOCH FROM current_period_end) * 1000)::BIGINT AS period_end_ms
+            FROM house_rental
+            WHERE house_id = ? AND type = ? AND status = 'ACTIVE'
+            LIMIT 1;
+            """.trimIndent()
+        var rental: ActiveRental? = null
+        val params = arrayOf<Any?>(houseId, dataType.name)
+        executeQuery(statement, params) {
+            rental = ActiveRental(it.getInt("renter_uid"), it.getLong("period_end_ms"))
+        }
+        return rental
+    }
+
+    override fun onHouseOwnerChanged(dataType: DataType, houseId: Int, newOwnerUid: Int?) {
+        // A live listing from the previous owner is no longer valid.
+        val cancelListing = """
+            UPDATE house_rental_listing
+            SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
+            WHERE house_id = ? AND type = ? AND status = 'AVAILABLE';
+            """.trimIndent()
+        executeUpdate(cancelListing, arrayOf<Any?>(houseId, dataType.name))
+
+        // An ACTIVE rental keeps running until the paid day ends: the charge job
+        // sees this flag on the next cycle and closes it as ENDED_SOLD.
+        val flagRental = """
+            UPDATE house_rental
+            SET interrupted_by_sale = true
+            WHERE house_id = ? AND type = ? AND status = 'ACTIVE';
+            """.trimIndent()
+        executeUpdate(flagRental, arrayOf<Any?>(houseId, dataType.name))
+    }
+
     override fun getAllHouseOldSeason(uid: Int, dataType: DataType): List<House> {
         val statement = """SELECT * FROM "user_house_old_season" WHERE "uid" = ? AND type = ?;"""
         val result = mutableListOf<House>()

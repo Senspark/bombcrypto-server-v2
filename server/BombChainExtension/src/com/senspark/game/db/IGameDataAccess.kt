@@ -16,6 +16,15 @@ import com.smartfoxserver.v2.entities.data.ISFSArray
 import java.sql.SQLException
 import java.time.Instant
 
+/**
+ * An ACTIVE P2P house rental. [periodEndMs] is the end of the day already paid,
+ * which is when the owner gets the house back if nothing else is charged.
+ */
+data class ActiveRental(
+    val renterUid: Int,
+    val periodEndMs: Long,
+)
+
 data class InsertNewBombermanResult(
     val bombermanId: Int,
     val oldOwnerUid: Int,
@@ -90,6 +99,33 @@ interface IGameDataAccess : IGlobalService {
 
     fun loadUserHouse(dataType: DataType, uid: Int, limit: Int, offset: Int): Map<Int, House>
     fun loadHeroInHouseRent(dataType: DataType, uid: Int): Map<Int, Int>
+
+    /**
+     * Houses this user is currently renting from another player (P2P rental
+     * closed on the marketplace site). They are not in user_house for this uid,
+     * but the renter may use them while the contract is ACTIVE.
+     */
+    fun loadRentedHouses(dataType: DataType, uid: Int): Map<Int, House>
+
+    /**
+     * Persists whether the renter has the rented house activated. It cannot live
+     * in user_house.active because that row belongs to the owner.
+     */
+    fun setRentedHouseActive(dataType: DataType, renterUid: Int, houseId: Int, active: Boolean)
+
+    /**
+     * The ACTIVE P2P rental on this house, or null when the house is not rented
+     * out. Used to stop the owner (or a buyer) from activating a house someone
+     * else already paid for, and to tell them when it frees up.
+     */
+    fun findActiveRental(dataType: DataType, houseId: Int): ActiveRental?
+
+    /**
+     * Called when the house changed owner on-chain: cancels a live listing and
+     * flags an ACTIVE rental so the charge job ends it on the next cycle
+     * (the day already paid is honoured).
+     */
+    fun onHouseOwnerChanged(dataType: DataType, houseId: Int, newOwnerUid: Int?)
     fun getAllHouseOldSeason(uid: Int, dataType: DataType): List<House>
     fun updateUserHouseStage(dataType: DataType, uid: Int, houses: List<House>)
     fun updateBombermanStage(uid: Int, bombermanList: List<Hero>, energiesRecovery: Map<Int, Int>): Boolean

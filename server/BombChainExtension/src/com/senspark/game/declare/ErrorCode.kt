@@ -17,6 +17,13 @@ object ErrorCode {
     const val HOUSE_NOT_EXIST: Int = 1007
     const val HOUSE_LIMIT_REACH: Int = 1008
     const val HOUSE_IS_ACTIVATE: Int = 1009
+
+    /**
+     * House is rented out to another player (P2P rental) and cannot be used yet.
+     * 1063 is free on both sides - the client already maps 1020 to "Username exist".
+     */
+    const val HOUSE_RENTED: Int = 1063
+
     const val BOMBERMAN_ACTIVE_INVALID: Int = 1010
     const val BOMBERMAN_MAX_ACTIVE: Int = 1011
     const val NOT_ENOUGH_RESOURCE: Int = 1017

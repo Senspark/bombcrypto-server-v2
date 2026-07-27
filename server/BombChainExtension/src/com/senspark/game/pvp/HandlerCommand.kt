@@ -51,6 +51,7 @@ object HandlerCommand {
     
     const val SyncHeroResponse = "SYNC_HERO_RESPONSE"
     const val SyncHouseResponse = "SYNC_HOUSE_RESPONSE"
+    const val HouseRentalUpdateResponse = "HOUSE_RENTAL_UPDATE_RESPONSE"
     const val SyncDepositResponse = "SYNC_DEPOSIT_RESPONSE"
 
     const val ApproveClaimResponse = "APPROVE_CLAIM_RESPONSE"
