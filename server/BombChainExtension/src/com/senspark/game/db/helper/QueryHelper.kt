@@ -271,6 +271,37 @@ class QueryHelper {
             return Pair(statement, arrayOf(uid, billToken, productId, totalGemsReceive, isSpecialOffer, isTest, region))
         }
 
+        /**
+         * Charge a gem pack against the deposited native coin and record the purchase, as one statement
+         * (fn_sub_user_reward raises `1019,Not enough` when short, so the row only exists if it charged).
+         * is_special_offer is hardcoded FALSE, not a parameter: a TRUE row would be invisible to the
+         * readers that filter on it, re-granting the first-purchase bonus and skipping limit_per_user.
+         */
+        fun queryChargeNativeAndInsertUserBuyGemTransaction(
+            uid: Int,
+            network: DataType,
+            rewardType: BLOCK_REWARD_TYPE,
+            bcoinPrice: Double,
+            billToken: String,
+            totalGemsReceive: Int,
+            productId: String,
+            reason: String,
+        ): Pair<String, Array<Any?>> {
+            val statement = """
+                WITH _charge AS (
+                    SELECT fn_sub_user_reward(?, ?, fn_native_price(?, ?), ?, ?))
+                INSERT
+                INTO user_buy_gem_transaction(uid, bill_token, product_id, gems_receive, is_special_offer)
+                SELECT ?, ?, ?, ?, FALSE
+                FROM _charge;
+            """.trimIndent()
+            val params = arrayOf<Any?>(
+                uid, network.name, network.name, bcoinPrice, rewardType.name, reason,
+                uid, billToken, productId, totalGemsReceive
+            )
+            return Pair(statement, params)
+        }
+
         fun queryDeleteHeroTRAndLogGrind(uid: Int, itemId: Int, heroIds: List<Int>): Pair<String, Array<Any?>> {
             val statement = """
                 WITH _delete_bombers AS (

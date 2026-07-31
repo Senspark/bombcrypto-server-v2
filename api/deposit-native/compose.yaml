@@ -1,0 +1,27 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+
+  ap-deposit-native:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    container_name: ap-deposit-native
+    ports:
+      - "8110:80"
+    networks:
+      - base_default
+    env_file:
+      - .env
+    environment:
+      TZ: 'Asia/Bangkok'
+      PORT: '80'
+      IS_PROD: false
+      BLOCKCHAIN_CENTER_API: 'http://ap-blockchain-center'
+      REDIS_CONNECTION_STRING: 'redis://@redis:6379/0'
+    restart: unless-stopped

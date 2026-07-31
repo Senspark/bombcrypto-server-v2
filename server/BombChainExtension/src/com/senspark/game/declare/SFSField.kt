@@ -125,6 +125,11 @@ object SFSField {
     const val DEADLINE: String = "deadline"
     const val BRIDGE_ADDRESS: String = "bridge_address"
     const val TOKEN_ADDRESS: String = "token_address"
+
+    // Native withdraw-sign response: the user relays withdraw(allowed_cumulative, deadline, signature).
+    const val ALLOWED_CUMULATIVE: String = "allowed_cumulative"
+    const val CONTRACT_ADDRESS: String = "contract_address"
+    const val CHAIN_ID: String = "chain_id"
     // Cross-chain bridge activity notify (Phase 9 smart-sweep): which activity + the on-chain tx hash.
     const val KIND: String = "kind"
     const val TX_HASH: String = "tx_hash"

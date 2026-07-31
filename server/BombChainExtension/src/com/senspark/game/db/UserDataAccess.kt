@@ -700,7 +700,11 @@ class UserDataAccess(
         var statement = """CALL sp_user_buy_auto_mine(?,?,?,?,?::json);"""
         var params: Array<Any?> =
             arrayOf(uid, firstRewardType, secondRewardType, dataType.name, jsonArray.toString())
-        if (firstRewardType == secondRewardType) {
+        // The 4-argument SP prices at the flat min_price. Native must not take that shortcut — it pays
+        // the same dynamic fn_calculate_package_auto_price a BCOIN buyer on the chain pays, converted
+        // at the rate — so it stays on the 5-argument SP even though both reward types are the same.
+        val isNative = enumValueOf<BLOCK_REWARD_TYPE>(firstRewardType).isNativeDeposited
+        if (firstRewardType == secondRewardType && !isNative) {
             statement = """CALL sp_user_buy_auto_mine(?,?,?,?::json);"""
             params = arrayOf(uid, firstRewardType, dataType.name, autoMinePackage.toJsonObject().toString())
         }

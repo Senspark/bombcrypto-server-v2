@@ -74,6 +74,7 @@ class HandlerLogger(
         _handlerNames.add(SFSCommand.SKIP_OPEN_CHEST_TIME_BY_ADS_V2)
         _handlerNames.add(SFSCommand.BUY_GOLD_V2)
         _handlerNames.add(SFSCommand.BUY_GEM_V2)
+        _handlerNames.add(SFSCommand.BUY_GEM_BY_NATIVE_TOKEN)
         _handlerNames.add(SFSCommand.BUY_PACK_V2)
         _handlerNames.add(SFSCommand.WATCHING_DAILY_MISSION_ADS_V2)
         _handlerNames.add(SFSCommand.TAKE_DAILY_MISSION_REWARD_V2)

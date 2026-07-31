@@ -3,6 +3,7 @@ package com.senspark.game.db.cache
 import com.google.gson.JsonArray
 import com.senspark.common.cache.ICacheService
 import com.senspark.common.constant.ItemId
+import com.senspark.common.utils.ILogger
 import com.senspark.game.api.IPvpResultInfo
 import com.senspark.game.constant.CachedKeys
 import com.senspark.game.data.manager.gacha.IGachaChestSlotManager
@@ -36,7 +37,8 @@ import kotlin.time.Duration.Companion.hours
 
 class CachedUserDataAccess(
     private val _bridge: IUserDataAccess,
-    private val _cache: ICacheService
+    private val _cache: ICacheService,
+    private val _logger: ILogger,
 ) : IUserDataAccess {
 
     override fun initialize() {
@@ -238,18 +240,28 @@ class CachedUserDataAccess(
      * Mỗi ngày thay 1 lần
      */
     override fun loadAutoMinePackagePrice(uid: Int, listArrayPackage: JsonArray): ISFSArray {
-        val date = LocalDate.now().dayOfMonth
-        val field = "${uid}_${date}"
+        val field = "${uid}_${LocalDate.now().dayOfMonth}"
+        readAutoMinePriceCache(field)?.let { return it }
+
+        val result = _bridge.loadAutoMinePackagePrice(uid, listArrayPackage)
+        // A cache failure must never fail the request. The write used to sit inside the catch that
+        // handled a cache miss, so a Redis error surfaced to the client as ec 1000 on a price the
+        // database had already produced.
         try {
-            val cached = _cache.getFromHash(CachedKeys.AUTO_MINE_PRICE, field)
-            if (cached.isNullOrEmpty()) {
-                throw Exception("Empty cache")
-            }
-            return SFSArray.newFromJsonData(cached)
-        } catch (e: Exception) {
-            val result = _bridge.loadAutoMinePackagePrice(uid, listArrayPackage)
             _cache.setToHash(CachedKeys.AUTO_MINE_PRICE, field, result.toJson(), 24.hours)
-            return result
+        } catch (e: Exception) {
+            _logger.error("[AUTO_MINE_PRICE] cache write failed field=$field: ${e.message}", e)
+        }
+        return result
+    }
+
+    private fun readAutoMinePriceCache(field: String): ISFSArray? {
+        return try {
+            val cached = _cache.getFromHash(CachedKeys.AUTO_MINE_PRICE, field)
+            if (cached.isNullOrEmpty()) null else SFSArray.newFromJsonData(cached)
+        } catch (e: Exception) {
+            _logger.error("[AUTO_MINE_PRICE] cache read failed field=$field: ${e.message}", e)
+            null
         }
     }
 

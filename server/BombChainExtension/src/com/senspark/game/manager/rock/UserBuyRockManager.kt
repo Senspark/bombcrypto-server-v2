@@ -20,6 +20,10 @@ class UserBuyRockManager(
         val secondRewardType: String
         when (blockRewardType) {
             BLOCK_REWARD_TYPE.BCOIN -> {
+                // BCOIN is retired wherever a native coin exists — old clients still list it, this gate refuses it.
+                if (_mediator.dataType.convertToNativeDepositType() != null) {
+                    throw CustomException("BCOIN is no longer supported", ErrorCode.INVALID_PARAMETER)
+                }
                 firstRewardType = BLOCK_REWARD_TYPE.BCOIN_DEPOSITED.name
                 secondRewardType = BLOCK_REWARD_TYPE.BCOIN.name
             }
@@ -27,6 +31,14 @@ class UserBuyRockManager(
             BLOCK_REWARD_TYPE.SENSPARK -> {
                 firstRewardType = BLOCK_REWARD_TYPE.SENSPARK_DEPOSITED.name
                 secondRewardType = BLOCK_REWARD_TYPE.SENSPARK.name
+            }
+
+            BLOCK_REWARD_TYPE.BNB_DEPOSITED, BLOCK_REWARD_TYPE.POL_DEPOSITED -> {
+                if (blockRewardType != _mediator.dataType.convertToNativeDepositType()) {
+                    throw CustomException("Reward type invalid", ErrorCode.INVALID_PARAMETER)
+                }
+                firstRewardType = blockRewardType.name
+                secondRewardType = blockRewardType.name
             }
 
             else -> throw CustomException("Reward type invalid", ErrorCode.INVALID_PARAMETER)

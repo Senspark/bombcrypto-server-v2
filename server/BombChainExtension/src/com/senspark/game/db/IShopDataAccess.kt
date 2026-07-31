@@ -77,5 +77,6 @@ interface IShopDataAccess : IGlobalService {
     fun loadAutoMinePackageConfig(): Map<EnumConstants.DataType, List<AutoMinePackage>>
     fun loadBurnHeroConfig(): Map<Int, RockAmount>
     fun loadRockPackageConfig(): List<RockPackage>
+    fun loadNativeRateConfig(): Map<EnumConstants.DataType, Double>
     fun loadHouseRentPackageConfig(): Map<EnumConstants.DataType, List<HouseRentPackage>>
 }

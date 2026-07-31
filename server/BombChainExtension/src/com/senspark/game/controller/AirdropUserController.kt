@@ -182,7 +182,9 @@ class AirdropUserController(
             logger.log("User $userName initialized")
             return true
         } catch (e: Exception) {
-            logger.log("Error: ${e.message}")
+            // error(), not log(): the message alone loses the class and the cause chain, and on Java 11
+            // every NPE carries a null message — "Error: null" is all that reaches the log.
+            logger.error("[InitFail] uid=${_userInfo.id} initDependencies threw", e)
             _initializeStatus = InitializeStatus.FAILED
             _isDisposed = true
             return false

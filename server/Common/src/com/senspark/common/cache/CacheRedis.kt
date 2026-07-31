@@ -2,10 +2,8 @@ package com.senspark.common.cache
 
 import com.senspark.common.utils.ILogger
 import com.senspark.common.utils.LazyMutable
-import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.SetArgs
 import io.lettuce.core.api.StatefulRedisConnection
-import io.lettuce.core.api.sync.multi
 import java.time.Instant
 import kotlin.time.Duration
 
@@ -98,12 +96,13 @@ class CacheRedis(
         _connection.sync().hset(key, field, value)
     }
 
-    @OptIn(ExperimentalLettuceCoroutinesApi::class)
+    // Deliberately not MULTI/EXEC: the connection is shared across threads, so concurrent
+    // transactions would interleave and discard each other; a failed hexpire just leaves a
+    // field without a deadline, which the next write re-stamps.
     override fun setToHash(key: String, field: String, value: String, ttl: Duration) {
-        _connection.sync().multi {
-            hset(key, field, value)
-            hexpire(key, ttl.inWholeSeconds, field)
-        }
+        val cmd = _connection.sync()
+        cmd.hset(key, field, value)
+        cmd.hexpire(key, ttl.inWholeSeconds, field)
     }
 
     override fun deleteFromHash(key: String, field: String) {

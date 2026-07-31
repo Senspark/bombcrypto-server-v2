@@ -63,6 +63,10 @@ import com.senspark.game.manager.claim.ClaimResponseManager
 import com.senspark.game.manager.claim.IClaimResponseManager
 import com.senspark.game.manager.crosschainDepositBridge.CrosschainDepositBridgeResponseManager
 import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeResponseManager
+import com.senspark.game.manager.nativeDeposit.INativeDepositManager
+import com.senspark.game.manager.nativeDeposit.INativeDepositResponseManager
+import com.senspark.game.manager.nativeDeposit.NativeDepositManager
+import com.senspark.game.manager.nativeDeposit.NativeDepositResponseManager
 import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
 import com.senspark.game.manager.convertToken.SwapTokenRealtimeManager
@@ -382,6 +386,19 @@ class ServicesInitializerBnbPol(
                 g.get<IMessengerService>(),
                 n.get<IUsersManager>(),
                 g.get<ICoroutineScope>(),
+                logger,
+            )
+        }
+        n.register(INativeDepositResponseManager::class) {
+            NativeDepositResponseManager(
+                g.get<IMessengerService>(),
+                logger,
+            )
+        }
+        n.register(INativeDepositManager::class) {
+            NativeDepositManager(
+                n.get<INativeDepositResponseManager>(),
+                g.get<IRewardDataAccess>(),
                 logger,
             )
         }

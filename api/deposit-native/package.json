@@ -1,0 +1,30 @@
+{
+  "name": "ap-deposit-native",
+  "description": "Native (BNB / POL) deposit-withdraw signer: reads DepositNative counters at confirmed depth via the blockchain center and signs the EIP-191 withdraw authorization the user relays. Owns the contract addresses. Reached by the game server over Redis streams; stateless, no DB.",
+  "engines": {
+    "npm": ">=10.2.4",
+    "node": ">=24.0.0"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "dev": "tsc --noEmit && npx vite-node src/Server.ts",
+    "start:release": "npm run build && node dist/Server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "envalid": "^7.3.1",
+    "ethers": "5.x",
+    "express": "^4.18.2",
+    "express-async-errors": "^3.1.1",
+    "redis": "^4.6.14"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.12",
+    "@types/express": "^4.17.14",
+    "tsc-alias": "^1.8.10",
+    "typescript": "^5.4.5",
+    "vite-node": "^5.2.0"
+  }
+}

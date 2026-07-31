@@ -28,6 +28,7 @@ import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.exception.CustomException
 import com.senspark.game.extension.GlobalServices
 import com.senspark.game.extension.coroutines.ICoroutineScope
+import com.senspark.game.manager.nativeDeposit.INativeDepositManager
 import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.modules.ServerType
 import com.senspark.game.handler.sol.EncryptionHelper
@@ -181,13 +182,39 @@ class LegacyUserController(
             sendDataEncryption(USER_INITIALIZED, SFSObject())
             logger.log("User $userName initialized")
             fireBackgroundClaimSync()
+            fireNativeDepositSync()
             fireOneTimeCrossNetworkCleanupSync()
             return true
         } catch (e: Exception) {
-            logger.log("Error: ${e.message}")
+            // error(), not log(): the message alone loses the class and the cause chain, and on Java 11
+            // every NPE carries a null message — "Error: null" is all that reaches the log.
+            logger.error("[InitFail] uid=${_userInfo.id} initDependencies threw", e)
             _initializeStatus = InitializeStatus.FAILED
             _isDisposed = true
             return false
+        }
+    }
+
+    // Login backstop for native (BNB / POL) deposits: pull the on-chain counters so a deposit made
+    // out-of-band (self-made client, or one whose client hint never arrived) becomes visible, and any
+    // landed pending settles. Fire-and-forget, and only for FI wallets on a chain that has a native
+    // token — everyone else returns below without touching the signer.
+    private fun fireNativeDepositSync() {
+        if (_userInfo.type != EnumConstants.UserType.FI) return
+        val wallet = walletAddress
+        if (wallet.isNullOrEmpty()) return
+        val rewardType = when (_userInfo.dataType) {
+            EnumConstants.DataType.BSC -> EnumConstants.BLOCK_REWARD_TYPE.BNB_DEPOSITED
+            EnumConstants.DataType.POLYGON -> EnumConstants.BLOCK_REWARD_TYPE.POL_DEPOSITED
+            else -> return
+        }
+        val nativeManager = svServices.get<INativeDepositManager>()
+        _services.get<ICoroutineScope>().scope.launch(Dispatchers.IO) {
+            try {
+                nativeManager.sync(_userInfo.id, wallet, rewardType)
+            } catch (e: Exception) {
+                logger.error("[fireNativeDepositSync] failed for uid=${_userInfo.id}", e)
+            }
         }
     }
 

@@ -9,6 +9,14 @@ import com.senspark.game.declare.customEnum.IAPShopType
 import com.senspark.game.declare.customTypeAlias.ProductId
 
 interface IIAPShopManager : IServerService {
+    /**
+     * Replace the cached config_iap_shop rows. Only that table — the gold shop and the free-reward
+     * configs come from other tables and stay as initialize() loaded them.
+     */
+    fun setConfig(configs: Map<IAPShopType, Map<ProductId, IAPShopConfig>>)
+
+    fun dump(): String
+
     fun getShopConfigs(type: IAPShopType): List<IAPShopConfig>
     fun getGoldShopConfigs(): List<IAPGoldShopConfigItem>
     fun buyGold(userController: IUserController, itemId: Int)

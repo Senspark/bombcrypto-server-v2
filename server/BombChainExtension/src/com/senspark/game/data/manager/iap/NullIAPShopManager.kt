@@ -13,6 +13,10 @@ class NullIAPShopManager : IIAPShopManager {
     override fun initialize() {
     }
 
+    override fun setConfig(configs: Map<IAPShopType, Map<ProductId, IAPShopConfig>>) {}
+
+    override fun dump(): String = "config_iap_shop: not supported"
+
     override fun getShopConfigs(type: IAPShopType): List<IAPShopConfig> {
         return emptyList()
     }

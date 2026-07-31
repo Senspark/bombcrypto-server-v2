@@ -34,7 +34,13 @@ class EnumConstants {
         // Cross-chain deposit bridge: unified spendable balance, isolated by type = 'BP'
         // (see cross-chain-balance-impl-plan.md §D). Credited/debited only by the bridge flow.
         BCOIN_BRIDGE(29, false),
-        SEN_BRIDGE(30, false);
+        SEN_BRIDGE(30, false),
+
+        // Native coin deposit, one per chain (BNB on BSC, POL on POLYGON). The spendable/pending/
+        // synced doubles here are a display projection of the wei-exact user_native_deposited row,
+        // which is the sole authority for any withdraw signature.
+        BNB_DEPOSITED(31, false),
+        POL_DEPOSITED(32, false);
 
         @Throws(CustomException::class)
         fun swapDepositedOrReward(): BLOCK_REWARD_TYPE {
@@ -53,6 +59,11 @@ class EnumConstants {
             }
         }
         
+        // Native has no "earned" twin of the deposited balance — one reward type is the whole balance.
+        // Anything charging it must use the single-reward-type overload of fn_sub_user_reward.
+        val isNativeDeposited: Boolean
+            get() = this == BNB_DEPOSITED || this == POL_DEPOSITED
+
         fun convertDepositToNetworkType(): DataType {
             return when (this) {
                 TON_DEPOSITED -> DataType.TON
@@ -224,6 +235,15 @@ class EnumConstants {
                 BAS -> BLOCK_REWARD_TYPE.BAS_DEPOSITED
                 VIC -> BLOCK_REWARD_TYPE.VIC_DEPOSITED
                 else -> throw CustomException("Unsupported token network: ${this.name}")
+            }
+        }
+
+        // null on every network without a native coin balance.
+        fun convertToNativeDepositType(): BLOCK_REWARD_TYPE? {
+            return when (this) {
+                BSC -> BLOCK_REWARD_TYPE.BNB_DEPOSITED
+                POLYGON -> BLOCK_REWARD_TYPE.POL_DEPOSITED
+                else -> null
             }
         }
 

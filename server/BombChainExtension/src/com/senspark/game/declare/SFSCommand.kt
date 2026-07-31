@@ -206,6 +206,10 @@ object SFSCommand {
     const val BUY_AUTO_MINE_V2: String = "BUY_AUTO_MINE_V2"
     const val START_AUTO_MINE_V2: String = "START_AUTO_MINE_V2"
     const val AUTO_MINE_PRICE_V2: String = "AUTO_MINE_PRICE_V2"
+
+    // V3 = V2 plus a prices[] array per package, one entry per reward type that can pay for it.
+    // V2 stays for clients already in the wild.
+    const val AUTO_MINE_PRICE_V3: String = "AUTO_MINE_PRICE_V3"
     const val GET_COIN_RANKING_V2: String = "GET_COIN_RANKING_V2"
     const val GET_ALL_SEASON_COIN_RANKING_V2: String = "GET_ALL_SEASON_COIN_RANKING_V2"
     const val START_EXPLODE_V5: String = "START_EXPLODE_V5"
@@ -256,6 +260,7 @@ object SFSCommand {
     const val GET_BURN_HERO_CONFIG_V2: String = "GET_BURN_HERO_CONFIG_V2"
     const val BUY_ROCK_V2: String = "BUY_ROCK_V2"
     const val GET_ROCK_PACK_CONFIG_V2: String = "GET_ROCK_PACK_CONFIG_V2"
+    const val GET_ROCK_PACK_CONFIG_V3: String = "GET_ROCK_PACK_CONFIG_V3"
     const val UPGRADE_SHIELD_LEVEL_V2: String = "UPGRADE_SHIELD_LEVEL_V2"
     const val UPGRADE_SHIELD_LEVEL_V3: String = "UPGRADE_SHIELD_LEVEL_V3"
     const val GET_UPGRADE_SHIELD_CONFIG_V2: String = "GET_UPGRADE_SHIELD_CONFIG_V2"
@@ -286,6 +291,10 @@ object SFSCommand {
     const val GET_FREE_GEMS_V2: String = "GET_FREE_GEMS_V2"
     const val GET_FREE_GOLDS_V2: String = "GET_FREE_GOLDS_V2"
     const val GET_GEM_SHOP_V2: String = "GET_GEM_SHOP_V2"
+    const val GET_GEM_SHOP_V3: String = "GET_GEM_SHOP_V3"
+
+    // New purchase path, not a replacement for BUY_GEM_V2 — that stays as the app-store path.
+    const val BUY_GEM_BY_NATIVE_TOKEN: String = "BUY_GEM_BY_NATIVE_TOKEN"
     const val GET_PACK_SHOP_V2: String = "GET_PACK_SHOP_V2"
     const val GET_GOLD_SHOP_V2: String = "GET_GOLD_SHOP_V2"
 
@@ -324,6 +333,10 @@ object SFSCommand {
     const val APPROVE_CLAIM_V4: String = "APPROVE_CLAIM_V4"
     const val CONFIRM_CLAIM_REWARD_SUCCESS_V2: String = "CONFIRM_CLAIM_REWARD_SUCCESS_V2"
     const val CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW: String = "CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW"
+
+    // Native (BNB / POL) deposit: sync on-chain counters into the wei ledger; request a withdraw signature.
+    const val WITHDRAW_NATIVE: String = "WITHDRAW_NATIVE"
+    const val SYNC_NATIVE_DEPOSIT: String = "SYNC_NATIVE_DEPOSIT"
     // Client reports a bridge activity (before/after deposit, after withdraw). Fire-and-forget: the server
     // re-emits it on SV_DEPBRIDGE_NOTIFY_STR so the indexer accelerates its sweep. No business effect.
     const val CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY: String = "CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY"

@@ -5,6 +5,7 @@ class ChangeRewardReason {
         const val SAVE_GAME = "Save game"
         const val FREE_ADS_REWARD = "Free ads reward"
         const val BUY_GOLD = "Buy Gold"
+        const val BUY_GEM_BY_NATIVE_TOKEN = "Buy gem by native token"
         const val CLAIM_STAKE_VIP_REWARD = "Claim stake vip reward"
         const val MERGE_CRYSTAL = "Merge crystal"
         const val UPGRADE_HERO_TR = "Upgrade hero TR"

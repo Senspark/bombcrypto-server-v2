@@ -31,6 +31,11 @@ class IAPShopConfig(
      * giới hạn mua theo giây
      */
     val purchaseTimeLimit: Long?,
+    /**
+     * Giá in-game của gói, chỉ set cho GEM pack. Store pack không có (giá nằm ở app store theo
+     * product_id). Đây là giá gốc để quy ra native coin, không phải giá store quy đổi.
+     */
+    val bcoinPrice: Double?,
 ) {
     var canBuySpecialOffer: Boolean = false
     val items = deserializeList<IAPShopConfigItem>(itemJson)
@@ -51,6 +56,7 @@ class IAPShopConfig(
                 rs.getBoolean("is_remove_ads"),
                 rs.getInt("buy_step"),
                 if (rs.getObject("purchase_time_limit") == null) null else rs.getLong("purchase_time_limit"),
+                if (rs.getObject("bcoin_price") == null) null else rs.getDouble("bcoin_price"),
             )
         }
     }

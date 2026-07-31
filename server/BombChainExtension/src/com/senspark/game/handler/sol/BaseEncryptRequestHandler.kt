@@ -129,10 +129,18 @@ abstract class BaseEncryptRequestHandler : MainGameExtensionBaseRequestHandler()
     }
 
     protected fun parseExceptionContents(exception: Exception, controller: IUserController) {
-        val message = exception.message
         val stackTrace = exception.stackTrace
         val sb = StringBuilder()
-        sb.append("Error: ").append(message).append("\r\n")
+        // The class name carries the diagnosis whenever message is null, which on this JVM every
+        // NullPointerException is: helpful NPE messages only arrived in Java 14.
+        sb.append("Error: ").append(exception.javaClass.name).append(": ").append(exception.message).append("\r\n")
+        var cause = exception.cause
+        var depth = 0
+        while (cause != null && depth < 5) {
+            sb.append("Caused by: ").append(cause.javaClass.name).append(": ").append(cause.message).append("\r\n")
+            cause = cause.cause
+            depth++
+        }
         for (i in stackTrace.indices) {
             val exceptionMsg = String.format(
                 "Root %s. Exception thrown from %s in class %s on line number %s of file %s",

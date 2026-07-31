@@ -10,6 +10,12 @@ class NullUserIAPShopManager : IUserIAPShopManager {
         return SFSArray()
     }
 
+    override fun getGemShopV3(): ISFSArray {
+        return SFSArray()
+    }
+
+    override fun buyByNativeToken(productId: String) {}
+
     override fun saveUserIapPack(buyStep: Int) {}
 
     override fun getPackShop(): List<ISFSObject> {

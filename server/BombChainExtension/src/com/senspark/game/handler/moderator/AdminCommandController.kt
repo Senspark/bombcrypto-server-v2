@@ -5,6 +5,8 @@ import com.senspark.common.utils.IGlobalLogger
 import com.senspark.game.constant.CachedKeys
 import com.senspark.game.data.manager.autoMine.IAutoMineManager
 import com.senspark.game.data.manager.block.IBlockRewardDataManager
+import com.senspark.game.data.manager.iap.IIAPShopManager
+import com.senspark.game.data.manager.nativeRate.INativeRateManager
 import com.senspark.game.data.manager.pvp.IPvpConfigManager
 import com.senspark.game.data.manager.treassureHunt.IHouseManager
 import com.senspark.game.data.manager.treassureHunt.ITreasureHuntConfigManager
@@ -39,6 +41,7 @@ class AdminCommandController(
     private val _blockRewardDataManager = _services.get<IBlockRewardDataManager>()
     private val _netServices = _services.get<ISvServicesContainer>()
     private val _autoMineManager = _services.get<IAutoMineManager>()
+    private val _nativeRateManager = _services.get<INativeRateManager>()
     private val _gameConfigManager = _services.get<IGameConfigManager>()
     private val _logger = _services.get<IGlobalLogger>()
     private val _redis = _services.get<ICacheService>();
@@ -142,6 +145,40 @@ class AdminCommandController(
 
     fun hotReloadConfigPackageAutoMine() {
         _autoMineManager.setConfig(_dataAccessManager.shopDataAccess.loadAutoMinePackageConfig())
+    }
+
+    /**
+     * table: config_native_rate
+     *
+     * UPDATE config_native_rate SET native_per_bcoin = 0.000027372, modify_date = now() WHERE network = 'BSC';
+     * UPDATE config_native_rate SET native_per_bcoin = 0.214286,    modify_date = now() WHERE network = 'POLYGON';
+     *
+     * fn_native_price reads the table directly, so the charge is live the moment the row is written;
+     * this reload is what brings the client price lists into step.
+     */
+    fun hotReloadConfigNativeRate() {
+        _nativeRateManager.setConfig(_dataAccessManager.shopDataAccess.loadNativeRateConfig())
+    }
+
+    fun dumpNativeRate(): String {
+        return _nativeRateManager.dump()
+    }
+
+    /**
+     * table: config_iap_shop
+     *
+     * UPDATE config_iap_shop SET bcoin_price = 500 WHERE product_id = 'pro_pack';
+     *
+     * Unlike the other config managers this one is a server service, so every network has its own
+     * instance. Read the table once and push the same snapshot to all of them.
+     */
+    fun hotReloadConfigIapShop() {
+        val configs = _dataAccessManager.shopDataAccess.getIAPGemShopConfigs()
+        _netServices.filter(IIAPShopManager::class).forEach { it.setConfig(configs) }
+    }
+
+    fun dumpConfigIapShop(): String {
+        return _netServices.filter(IIAPShopManager::class).joinToString("\n") { it.dump() }
     }
 
     fun setStopPoolTHModeV2() {

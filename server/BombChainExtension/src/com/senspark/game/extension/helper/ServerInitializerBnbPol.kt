@@ -11,6 +11,7 @@ import com.senspark.game.extension.GlobalServices
 import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.modules.ServerType
 import com.senspark.game.extension.schedulers.ExtensionSchedulerBnbPol
+import com.senspark.game.handler.iapshop.UserBuyGemByNativeTokenHandler
 import com.senspark.game.handler.nft.*
 import com.senspark.game.handler.request.ApproveClaimHandlerV4
 import com.senspark.game.handler.rock.*
@@ -23,6 +24,7 @@ import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.blockChain.IBlockchainResponseManager
 import com.senspark.game.manager.claim.IClaimResponseManager
 import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeResponseManager
+import com.senspark.game.manager.nativeDeposit.INativeDepositResponseManager
 import com.senspark.game.pvp.IPvpResultManager
 import com.senspark.game.pvp.manager.IPvpQueueManager
 import com.senspark.game.service.IAllHeroesFiManager
@@ -54,6 +56,10 @@ class ServerInitializerBnbPol(
         helper.addRequestHandler(SFSCommand.REFRESH_HERO_STAKE, RefreshHeroStakeHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_MIN_STAKE_HERO_V2, GetMinStakeHeroHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_ROCK_PACK_CONFIG_V2, GetRockConfigPackHandler::class.java)
+        helper.addRequestHandler(SFSCommand.GET_ROCK_PACK_CONFIG_V3, GetRockConfigPackV3Handler::class.java)
+
+        // Native coin sink; only BSC / POLYGON have a native deposit balance.
+        helper.addRequestHandler(SFSCommand.BUY_GEM_BY_NATIVE_TOKEN, UserBuyGemByNativeTokenHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_REPAIR_SHIELD_CONFIG_V2, GetRepairShieldConfigHandler::class.java)
 
         // new handler not wait api response
@@ -124,6 +130,11 @@ class ServerInitializerBnbPol(
             val crosschainDepositBridgeResponseManager = _netServices.get<ICrosschainDepositBridgeResponseManager>()
             messenger.listen(StreamKeys.AP_DEPBRIDGE_RESULT_STR) { data ->
                 crosschainDepositBridgeResponseManager.listenBridgeResult(data.value)
+            }
+
+            val nativeDepositResponseManager = _netServices.get<INativeDepositResponseManager>()
+            messenger.listen(StreamKeys.AP_DEPNATIVE_RESULT_STR) { data ->
+                nativeDepositResponseManager.listenNativeResult(data.value)
             }
         }
     }
