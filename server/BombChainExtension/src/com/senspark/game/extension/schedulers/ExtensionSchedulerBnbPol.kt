@@ -16,19 +16,24 @@ import com.senspark.game.declare.GameConstants.SCHEDULE_STATUS
 import com.senspark.game.declare.SFSCommand.TH_MODE_V2_REWARDS
 import com.senspark.game.extension.GlobalServices
 import com.senspark.game.extension.ServerServices
+import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
 import com.senspark.game.manager.dailyTask.IDailyTaskManager
 import com.senspark.game.manager.market.IMarketManager
+import com.senspark.game.manager.nativeDeposit.INativeDepositManager
 import com.senspark.game.manager.treasureHuntV2.ITreasureHuntV2Manager
 import com.senspark.lib.data.manager.IGameConfigManager
 import com.smartfoxserver.v2.entities.data.SFSArray
 import com.smartfoxserver.v2.entities.data.SFSObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -53,7 +58,13 @@ class ExtensionSchedulerBnbPol(
     private val _serverInfoManager = netService.get<IServerInfoManager>()
     private val _dailyTaskManager = netService.get<IDailyTaskManager>()
     private val _marketManager = netService.get<IMarketManager>()
-    
+    private val _nativeDepositManager = netService.get<INativeDepositManager>()
+    private val _coroutineScope = service.get<ICoroutineScope>()
+
+    // Guards the reconcile tick: it now runs off the scheduler thread, so two ticks could otherwise
+    // overlap and read the same rows twice.
+    private val _nativeReconcileRunning = AtomicBoolean(false)
+
     override fun initialize() {
         scheduleGetServerInfo()
         scheduleSwapTokenPrice()
@@ -65,6 +76,32 @@ class ExtensionSchedulerBnbPol(
         schedulePvpRanking()
         scheduleChangeDailyTask()
         scheduleRefreshMinPriceMarket()
+        scheduleNativeWithdrawReconcile()
+    }
+
+    /**
+     * Settle native (BNB / POL) withdrawals whose on-chain tx has landed, even if the client never
+     * confirmed. Bounded set: rows with pending_wei > 0 inside the signature's deadline window.
+     */
+    private fun scheduleNativeWithdrawReconcile() {
+        val taskName = getTasksName("scheduleNativeWithdrawReconcile")
+        _scheduler.schedule(taskName, 30_000, 60_000) {
+            // SimpleScheduler is one shared thread for every task, so the tick only dispatches — a slow
+            // reconcile must not delay TH-mode rewards or PvP ranking.
+            if (!_nativeReconcileRunning.compareAndSet(false, true)) {
+                _logger.warn("[native-reconcile] previous tick still running, skipping this one")
+                return@schedule
+            }
+            _coroutineScope.scope.launch(Dispatchers.IO) {
+                try {
+                    _nativeDepositManager.reconcilePending()
+                } catch (e: Exception) {
+                    _logger.error("[native-reconcile] tick failed: ${e.message}", e)
+                } finally {
+                    _nativeReconcileRunning.set(false)
+                }
+            }
+        }
     }
 
     /**

@@ -18,6 +18,8 @@ import com.senspark.game.db.dailyMission.MissionDataAccess
 import com.senspark.game.db.gachaChest.GachaChestDataAccess
 import com.senspark.game.extension.modules.ServerServicesInitializer
 import com.senspark.game.data.manager.autoMine.IAutoMineManager
+import com.senspark.game.data.manager.nativeRate.INativeRateManager
+import com.senspark.game.data.manager.nativeRate.NativeRateManager
 import com.senspark.game.data.manager.treassureHunt.ITreasureHuntConfigManager
 import com.senspark.game.db.dailyMission.IMissionDataAccess
 import com.senspark.game.db.gachaChest.IGachaChestDataAccess
@@ -63,7 +65,7 @@ object MainGameExtensionModules {
         val shopDataAccess = ShopDataAccess(database, enableLogDb, logger)
         val gameDataAccess = GameDataAccessPostgreSql(database, enableLogDb, logger)
         val logDataAccess = LogDataAccessPostgreSql(database, enableLogDb, logger)
-        val userDataAccess = CachedUserDataAccess(UserDataAccess(database, enableLogDb, logger), cache)
+        val userDataAccess = CachedUserDataAccess(UserDataAccess(database, enableLogDb, logger), cache, logger)
         val rewardDataAccess = RewardDataAccessPostgreSql(database, enableLogDb, logger)
         val libDataAccess = LibDataAccessPostgreSql(database, enableLogDb, logger)
         val pvpDataAccess = PvpDataAccess(
@@ -135,6 +137,7 @@ object MainGameExtensionModules {
         g.register(IBlockRewardDataManager::class) { BlockRewardDataManager(g.get<IShopDataAccess>()) }
         g.register(IBlockConfigManager::class) { BlockConfigManager(g.get<IShopDataAccess>()) }
         g.register(IAutoMineManager::class) { AutoMineManager(g.get<IShopDataAccess>(), g.get<IGameDataAccess>()) }
+        g.register(INativeRateManager::class) { NativeRateManager(g.get<IShopDataAccess>(), g.get<IGlobalLogger>()) }
         g.register(ITreasureHuntConfigManager::class) { TreasureHuntConfigManager(g.get<ITHModeDataAccess>()) }
         g.register(IUserOnlineManager::class) { UserOnlineManager(g.get<ICacheService>(), g.get<IGlobalLogger>()) }
 

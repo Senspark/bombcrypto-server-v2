@@ -40,6 +40,22 @@ class AdminCommandStreamProcessor(
                     _controller.hotReloadConfigPackageAutoMine()
                 }
 
+                ADMIN_COMMANDS.CMD_RELOAD_CONFIG_NATIVE_RATE -> {
+                    _controller.hotReloadConfigNativeRate()
+                }
+
+                ADMIN_COMMANDS.CMD_DUMP_NATIVE_RATE -> {
+                    _logger.log(_controller.dumpNativeRate())
+                }
+
+                ADMIN_COMMANDS.CMD_RELOAD_CONFIG_IAP_SHOP -> {
+                    _controller.hotReloadConfigIapShop()
+                }
+
+                ADMIN_COMMANDS.CMD_DUMP_CONFIG_IAP_SHOP -> {
+                    _logger.log(_controller.dumpConfigIapShop())
+                }
+
                 ADMIN_COMMANDS.CMD_RELOAD_CONFIG_TH_MODE_V2 -> {
                     _controller.hotReloadConfigTHModeV2()
                 }

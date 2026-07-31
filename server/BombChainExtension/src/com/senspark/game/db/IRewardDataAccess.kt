@@ -3,6 +3,9 @@ package com.senspark.game.db
 import com.senspark.common.service.IGlobalService
 import com.senspark.game.data.model.config.AirDrop
 import com.senspark.game.data.model.user.AddUserItemWrapper
+import com.senspark.game.db.model.NativeLedger
+import com.senspark.game.db.model.NativePendingAccount
+import com.senspark.game.db.model.NativeWithdrawRequest
 import com.senspark.game.db.model.UserAirdropClaimed
 import com.senspark.game.db.model.UserStakeInfo
 import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
@@ -97,6 +100,33 @@ interface IRewardDataAccess : IGlobalService {
 
     /** Open pending withdraws for a user (reward_type, chain, gross, before_value as wei strings). */
     fun loadCrosschainDepositBridgeOpenPendings(uid: Int): List<BridgeOpenPending>
+
+    // --- Native (BNB / POL) deposit. --- Wei row is the sole money authority; user_block_reward
+    // doubles are its projection. Caller reads on-chain counters first, these run the row-locked merge.
+
+    /** Merge on-chain counters, settle any landed pending, re-project the doubles. Login + reconciler. */
+    fun syncNativeDeposit(
+        uid: Int,
+        network: String,
+        depositedWei: String,
+        withdrawnWei: String,
+        syncedBlock: Long?,
+    ): NativeLedger
+
+    /** Merge+settle, then re-sign the live pending or commit fresh spendable. Returns the cumulative to sign. */
+    fun requestNativeWithdraw(
+        uid: Int,
+        network: String,
+        depositedWei: String,
+        withdrawnWei: String,
+        syncedBlock: Long?,
+    ): NativeWithdrawRequest
+
+    /**
+     * (uid, network) rows with pending_wei > 0 whose signature was issued within [windowSeconds],
+     * oldest first, capped at [limit] — the bounded set the reconciler settles.
+     */
+    fun loadNativePendingAccounts(windowSeconds: Int, limit: Int): List<NativePendingAccount>
 }
 
 /** An open cross-chain bridge withdraw pending as raw DB strings (wei as integer strings). */

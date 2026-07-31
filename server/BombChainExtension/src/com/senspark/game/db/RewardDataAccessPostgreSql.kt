@@ -8,6 +8,9 @@ import com.senspark.game.constant.ItemType.*
 import com.senspark.game.data.model.config.AirDrop
 import com.senspark.game.data.model.user.AddUserItemWrapper
 import com.senspark.game.db.helper.QueryHelper
+import com.senspark.game.db.model.NativeLedger
+import com.senspark.game.db.model.NativePendingAccount
+import com.senspark.game.db.model.NativeWithdrawRequest
 import com.senspark.game.db.model.UserAirdropClaimed
 import com.senspark.game.db.model.UserStakeInfo
 import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
@@ -21,7 +24,9 @@ import com.senspark.lib.db.BaseDataAccess
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.math.BigDecimal
@@ -180,6 +185,68 @@ class RewardDataAccessPostgreSql(
                     chain = it.getString("chain"),
                     grossWei = it.getBigDecimal("gross").toBigInteger().toString(),
                     beforeWei = it.getBigDecimal("before_value").toBigInteger().toString(),
+                )
+            )
+        }
+        return result
+    }
+
+    override fun syncNativeDeposit(
+        uid: Int,
+        network: String,
+        depositedWei: String,
+        withdrawnWei: String,
+        syncedBlock: Long?,
+    ): NativeLedger {
+        val statement = "SELECT fn_native_sync(?::int, ?::varchar, ?::numeric, ?::numeric, ?::bigint) AS value;"
+        val params = arrayOf<Any?>(uid, network, BigDecimal(depositedWei), BigDecimal(withdrawnWei), syncedBlock)
+        val result = mutableListOf<String>()
+        executeQueryAndThrowException(statement, params) { result.add(it.getString("value")) }
+        val json = Json.parseToJsonElement(result[0]).jsonObject
+        return NativeLedger(
+            depositedWei = json["deposited_wei"]!!.jsonPrimitive.content,
+            withdrawnWei = json["withdrawn_wei"]!!.jsonPrimitive.content,
+            pendingWei = json["pending_wei"]!!.jsonPrimitive.content,
+            spendableWei = json["spendable_wei"]!!.jsonPrimitive.content,
+        )
+    }
+
+    override fun requestNativeWithdraw(
+        uid: Int,
+        network: String,
+        depositedWei: String,
+        withdrawnWei: String,
+        syncedBlock: Long?,
+    ): NativeWithdrawRequest {
+        val statement = "SELECT fn_native_request_withdraw(?::int, ?::varchar, ?::numeric, ?::numeric, ?::bigint) AS value;"
+        val params = arrayOf<Any?>(uid, network, BigDecimal(depositedWei), BigDecimal(withdrawnWei), syncedBlock)
+        val result = mutableListOf<String>()
+        executeQueryAndThrowException(statement, params) { result.add(it.getString("value")) }
+        val json = Json.parseToJsonElement(result[0]).jsonObject
+        return NativeWithdrawRequest(
+            allowedCumulativeWei = json["allowed_cumulative_wei"]!!.jsonPrimitive.content,
+            pendingWei = json["pending_wei"]!!.jsonPrimitive.content,
+            reused = json["reused"]!!.jsonPrimitive.boolean,
+        )
+    }
+
+    override fun loadNativePendingAccounts(windowSeconds: Int, limit: Int): List<NativePendingAccount> {
+        val statement = """
+            SELECT und.uid, und.network, u.user_name AS wallet
+            FROM user_native_deposited und
+            JOIN "user" u ON u.id_user = und.uid
+            WHERE und.pending_wei > 0
+              AND und.pending_requested_at > now() - (? * interval '1 second')
+            ORDER BY und.pending_requested_at
+            LIMIT ?;
+        """.trimIndent()
+        val result = mutableListOf<NativePendingAccount>()
+        executeQueryAndThrowException(statement, arrayOf(windowSeconds, limit)) {
+            result.add(
+                NativePendingAccount(
+                    uid = it.getInt("uid"),
+                    network = it.getString("network"),
+                    wallet = it.getString("wallet"),
                 )
             )
         }

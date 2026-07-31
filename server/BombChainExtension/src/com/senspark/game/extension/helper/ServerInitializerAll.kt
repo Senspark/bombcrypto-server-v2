@@ -47,6 +47,7 @@ import com.senspark.game.handler.iapshop.GetFreeGemsHandler
 import com.senspark.game.handler.iapshop.GetFreeGoldsHandler
 import com.senspark.game.handler.iapshop.GetFreeRewardConfigsHandler
 import com.senspark.game.handler.iapshop.GetGemShopHandler
+import com.senspark.game.handler.iapshop.GetGemShopV3Handler
 import com.senspark.game.handler.iapshop.GetGoldShopHandler
 import com.senspark.game.handler.iapshop.GetPackShopHandler
 import com.senspark.game.handler.iapshop.SendMessageSlackHandler
@@ -78,6 +79,8 @@ import com.senspark.game.handler.pvp.*
 import com.senspark.game.handler.request.ApproveClaimHandlerV4
 import com.senspark.game.handler.request.CrosschainDepositBridgeWithdrawHandler
 import com.senspark.game.handler.request.CrosschainDepositBridgeNotifyHandler
+import com.senspark.game.handler.request.WithdrawNativeHandler
+import com.senspark.game.handler.request.SyncNativeDepositHandler
 import com.senspark.game.handler.request.ApproveClaimWithoutConfirmHandler
 import com.senspark.game.handler.request.ConfirmClaimHandler
 import com.senspark.game.handler.request.GetSkinInventoryHandler
@@ -126,6 +129,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.BUY_AUTO_MINE_V2, UserBuyAutoMineV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.START_AUTO_MINE_V2, UserStartAutoMineV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V2, UserAutoMinePackagePriceV2Handler::class.java)
+        helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V3, UserAutoMinePackagePriceV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.START_EXPLODE_V5, StartExplodeV5Handler::class.java)
         helper.addRequestHandler(SFSCommand.SEND_CLIENT_LOG, SendClientLogHandler::class.java)
 
@@ -202,6 +206,7 @@ class ServerInitializerAll(
 
         // iap shop
         helper.addRequestHandler(SFSCommand.GET_GEM_SHOP_V2, GetGemShopHandler::class.java)
+        helper.addRequestHandler(SFSCommand.GET_GEM_SHOP_V3, GetGemShopV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.GET_PACK_SHOP_V2, GetPackShopHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_GOLD_SHOP_V2, GetGoldShopHandler::class.java)
         helper.addRequestHandler(SFSCommand.BUY_GOLD_V2, BuyGoldHandler::class.java)
@@ -227,6 +232,8 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.APPROVE_CLAIM_V4, ApproveClaimHandlerV4::class.java)
         helper.addRequestHandler(SFSCommand.CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW, CrosschainDepositBridgeWithdrawHandler::class.java)
         helper.addRequestHandler(SFSCommand.CROSSCHAIN_DEPOSIT_BRIDGE_NOTIFY, CrosschainDepositBridgeNotifyHandler::class.java)
+        helper.addRequestHandler(SFSCommand.WITHDRAW_NATIVE, WithdrawNativeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.SYNC_NATIVE_DEPOSIT, SyncNativeDepositHandler::class.java)
         helper.addRequestHandler(SFSCommand.CONFIRM_CLAIM_REWARD_SUCCESS_V2, ConfirmClaimHandler::class.java)
 //        helper.addRequestHandler(SFSCommand.USER_STAKE_V2, UserStakeHandler::class.java)
 //        helper.addRequestHandler(SFSCommand.USER_WITHDRAW_STAKE_V2, UserWithdrawStakeHandler::class.java)

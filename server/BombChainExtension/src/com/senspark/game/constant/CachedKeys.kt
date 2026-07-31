@@ -87,5 +87,9 @@ class StreamKeys {
         const val SV_DEPBRIDGE_REQUEST_STR = "SV_DEPBRIDGE_REQUEST_STR"   // server -> signer: withdraw-sign request
         const val AP_DEPBRIDGE_RESULT_STR = "AP_DEPBRIDGE_RESULT_STR"     // signer -> server: result, by correlationId
         const val SV_DEPBRIDGE_NOTIFY_STR = "SV_DEPBRIDGE_NOTIFY_STR"     // server -> indexer: bridge activity feed (fire-and-forget)
+
+        // Native (BNB / POL) deposit + withdraw — server game <-> ap-deposit-native.
+        const val SV_DEPNATIVE_REQUEST_STR = "SV_DEPNATIVE_REQUEST_STR"   // server -> signer: counters read / withdraw-sign
+        const val AP_DEPNATIVE_RESULT_STR = "AP_DEPNATIVE_RESULT_STR"     // signer -> server: result, by correlationId
     }
 }

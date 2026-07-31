@@ -24,7 +24,7 @@ class IAPShopManager(
     envManager: IEnvManager,
     private val _verifyAdApi: IVerifyAdApiManager,
     api: IRestApi,
-    logger: ILogger,
+    private val logger: ILogger,
 ) : IIAPShopManager {
     private val _verifyApi: IVerifyIAPBillApi = VerifyIAPBillApi(envManager, api, logger)
     private val _iapShopConfigs: MutableMap<IAPShopType, Map<ProductId, IAPShopConfig>> = mutableMapOf()
@@ -34,11 +34,34 @@ class IAPShopManager(
     private lateinit var _freeGoldRewardConfig: FreeRewardConfigItem
 
     override fun initialize() {
-        _iapShopConfigs.putAll(_shopDataAccess.getIAPGemShopConfigs())
+        setConfig(_shopDataAccess.getIAPGemShopConfigs())
+        // The identity distinguishes the per-zone instances. reload_config_iap_shop refreshes all of
+        // them; dump_config_iap_shop prints the same line again.
+        logger.log("[IAPShop] initialize #${System.identityHashCode(this)} -> ${dump()}")
         _goldShopConfigs.addAll(_shopDataAccess.getIAPGoldShopConfigs())
         _freeRewardConfigs.addAll(_shopDataAccess.getFreeRewardConfigs())
         _freeGemRewardConfig = _freeRewardConfigs.first { it.rewardType == BLOCK_REWARD_TYPE.GEM_LOCKED.toString() }
         _freeGoldRewardConfig = _freeRewardConfigs.first { it.rewardType == BLOCK_REWARD_TYPE.GOLD.toString() }
+    }
+
+    override fun setConfig(configs: Map<IAPShopType, Map<ProductId, IAPShopConfig>>) {
+        _iapShopConfigs.clear()
+        _iapShopConfigs.putAll(configs)
+    }
+
+    override fun dump(): String {
+        if (_iapShopConfigs.isEmpty()) {
+            return "config_iap_shop: empty"
+        }
+        return _iapShopConfigs.entries
+            .sortedBy { it.key.name }
+            .joinToString(", ", prefix = "config_iap_shop: ") { (type, packs) ->
+                packs.entries
+                    .sortedBy { it.key }
+                    .joinToString(", ", prefix = "${type.name}[", postfix = "]") {
+                        "${it.key}=${it.value.bcoinPrice}"
+                    }
+            }
     }
 
     override fun getShopConfigs(type: IAPShopType): List<IAPShopConfig> {

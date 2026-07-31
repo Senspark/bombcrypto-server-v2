@@ -14,12 +14,14 @@ import com.smartfoxserver.v2.extensions.SFSExtension
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 private const val K_USER_NAME = "name"
 private val MAX_LOGGED_OUT_TIME = 5.minutes.inWholeSeconds
 private const val MAX_QUEUE = 5
+private const val SLOW_INIT_MS = 200L
 // 90s thay vì 15s: tránh evict nhầm tab nền bị browser throttle timer JS (xem chú thích ở LegacyUsersManager).
 private val KEEP_ALIVE_TIMEOUT = 90.seconds.inWholeSeconds
 
@@ -27,7 +29,9 @@ class UsersManager(logger: ILogger) : IUsersManager {
     private val _usersNames: ConcurrentHashMap<String, IUserController> = ConcurrentHashMap()
     private val _usersIds: ConcurrentHashMap<Int, ConcurrentHashMap<EnumConstants.DataType, IUserController>> = ConcurrentHashMap()
     private val _loggedOutUsers: ConcurrentHashMap<Int, ConcurrentHashMap<EnumConstants.DataType, Instant>> = ConcurrentHashMap()
-    private val _initQueue: Queue<IUserController> = LinkedList()
+    // Concurrent, not LinkedList: added on the join-zone thread, polled on this manager's scheduler thread.
+    // See the same field in LegacyUsersManager.
+    private val _initQueue: Queue<IUserController> = ConcurrentLinkedQueue()
     private val _scheduler: IScheduler = SmartFoxScheduler(1, logger)
     private val _logger = logger
 
@@ -134,6 +138,7 @@ class UsersManager(logger: ILogger) : IUsersManager {
 
         userController.setUser(user)
         _initQueue.add(userController)
+        _logger.log("[InitQueue] enqueue uid=$userId dt=$dataType landing=$landing queued=${_initQueue.size}")
 
         onCompleted(userController)
     }
@@ -208,37 +213,45 @@ class UsersManager(logger: ILogger) : IUsersManager {
 
     }
 
+    // MAX_QUEUE inits per one-second tick on a single thread — see the note in LegacyUsersManager.
     private fun initUserControllers() {
-        var size = _initQueue.size
-        if (size > MAX_QUEUE) {
-            size = MAX_QUEUE
-        }
-        for (i in 0 until size) {
-            if (_initQueue.isEmpty()) {
-                return
-            }
-            val controller = _initQueue.poll()
-            if (controller != null) {
-                val success = controller.initDependencies()
-                if (!success) {
-                    _usersNames.remove(controller.userName)
-                    val userId = controller.userId
-                    val userInfo = controller.userInfo
-                    val dataType = userInfo?.dataType
-                    if (dataType != null) {
-                        _usersIds[userId]?.remove(dataType)
-                        // If no more data types for this user, remove the entire entry
-                        if (_usersIds[userId]?.isEmpty() == true) {
-                            _usersIds.remove(userId)
-                        }
-                        _checkAlive.removeKeepAlive(userId, dataType, controller.landing)
-                    } else {
-                        // Fallback: remove all entries for this user
+        val tickStartMs = System.currentTimeMillis()
+        var drained = 0
+        while (drained < MAX_QUEUE) {
+            val controller = _initQueue.poll() ?: break
+            drained++
+            val startMs = System.currentTimeMillis()
+            val success = controller.initDependencies()
+            val tookMs = System.currentTimeMillis() - startMs
+            if (!success) {
+                _logger.log("[InitFail] disconnect uid=${controller.userId} landing=${controller.landing} took=${tookMs}ms (initDependencies failed)")
+                _usersNames.remove(controller.userName)
+                val userId = controller.userId
+                val userInfo = controller.userInfo
+                val dataType = userInfo?.dataType
+                if (dataType != null) {
+                    _usersIds[userId]?.remove(dataType)
+                    // If no more data types for this user, remove the entire entry
+                    if (_usersIds[userId]?.isEmpty() == true) {
                         _usersIds.remove(userId)
                     }
-                    controller.disconnect(KickReason.NEED_LOGIN_AGAIN)
+                    _checkAlive.removeKeepAlive(userId, dataType, controller.landing)
+                } else {
+                    // Fallback: remove all entries for this user
+                    _usersIds.remove(userId)
                 }
+                controller.disconnect(KickReason.NEED_LOGIN_AGAIN)
+            } else if (tookMs >= SLOW_INIT_MS) {
+                _logger.warn("[InitQueue] slow init uid=${controller.userId} landing=${controller.landing} took=${tookMs}ms")
             }
+        }
+        if (drained == 0) {
+            return
+        }
+        val remaining = _initQueue.size
+        _logger.log("[InitQueue] drained=$drained remaining=$remaining took=${System.currentTimeMillis() - tickStartMs}ms")
+        if (remaining > 0) {
+            _logger.warn("[InitQueue] backlog remaining=$remaining after drained=$drained (cap=$MAX_QUEUE/tick)")
         }
     }
 

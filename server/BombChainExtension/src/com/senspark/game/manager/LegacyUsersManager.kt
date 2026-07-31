@@ -13,12 +13,15 @@ import com.smartfoxserver.v2.entities.User
 import com.smartfoxserver.v2.extensions.SFSExtension
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.time.Duration.Companion.seconds
 
 private const val K_SESSION_KEY = "name"
 private const val MAX_QUEUE = 5
+// One init above this eats a fifth of the tick's budget on its own — worth naming the user.
+private const val SLOW_INIT_MS = 200L
 // 90s thay vì 15s: trình duyệt throttle timer JS của tab nền (ping giãn tới ~15s, intensive throttling tới ~1/phút)
 // nên 15s evict nhầm tab nền còn sống (socket SFS vẫn mở). Tab đóng thật vẫn được SFS USER_DISCONNECT dọn ngay.
 private val KEEP_ALIVE_TIMEOUT = 90.seconds.inWholeSeconds
@@ -29,7 +32,9 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
     private val _usersNames: ConcurrentHashMap<String, IUserController> = ConcurrentHashMap()
     // uid -> dataType -> landing -> controller
     private val _usersIds: ConcurrentHashMap<Int, ConcurrentHashMap<EnumConstants.DataType, ConcurrentHashMap<EnumConstants.Landing, IUserController>>> = ConcurrentHashMap()
-    private val _initQueue: Queue<IUserController> = LinkedList()
+    // Concurrent, not LinkedList: added on the join-zone thread, polled on this manager's scheduler
+    // thread — an unsynchronized LinkedList across threads can drop the node, stranding that user uninitialized.
+    private val _initQueue: Queue<IUserController> = ConcurrentLinkedQueue()
     private val _scheduler: IScheduler = SmartFoxScheduler(1, logger)
     private val _logger = logger
 
@@ -156,6 +161,7 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
 
         userController.setUser(user)
         _initQueue.add(userController)
+        _logger.log("[InitQueue] enqueue uid=$userId dt=$dataType landing=$landing queued=${_initQueue.size}")
 
         onCompleted(userController)
     }
@@ -260,24 +266,34 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
     }
 
 
+    // At most MAX_QUEUE inits per one-second tick, all on this manager's single scheduler thread — the
+    // login funnel is capped at 5 users/s and a slow initDependencies delays everyone behind it.
     private fun initUserControllers() {
-        var size = _initQueue.size
-        if (size > MAX_QUEUE) {
-            size = MAX_QUEUE
+        val tickStartMs = System.currentTimeMillis()
+        var drained = 0
+        while (drained < MAX_QUEUE) {
+            val controller = _initQueue.poll() ?: break
+            drained++
+            val startMs = System.currentTimeMillis()
+            val success = controller.initDependencies()
+            val tookMs = System.currentTimeMillis() - startMs
+            if (!success) {
+                _logger.log("[InitFail] disconnect uid=${controller.userId} landing=${controller.landing} took=${tookMs}ms (initDependencies failed)")
+                removeFromMaps(controller)
+                controller.disconnect(KickReason.NEED_LOGIN_AGAIN)
+            } else if (tookMs >= SLOW_INIT_MS) {
+                _logger.warn("[InitQueue] slow init uid=${controller.userId} landing=${controller.landing} took=${tookMs}ms")
+            }
         }
-        for (i in 0 until size) {
-            if (_initQueue.isEmpty()) {
-                return
-            }
-            val controller = _initQueue.poll()
-            if (controller != null) {
-                val success = controller.initDependencies()
-                if (!success) {
-                    _logger.log("[InitFail] disconnect uid=${controller.userId} landing=${controller.landing} (initDependencies failed)")
-                    removeFromMaps(controller)
-                    controller.disconnect(KickReason.NEED_LOGIN_AGAIN)
-                }
-            }
+        if (drained == 0) {
+            return
+        }
+        val remaining = _initQueue.size
+        val tickMs = System.currentTimeMillis() - tickStartMs
+        _logger.log("[InitQueue] drained=$drained remaining=$remaining took=${tickMs}ms")
+        // Persistent warnings here mean MAX_QUEUE is the bottleneck.
+        if (remaining > 0) {
+            _logger.warn("[InitQueue] backlog remaining=$remaining after drained=$drained (cap=$MAX_QUEUE/tick)")
         }
     }
 

@@ -44,7 +44,7 @@ import java.time.ZoneOffset
 class ShopDataAccess(
     database: IDatabase,
     val log: Boolean,
-    logger: ILogger,
+    private val logger: ILogger,
 ) : BaseDataAccess(database, log, logger), IShopDataAccess {
 
     override fun initialize() {
@@ -379,7 +379,8 @@ class ShopDataAccess(
                    is_stater_pack,
                    is_remove_ads,
                    buy_step,
-                   purchase_time_limit
+                   purchase_time_limit,
+                   bcoin_price
             FROM config_iap_shop;
         """.trimIndent()
         database.createQueryBuilder(log)
@@ -728,6 +729,21 @@ class ShopDataAccess(
         val result: MutableList<RockPackage> = ArrayList()
         executeQuery(statement, arrayOf()) {
             result.add(RockPackage.fromResultSet(it))
+        }
+        return result
+    }
+
+    override fun loadNativeRateConfig(): Map<DataType, Double> {
+        val statement = "SELECT network, native_per_bcoin FROM config_native_rate;"
+        val result: MutableMap<DataType, Double> = mutableMapOf()
+        executeQuery(statement, arrayOf()) {
+            val network = it.getString("network")
+            try {
+                result[DataType.valueOf(network)] = it.getDouble("native_per_bcoin")
+            } catch (e: Exception) {
+                // Dropping a row here silently removes a coin from every price list; say which one.
+                logger.error("loadNativeRateConfig: unknown network '$network' in config_native_rate", e)
+            }
         }
         return result
     }

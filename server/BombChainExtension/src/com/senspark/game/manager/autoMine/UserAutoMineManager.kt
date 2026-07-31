@@ -8,6 +8,9 @@ import com.senspark.game.data.model.autoMine.IUserAutoMine
 import com.senspark.game.data.model.config.AutoMinePackage
 import com.senspark.game.data.model.nft.Hero
 import com.senspark.game.data.model.nft.House
+import com.senspark.game.data.manager.nativeRate.INativeRateManager
+import com.senspark.game.data.manager.nativeRate.nativePriceEntry
+import com.senspark.game.data.manager.nativeRate.pricesArray
 import com.senspark.game.db.IDataAccessManager
 import com.senspark.game.db.IUserDataAccess
 import com.senspark.game.declare.EnumConstants.BLOCK_REWARD_TYPE
@@ -30,6 +33,7 @@ class UserAutoMineManager(
     private val autoMineManager = _mediator.services.get<IAutoMineManager>()
     private val userDataAccess: IUserDataAccess = dataAccessManager.userDataAccess
     private val coinRankingManager = _mediator.svServices.get<ICoinRankingManager>()
+    private val nativeRateManager = _mediator.services.get<INativeRateManager>()
 
     private var userAutoMine: IUserAutoMine? = null
 
@@ -72,6 +76,10 @@ class UserAutoMineManager(
         val secondRewardType: String
         when (blockRewardType) {
             BLOCK_REWARD_TYPE.BCOIN -> {
+                // BCOIN is retired wherever a native coin exists — old clients still list it, this gate refuses it.
+                if (_mediator.dataType.convertToNativeDepositType() != null) {
+                    throw CustomException("BCOIN is no longer supported", ErrorCode.INVALID_PARAMETER)
+                }
                 firstRewardType = BLOCK_REWARD_TYPE.BCOIN.name
                 secondRewardType = BLOCK_REWARD_TYPE.BCOIN_DEPOSITED.name
             }
@@ -99,6 +107,14 @@ class UserAutoMineManager(
             BLOCK_REWARD_TYPE.VIC_DEPOSITED -> {
                 firstRewardType = BLOCK_REWARD_TYPE.VIC_DEPOSITED.name
                 secondRewardType = BLOCK_REWARD_TYPE.VIC_DEPOSITED.name
+            }
+
+            BLOCK_REWARD_TYPE.BNB_DEPOSITED, BLOCK_REWARD_TYPE.POL_DEPOSITED -> {
+                if (blockRewardType != _mediator.dataType.convertToNativeDepositType()) {
+                    throw CustomException("Reward type invalid", ErrorCode.INVALID_PARAMETER)
+                }
+                firstRewardType = blockRewardType.name
+                secondRewardType = blockRewardType.name
             }
 
 //            BLOCK_REWARD_TYPE.SENSPARK -> {
@@ -136,6 +152,39 @@ class UserAutoMineManager(
         sfsObject.putSFSArray("packages", sfsArrayPackage)
         sfsObject.putLong("last_package_end_time", endAutoMineTime)
         return sfsObject
+    }
+
+    override fun packagePriceV3(): ISFSObject {
+        val response = packagePrice()
+        val packages = response.getSFSArray("packages")
+        for (i in 0 until packages.size()) {
+            addPrices(packages.getSFSObject(i))
+        }
+        return response
+    }
+
+    override fun packagePriceUserAirdropV3(dataType: DataType): ISFSObject {
+        val response = packagePriceUserAirdrop(dataType)
+        val packages = response.getSFSArray("packages")
+        for (i in 0 until packages.size()) {
+            addPrices(packages.getSFSObject(i))
+        }
+        return response
+    }
+
+    // Replaces the untyped `price` rather than joining it — two ways to read one number pushes the
+    // client back into branching per coin. min_price / price_percent stay: pricing formula inputs, not payment options.
+    private fun addPrices(pkg: ISFSObject) {
+        val listPrice = pkg.getDouble("price") ?: return
+        val dataType = _mediator.dataType
+        val listRewardType =
+            if (dataType.isAirdropUser()) dataType.convertToDepositType() else BLOCK_REWARD_TYPE.BCOIN
+
+        val prices = pricesArray(listRewardType to listPrice)
+        nativeRateManager.nativePriceEntry(dataType, listPrice)?.let(prices::addSFSObject)
+
+        pkg.putSFSArray("prices", prices)
+        pkg.removeElement("price")
     }
 
     override fun getOfflineReward(heroes: List<Hero>, house: House?): ISFSObject {

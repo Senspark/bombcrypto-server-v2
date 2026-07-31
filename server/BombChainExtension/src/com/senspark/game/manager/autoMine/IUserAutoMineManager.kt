@@ -13,5 +13,9 @@ interface IUserAutoMineManager {
     fun buyPackage(autoMinePackage: AutoMinePackage, blockRewardType: BLOCK_REWARD_TYPE): ISFSObject
     fun packagePrice(): ISFSObject
     fun packagePriceUserAirdrop(dataType: DataType): ISFSObject
+
+    /** [packagePrice] plus a `prices[]` array per package, so a chain with a native coin can show both. */
+    fun packagePriceV3(): ISFSObject
+    fun packagePriceUserAirdropV3(dataType: DataType): ISFSObject
     fun getOfflineReward(heroes: List<Hero>, house: House?): ISFSObject
 }
