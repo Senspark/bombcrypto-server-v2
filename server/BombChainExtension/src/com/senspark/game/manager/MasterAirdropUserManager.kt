@@ -17,6 +17,7 @@ import com.senspark.game.manager.crosschainDepositBridge.CrosschainDepositBridge
 import com.senspark.game.manager.config.UserConfigManager
 import com.senspark.game.manager.costumePreset.UserCostumePresetManager
 import com.senspark.game.manager.dailyMission.UserMissionManager
+import com.senspark.game.manager.dailyTask.NullUserDailyTaskManager
 import com.senspark.game.manager.dailyTask.UserDailyTaskManager
 import com.senspark.game.manager.gachaChest.UserGachaChestController
 import com.senspark.game.manager.hero.UserHeroFiManager
@@ -100,7 +101,13 @@ class MasterAirdropUserManager(
     override val userCostumePresetManager =
         UserCostumePresetManager(_mediator, userInventoryManager, heroTRManager, userConfigManager)
     override val userOnBoardingManager = UserOnBoardingManager(_mediator)
-    override val userDailyTaskManager = UserDailyTaskManager(_mediator)
+    // Chỉ airdrop network ví ETH (RON/BAS/VIC) đăng ký DailyTaskManager + GachaChestManager thật;
+    // SOL/TON dùng Null nên UserDailyTaskManager sẽ throw ngay trong constructor.
+    override val userDailyTaskManager = if (_mediator.dataType.isEthereumAirdropUser()) {
+        UserDailyTaskManager(_mediator)
+    } else {
+        NullUserDailyTaskManager()
+    }
 
     init {
         houseManager.initHeroManager(heroFiManager)

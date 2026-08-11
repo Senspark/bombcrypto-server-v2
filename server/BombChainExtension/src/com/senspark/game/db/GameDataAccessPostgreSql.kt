@@ -21,6 +21,7 @@ import com.senspark.game.utils.deserialize
 import com.senspark.game.utils.serialize
 import com.senspark.lib.db.BaseDataAccess
 import com.smartfoxserver.v2.entities.data.ISFSArray
+import com.smartfoxserver.v2.entities.data.SFSArray
 import kotlinx.serialization.json.Json
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.sql.insert
@@ -856,6 +857,10 @@ class GameDataAccessPostgreSql(
         configHeroTraditionalManager: IConfigHeroTraditionalManager
     ): ISFSArray {
         val itemIds = configHeroTraditionalManager.itemIds
+        // Server không hỗ trợ hero traditional -> itemIds rỗng, `IN ()` là syntax error của Postgres
+        if (itemIds.isEmpty()) {
+            return SFSArray()
+        }
         val statement = """
             SELECT ub.*,
                    ub.charactor                                            AS skin,
