@@ -151,6 +151,9 @@ export default class HeroHandlers {
     interface ICreateRockResponse {
       confirmed: boolean;
       errorMessage: string;
+      // Raw on-chain details of the burned heroes, so the caller can price the rock without its own
+      // hero data. Absent for burns older than the CreateRockDetails contract upgrade.
+      hero_details?: string[];
     }
 
     try {
@@ -163,10 +166,11 @@ export default class HeroHandlers {
 
       const locals = res.locals;
       const blockchainApi: IBlockchainApi = locals.api;
-      const result = await blockchainApi.heroSApi.verifyCreateRock(data);
+      const heroDetails = await blockchainApi.heroSApi.verifyCreateRock(data);
       const responseData: ICreateRockResponse = {
-        confirmed: result,
-        errorMessage: ''
+        confirmed: true,
+        errorMessage: '',
+        hero_details: heroDetails
       };
       res.sendSuccess(responseData);
     } catch (e) {

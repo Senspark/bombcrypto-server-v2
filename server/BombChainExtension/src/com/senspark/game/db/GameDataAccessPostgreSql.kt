@@ -992,15 +992,25 @@ class GameDataAccessPostgreSql(
         return sfsArray.size() < 1
     }
 
-    override fun updateStatusCreateRock(uid: Int, tx: String, network: DataType, status: String): Boolean {
+    override fun updateStatusCreateRock(
+        uid: Int,
+        tx: String,
+        network: DataType,
+        status: String,
+        amount: Float?
+    ): Boolean {
         val statement = """
             UPDATE "user_create_rock"
-            SET "status" = ?
+            SET "status" = ?${if (amount != null) ", \"rock_amount\" = ?" else ""}
             WHERE "uid" = ?
               AND "tx" = ?
               AND "network" = ?;
             """.trimIndent()
-        val params = arrayOf<Any?>(status, uid, tx, network.name)
+        val params = if (amount != null) {
+            arrayOf<Any?>(status, amount, uid, tx, network.name)
+        } else {
+            arrayOf<Any?>(status, uid, tx, network.name)
+        }
         return executeUpdate(statement, params)
     }
 

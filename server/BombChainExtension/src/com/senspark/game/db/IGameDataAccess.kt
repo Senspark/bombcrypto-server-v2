@@ -153,7 +153,17 @@ interface IGameDataAccess : IGlobalService {
     ): Boolean
 
     fun checkValidCreateRock(uid: Int, tx: String, network: DataType): Boolean
-    fun updateStatusCreateRock(uid: Int, tx: String, network: DataType, status: String): Boolean
+    /**
+     * @param amount when set, also corrects rock_amount — the row is inserted before the burn is
+     * priced from its on-chain details, so the inserted amount is only an estimate.
+     */
+    fun updateStatusCreateRock(
+        uid: Int,
+        tx: String,
+        network: DataType,
+        status: String,
+        amount: Float? = null
+    ): Boolean
     fun logSwapGem(uid: Int, tokenSwap: BLOCK_REWARD_TYPE, amount: Float, unitPrice: Float, network: DataType): Boolean
     fun checkValidSwapGem(uid: Int, timeSwapConfig: Int): Boolean
     fun updateRemainingTotalSwap(remainingTotal: Float): Boolean

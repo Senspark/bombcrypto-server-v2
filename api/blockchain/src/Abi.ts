@@ -4008,6 +4008,25 @@ const BHERO_S_ABI = [
       {
         "indexed": false,
         "internalType": "uint256[]",
+        "name": "listDetails",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "CreateRockDetails",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
         "name": "mainMaterials",
         "type": "uint256[]"
       },
