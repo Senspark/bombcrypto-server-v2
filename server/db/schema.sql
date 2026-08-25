@@ -217,10 +217,20 @@ DECLARE
     sql_query   TEXT;
     mined_value DECIMAL(10, 4) := 0.0;
     mined_day   DECIMAL(10, 4);
+    _from_ts    timestamptz   := (CURRENT_DATE - 7)::timestamptz;
+    _to_ts      timestamptz   := (CURRENT_DATE)::timestamptz;
 BEGIN
-    sql_query := 'SELECT COALESCE(SUM(values_changed), 0) FROM logs.user_block_reward WHERE uid = ' || quote_literal(_uid) ||
-                 ' AND reward_type = ''BCOIN'' AND reason = ''Save game''' ||
-                 ' AND DATE(changed_at) BETWEEN CURRENT_DATE - INTERVAL ''7 days'' AND CURRENT_DATE - INTERVAL ''1 day''';
+    -- Half-open range on the bare partition key. Wrapping changed_at in DATE() made the
+    -- predicate opaque to the planner: no partition pruning, no index use, so every call
+    -- seq-scanned every yearly partition. Bounds are interpolated as literals so pruning
+    -- happens at plan time. Exactly equivalent to the old DATE() BETWEEN form.
+    sql_query := 'SELECT COALESCE(SUM(values_changed), 0)' ||
+                 ' FROM logs.user_block_reward' ||
+                 ' WHERE uid = ' || _uid ||
+                 ' AND reward_type = ''BCOIN''' ||
+                 ' AND reason = ''Save game''' ||
+                 ' AND changed_at >= ' || quote_literal(_from_ts) || '::timestamptz' ||
+                 ' AND changed_at <  ' || quote_literal(_to_ts) || '::timestamptz';
     EXECUTE sql_query INTO mined_day;
     mined_value := mined_value + mined_day;
 
