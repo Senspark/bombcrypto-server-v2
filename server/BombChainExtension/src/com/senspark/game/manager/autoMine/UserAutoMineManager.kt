@@ -133,7 +133,11 @@ class UserAutoMineManager(
 
     override fun packagePrice(): ISFSObject {
         val packages =
-            userDataAccess.loadAutoMinePackagePrice(_mediator.userId, autoMineManager.toJsonArray(_mediator.dataType))
+            userDataAccess.loadAutoMinePackagePrice(
+                _mediator.userId,
+                _mediator.dataType,
+                autoMineManager.toJsonArray(_mediator.dataType)
+            )
         val sfsObject = SFSObject()
         sfsObject.putSFSArray("packages", packages)
         sfsObject.putLong("last_package_end_time", endAutoMineTime)
