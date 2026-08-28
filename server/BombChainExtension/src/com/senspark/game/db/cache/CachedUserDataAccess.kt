@@ -31,7 +31,11 @@ import com.senspark.game.utils.serialize
 import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSArray
-import java.time.LocalDate
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.time.Duration.Companion.hours
 
 
@@ -40,6 +44,11 @@ class CachedUserDataAccess(
     private val _cache: ICacheService,
     private val _logger: ILogger,
 ) : IUserDataAccess {
+
+    // Một query giá đang chạy cho mỗi (uid, dataType). Chỉ có một instance game server
+    // (sfs-game-1), nên khoá trong tiến trình là đủ; ICacheService không có setnx để dựng
+    // khoá phân tán, và mở rộng nó chỉ vì chỗ này là không đáng.
+    private val _autoMinePriceInFlight = ConcurrentHashMap<String, CompletableFuture<String>>()
 
     override fun initialize() {
     }
@@ -237,22 +246,64 @@ class CachedUserDataAccess(
     }
 
     /**
-     * Mỗi ngày thay 1 lần
+     * Giá đổi mỗi ngày, giữ bằng TTL 24h chứ không đóng dấu ngày vào key: TTL cuốn theo
+     * lần đọc đầu của từng user nên các entry hết hạn rải rác, thay vì cả cache cùng
+     * miss đúng lúc nửa đêm.
      */
-    override fun loadAutoMinePackagePrice(uid: Int, listArrayPackage: JsonArray): ISFSArray {
-        val field = "${uid}_${LocalDate.now().dayOfMonth}"
+    override fun loadAutoMinePackagePrice(
+        uid: Int,
+        dataType: EnumConstants.DataType,
+        listArrayPackage: JsonArray
+    ): ISFSArray {
+        val field = "${uid}_${dataType.name}"
         readAutoMinePriceCache(field)?.let { return it }
 
-        val result = _bridge.loadAutoMinePackagePrice(uid, listArrayPackage)
-        // A cache failure must never fail the request. The write used to sit inside the catch that
-        // handled a cache miss, so a Redis error surfaced to the client as ec 1000 on a price the
-        // database had already produced.
-        try {
-            _cache.setToHash(CachedKeys.AUTO_MINE_PRICE, field, result.toJson(), 24.hours)
-        } catch (e: Exception) {
-            _logger.error("[AUTO_MINE_PRICE] cache write failed field=$field: ${e.message}", e)
+        val own = CompletableFuture<String>()
+        _autoMinePriceInFlight.putIfAbsent(field, own)?.let { leader ->
+            // Đã có luồng chạy đúng query này. Chờ nó thay vì bắn thêm một lần quét nữa
+            // xuống DB: index làm mỗi query rẻ đi, chỉ chỗ này mới chặn được stampede.
+            return awaitAutoMinePrice(leader, field)
         }
-        return result
+        try {
+            // Đọc lại sau khi giành được quyền chạy: leader trước có thể vừa ghi cache xong
+            // và nhả chỗ ngay giữa lần đọc đầu và putIfAbsent ở trên.
+            readAutoMinePriceCache(field)?.let {
+                own.complete(it.toJson())
+                return it
+            }
+
+            val result = _bridge.loadAutoMinePackagePrice(uid, dataType, listArrayPackage)
+            val json = result.toJson()
+            // A cache failure must never fail the request. The write used to sit inside the catch that
+            // handled a cache miss, so a Redis error surfaced to the client as ec 1000 on a price the
+            // database had already produced.
+            try {
+                _cache.setToHash(CachedKeys.AUTO_MINE_PRICE, field, json, 24.hours)
+            } catch (e: Exception) {
+                _logger.error("[AUTO_MINE_PRICE] cache write failed field=$field: ${e.message}", e)
+            }
+            own.complete(json)
+            return result
+        } catch (e: Exception) {
+            own.completeExceptionally(e)
+            throw e
+        } finally {
+            _autoMinePriceInFlight.remove(field, own)
+        }
+    }
+
+    // Chờ trên JSON rồi mới dựng SFSArray: người gọi (packagePriceV3 -> addPrices) sửa thẳng
+    // vào object nhận được — removeElement("price") — nên mỗi luồng phải có bản riêng, không
+    // được dùng chung một instance với leader.
+    private fun awaitAutoMinePrice(leader: CompletableFuture<String>, field: String): ISFSArray {
+        return try {
+            SFSArray.newFromJsonData(leader.get(AUTO_MINE_PRICE_WAIT_SECONDS, TimeUnit.SECONDS))
+        } catch (e: ExecutionException) {
+            throw e.cause ?: e
+        } catch (e: TimeoutException) {
+            _logger.error("[AUTO_MINE_PRICE] waited too long for in-flight query field=$field", e)
+            throw e
+        }
     }
 
     private fun readAutoMinePriceCache(field: String): ISFSArray? {
@@ -555,5 +606,11 @@ class CachedUserDataAccess(
         sender: String
     ): String {
         return _bridge.updateVicTransaction(id, amount, txHash, token, sender)
+    }
+
+    companion object {
+        // Rộng rãi so với query đã đánh index (vài ms khi ấm, vài giây khi lạnh), nhưng vẫn
+        // hữu hạn: nếu leader kẹt thì người chờ phải bỏ cuộc chứ không treo cả request.
+        private const val AUTO_MINE_PRICE_WAIT_SECONDS = 15L
     }
 }
