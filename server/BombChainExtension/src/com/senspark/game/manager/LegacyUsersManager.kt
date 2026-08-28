@@ -199,8 +199,12 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
         val byLanding = _usersIds[userId]?.get(dataType) ?: return false
         // Va chạm theo bảng xô (collides: WILDCARD đụng tất cả; specific đụng cùng-loại + WILDCARD),
         // NHƯNG chỉ tính phiên còn SỐNG — ghost (đã timeout) để admission RECLAIM, không reject oan.
+        // hasKeepAlive: slot không có bản ghi keep-alive = phiên mồ côi (không ai đánh timeout được cho nó)
+        // -> coi như ghost, KHÔNG chặn login. Thiếu vế này thì một slot mồ côi khoá account vĩnh viễn.
         return byLanding.keys.any { existing ->
-            collides(landing, existing) && !_checkAlive.isHaveOldSession(userId, dataType, existing)
+            collides(landing, existing) &&
+                _checkAlive.hasKeepAlive(userId, dataType, existing) &&
+                !_checkAlive.isHaveOldSession(userId, dataType, existing)
         }
     }
 
@@ -246,6 +250,30 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
         initUserControllers()
         _checkAlive.checkKeepAlive()
         evictTimedOutSessions()
+        evictOrphanSessions()
+    }
+
+    // Evict slot mồ côi: còn trong _usersIds nhưng KHÔNG có bản ghi keep-alive nào. Loại này không bao giờ
+    // bị checkKeepAlive đánh timeout nên evictTimedOutSessions không với tới -> nếu không dọn ở đây thì
+    // account bị khoá login vĩnh viễn cho tới khi restart server.
+    // Re-check DƯỚI LOCK: admission thêm slot và addUserToCheck trong cùng stripe-lock, nên phiên vừa được
+    // nhận vào luôn có bản ghi khi ta soi -> không kick nhầm phiên mới.
+    private fun evictOrphanSessions() {
+        val snapshot = _usersIds.entries.flatMap { (userId, byDataType) ->
+            byDataType.entries.flatMap { (dataType, byLanding) ->
+                byLanding.keys.map { Triple(userId, dataType, it) }
+            }
+        }
+        for ((userId, dataType, landing) in snapshot) {
+            lockFor(userId, dataType).withLock {
+                val controller = _usersIds[userId]?.get(dataType)?.get(landing) ?: return@withLock
+                if (_checkAlive.hasKeepAlive(userId, dataType, landing)) return@withLock
+                // Đã timeout thì để evictTimedOutSessions lo, tránh log/kick trùng.
+                if (_checkAlive.isHaveOldSession(userId, dataType, landing)) return@withLock
+                _logger.warn("Evict orphan session uid=$userId dt=$dataType landing=$landing (slot còn nhưng mất bản ghi keep-alive)")
+                kickAndRemoveUser(controller, "evict-orphan-no-keepalive")
+            }
+        }
     }
 
     // Evict ghost chủ động: phiên timeout bị gỡ thẳng khỏi _usersIds để hasLiveConflict không còn thấy ma.
@@ -358,6 +386,12 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
             val byLanding = _usersIds[userId]?.get(dataType)
             if (byLanding?.get(landing) === userController) {
                 byLanding.remove(landing)
+                // Keep-alive CHỈ được dọn khi ta thật sự gỡ được slot của chính controller này. Nếu để ngoài
+                // guard thì dispose muộn của phiên cũ sẽ xoá bản ghi keep-alive của phiên MỚI vừa takeover
+                // cùng slot -> phiên mới thành mồ côi: không bao giờ timeout, không bao giờ bị evict, và
+                // hasLiveConflict khoá account vĩnh viễn.
+                _checkAlive.removeKeepAlive(userId, dataType, landing)
+                _checkAlive.removeTimeout(userId, dataType, landing)
             } else {
                 // Hiếm: guard reference-equality chặn gỡ nhầm phiên mới vừa takeover cùng slot. Giữ log để soi nếu lệch.
                 _logger.log("[RemoveMaps] SKIP slot uid=$userId dt=$dataType landing=$landing (slot đã trỏ controller khác)")
@@ -368,8 +402,6 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
             if (_usersIds[userId]?.isEmpty() == true) {
                 _usersIds.remove(userId)
             }
-            _checkAlive.removeKeepAlive(userId, dataType, landing)
-            _checkAlive.removeTimeout(userId, dataType, landing)
         }
     }
 }
