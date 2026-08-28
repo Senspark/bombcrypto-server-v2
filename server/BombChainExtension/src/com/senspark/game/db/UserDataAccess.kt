@@ -749,7 +749,13 @@ class UserDataAccess(
         return UserAutoMine(true, 0, 0)
     }
 
-    override fun loadAutoMinePackagePrice(uid: Int, listArrayPackage: JsonArray): ISFSArray {
+    // dataType chỉ dùng để tách cache key ở lớp CachedUserDataAccess; giá do
+    // fn_calculate_package_auto_price tính từ uid và danh sách package.
+    override fun loadAutoMinePackagePrice(
+        uid: Int,
+        dataType: DataType,
+        listArrayPackage: JsonArray
+    ): ISFSArray {
         val statement = """
             SELECT *
             FROM fn_calculate_package_auto_price(?, ?::json);
