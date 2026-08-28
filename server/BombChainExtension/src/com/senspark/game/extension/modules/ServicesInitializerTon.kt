@@ -54,6 +54,10 @@ import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.UsersManager
 import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
 import com.senspark.game.manager.convertToken.NullSwapTokenRealtimeManager
+import com.senspark.game.manager.dailyTask.IDailyTaskManager
+import com.senspark.game.manager.dailyTask.NullDailyTaskManager
+import com.senspark.game.manager.market.IMarketManager
+import com.senspark.game.manager.market.NullMarketManager
 import com.senspark.game.manager.offlineReward.IOfflineRewardManager
 import com.senspark.game.manager.offlineReward.NullOfflineRewardManager
 import com.senspark.game.manager.resourceSync.ISyncResourceManager
@@ -175,7 +179,11 @@ class ServicesInitializerTon(
         n.register(IVerifyAdApiManager::class) { NullVerifyAdApiManager() }
         n.register(IOfflineRewardManager::class) { NullOfflineRewardManager() }
         n.register(IIAPShopManager::class) { NullIAPShopManager() }
+        n.register(IPvpRankingManager::class) { NullPvpRankingManager() }
         n.register(IPvpRankingRewardManager::class) { NullPvpRankingRewardManager() }
+        n.register(IMarketApi::class) { NullMarketApi() }
+        n.register(IMarketManager::class) { NullMarketManager() }
+        n.register(IDailyTaskManager::class) { NullDailyTaskManager() }
         n.register(IPvpTournamentManager::class) { NullPvpTournamentManager() }
         n.register(IBuyRockManager::class) { NullBuyRockManager() }
         n.register(IUserRockManager::class) { NullUserRockManager() }

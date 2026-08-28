@@ -39,7 +39,7 @@ export default class HeroSApi {
    * be emitted by the contract at that address, matching (log.address, topic0) makes
    * the event authentic regardless of who submitted the tx.
    */
-  async verifyCreateRock(data: CreateRockRequest) {
+  async verifyCreateRock(data: CreateRockRequest): Promise<string[] | undefined> {
     const receipt = await this._blockchainCenterApi.getTransactionReceipt(this._config.name, data.tx);
     if (!receipt) {
       throw new Error(`[${this._config.name}] Transaction receipt ${data.tx} not found`);
@@ -48,7 +48,7 @@ export default class HeroSApi {
     this.#logger.assert(receipt.status == 1, `Transaction ${data.tx} failed`);
     this.#logger.assert(receipt.blockNumber >= this.LimitCreateRockBlockNumber, `Transaction ${data.tx} too old`);
 
-    const {wallet, heroIds} = this.#extractCreateRock(data.tx, receipt);
+    const {wallet, heroIds, heroDetails} = this.#extractCreateRock(data.tx, receipt);
 
     // The on-chain CreateRock `owner` is authoritative for the wallet — this replaces the
     // old `tx.from` check, which was the relayer (not the user) for a delegated tx.
@@ -59,7 +59,9 @@ export default class HeroSApi {
     for (let i = 0; i < heroIds.length; i++) {
       this.#logger.assert(heroIds[i] == data.hero_ids[i], `List hero not match`);
     }
-    return true;
+    // Undefined for burns older than the CreateRockDetails contract upgrade — the caller then has
+    // to fall back to its own hero data. Any assert above throws, so reaching here means verified.
+    return heroDetails;
   }
 
   async getBurnedHeroData(tx: string): Promise<BurnedHeroData | undefined> {
@@ -69,11 +71,12 @@ export default class HeroSApi {
     }
     this.#logger.assert(receipt.status == 1, `Transaction ${tx} failed`);
 
-    const {wallet, heroIds} = this.#extractCreateRock(tx, receipt);
+    const {wallet, heroIds, heroDetails} = this.#extractCreateRock(tx, receipt);
     return {
       tx,
       wallet_address: wallet,
       hero_ids: heroIds,
+      hero_details: heroDetails,
     };
   }
 
@@ -82,31 +85,44 @@ export default class HeroSApi {
    * the burning wallet + all burned hero ids. Aggregates across multiple events (a
    * delegated tx can batch several executions) and requires them to share one owner.
    */
-  #extractCreateRock(tx: string, receipt: ITransactionReceiptResult): { wallet: string; heroIds: number[] } {
+  #extractCreateRock(tx: string, receipt: ITransactionReceiptResult): { wallet: string; heroIds: number[]; heroDetails?: string[] } {
     const contract = this._config.bheroSAddress.toLowerCase();
     const createRockTopic = this._interface.getEventTopic('CreateRock').toLowerCase();
+    const createRockDetailsTopic = this._interface.getEventTopic('CreateRockDetails').toLowerCase();
 
     let wallet: string | undefined;
     const heroIds: number[] = [];
+    const heroDetails: string[] = [];
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() != contract) continue;
-      if (log.topics[0]?.toLowerCase() != createRockTopic) continue;
+      const topic = log.topics[0]?.toLowerCase();
+      if (topic != createRockTopic && topic != createRockDetailsTopic) continue;
 
       const parsed = this._interface.parseLog({topics: log.topics, data: log.data});
       const owner = parsed.args['owner'] as string;
-      const listIdHero = parsed.args['listIdHero'] as BigNumber[];
 
       if (!wallet) {
         wallet = owner;
       } else {
         this.#logger.assert(wallet.toLowerCase() == owner.toLowerCase(), `Transaction ${tx} has CreateRock events from multiple wallets`);
       }
-      for (const id of listIdHero) heroIds.push(id.toNumber());
+
+      if (topic == createRockTopic) {
+        for (const id of parsed.args['listIdHero'] as BigNumber[]) heroIds.push(id.toNumber());
+      } else {
+        for (const details of parsed.args['listDetails'] as BigNumber[]) heroDetails.push(details.toString());
+      }
     }
 
     this.#logger.assert(wallet, `Transaction ${tx} has no CreateRock event for contract ${this._config.bheroSAddress}`);
     this.#logger.assert(heroIds.length > 0, `Transaction ${tx} has no burned heroes`);
-    return {wallet: wallet!, heroIds};
+    // Burns older than the CreateRockDetails upgrade carry no details at all. A partial set means
+    // the two events disagree — refuse it rather than credit rock for a subset.
+    this.#logger.assert(
+      heroDetails.length == 0 || heroDetails.length == heroIds.length,
+      `Transaction ${tx} has ${heroDetails.length} hero details for ${heroIds.length} burned heroes`,
+    );
+    return {wallet: wallet!, heroIds, heroDetails: heroDetails.length > 0 ? heroDetails : undefined};
   }
 }
 
@@ -116,4 +132,8 @@ export type CreateRockRequest = {
   hero_ids: number[];
 }
 
-export type BurnedHeroData = CreateRockRequest;
+export type BurnedHeroData = CreateRockRequest & {
+  // Raw on-chain hero details, one per hero id in the same order. Undefined for burns older than
+  // the CreateRockDetails contract upgrade.
+  hero_details?: string[];
+}

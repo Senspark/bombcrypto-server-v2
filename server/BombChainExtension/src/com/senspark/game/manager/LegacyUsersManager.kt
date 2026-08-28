@@ -197,10 +197,12 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
 
     override fun hasLiveConflict(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): Boolean {
         val byLanding = _usersIds[userId]?.get(dataType) ?: return false
-        // Va chạm theo bảng xô (collides: WILDCARD đụng tất cả; specific đụng cùng-loại + WILDCARD),
-        // NHƯNG chỉ tính phiên còn SỐNG — ghost (đã timeout) để admission RECLAIM, không reject oan.
+        // Chỉ tính phiên còn sống: ghost (đã timeout) và mồ côi (mất bản ghi keep-alive) đều để
+        // admission reclaim, không reject oan.
         return byLanding.keys.any { existing ->
-            collides(landing, existing) && !_checkAlive.isHaveOldSession(userId, dataType, existing)
+            collides(landing, existing) &&
+                _checkAlive.hasKeepAlive(userId, dataType, existing) &&
+                !_checkAlive.isHaveOldSession(userId, dataType, existing)
         }
     }
 
@@ -246,6 +248,27 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
         initUserControllers()
         _checkAlive.checkKeepAlive()
         evictTimedOutSessions()
+        evictOrphanSessions()
+    }
+
+    // Slot mồ côi không bao giờ bị đánh timeout nên evictTimedOutSessions không với tới.
+    // Re-check dưới lock: admission thêm slot và bản ghi keep-alive trong cùng stripe-lock.
+    private fun evictOrphanSessions() {
+        val snapshot = _usersIds.entries.flatMap { (userId, byDataType) ->
+            byDataType.entries.flatMap { (dataType, byLanding) ->
+                byLanding.keys.map { Triple(userId, dataType, it) }
+            }
+        }
+        for ((userId, dataType, landing) in snapshot) {
+            lockFor(userId, dataType).withLock {
+                val controller = _usersIds[userId]?.get(dataType)?.get(landing) ?: return@withLock
+                if (_checkAlive.hasKeepAlive(userId, dataType, landing)) return@withLock
+                // Đã timeout thì để evictTimedOutSessions lo, tránh log/kick trùng.
+                if (_checkAlive.isHaveOldSession(userId, dataType, landing)) return@withLock
+                _logger.warn("Evict orphan session uid=$userId dt=$dataType landing=$landing (slot còn nhưng mất bản ghi keep-alive)")
+                kickAndRemoveUser(controller, "evict-orphan-no-keepalive")
+            }
+        }
     }
 
     // Evict ghost chủ động: phiên timeout bị gỡ thẳng khỏi _usersIds để hasLiveConflict không còn thấy ma.
@@ -358,6 +381,10 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
             val byLanding = _usersIds[userId]?.get(dataType)
             if (byLanding?.get(landing) === userController) {
                 byLanding.remove(landing)
+                // Trong guard: ngoài guard thì dispose muộn của phiên cũ xoá mất keep-alive của phiên
+                // mới vừa takeover cùng slot.
+                _checkAlive.removeKeepAlive(userId, dataType, landing)
+                _checkAlive.removeTimeout(userId, dataType, landing)
             } else {
                 // Hiếm: guard reference-equality chặn gỡ nhầm phiên mới vừa takeover cùng slot. Giữ log để soi nếu lệch.
                 _logger.log("[RemoveMaps] SKIP slot uid=$userId dt=$dataType landing=$landing (slot đã trỏ controller khác)")
@@ -368,8 +395,6 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
             if (_usersIds[userId]?.isEmpty() == true) {
                 _usersIds.remove(userId)
             }
-            _checkAlive.removeKeepAlive(userId, dataType, landing)
-            _checkAlive.removeTimeout(userId, dataType, landing)
         }
     }
 }

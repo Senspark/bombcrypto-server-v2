@@ -1,0 +1,127 @@
+-- Migration: Index logs.user_block_reward for the auto-mine price lookup
+-- Date: 2026-08-25
+-- Applies to: the game database (production: `bombcrypto2`)
+--
+-- Companion to 20260825_100000_fix_auto_mine_price_partition_scan.sql. Apply that
+-- one FIRST -- it is metadata-only and already removes the cross-partition scan.
+--
+-- This version assumes a MAINTENANCE WINDOW: the game server is stopped, so plain
+-- CREATE INDEX (ACCESS EXCLUSIVE) is fine and is both simpler and faster than
+-- CONCURRENTLY. It may be run inside a transaction.
+--
+-- Filter values are quoted exactly as the function filters them -- case-sensitive,
+-- and 'Save game' is capital S, lowercase g, one space:
+--     reward_type = 'BCOIN'   (varchar(20))
+--     reason      = 'Save game' (varchar(100))
+-- If either string is edited here, the partial index silently stops matching the
+-- function's query and the seq scan comes back.
+
+-- ---------------------------------------------------------------------------
+-- STEP 0 -- CONFIRM NOTHING IS STILL WRITING
+-- ---------------------------------------------------------------------------
+-- Stopping prod-sv-game-multi is not by itself proof that the table is idle: the
+-- repo has other services on the same database (api/login points at `bombcrypto2`,
+-- plus deposit-native / deposit-bridge / market / pvp-matching). None of them was
+-- found to touch logs.user_block_reward directly -- the market procedures they call
+-- do not log to it -- but that is a code reading, not a runtime guarantee, and a
+-- plain CREATE INDEX will block hard behind any straggler.
+--
+-- Just check:
+--   SELECT pid, application_name, state, now() - xact_start AS xact_age, query
+--   FROM pg_stat_activity
+--   WHERE datname = current_database() AND pid <> pg_backend_pid()
+--   ORDER BY xact_start NULLS LAST;
+--
+-- Expect no long-lived transactions before continuing.
+
+-- ---------------------------------------------------------------------------
+-- STEP 1 -- SIZE THE PARTITIONS, THEN PICK 2A OR 2B
+-- ---------------------------------------------------------------------------
+-- server/db/schema.sql is stale relative to production (it still declares
+-- logs.user_block_reward as a plain unpartitioned table and still contains the
+-- template table dropped in 2026-03-16), so the repo cannot tell us how big these
+-- partitions are, nor which indexes already exist. Measure:
+--
+--   SELECT c.relname,
+--          pg_size_pretty(pg_relation_size(c.oid))       AS heap,
+--          pg_size_pretty(pg_total_relation_size(c.oid)) AS total
+--   FROM pg_class c
+--   JOIN pg_inherits i ON i.inhrelid = c.oid
+--   JOIN pg_class p ON p.oid = i.inhparent
+--   JOIN pg_namespace n ON n.oid = p.relnamespace
+--   WHERE n.nspname = 'logs' AND p.relname = 'user_block_reward'
+--   ORDER BY c.relname;
+--
+--   SELECT tablename, indexname, indexdef
+--   FROM pg_indexes
+--   WHERE schemaname = 'logs' AND tablename LIKE 'user_block_reward%'
+--   ORDER BY tablename, indexname;
+--
+-- If an equivalent (uid, changed_at) index already exists, SKIP this file entirely.
+-- A duplicate index costs write throughput on the hottest log table in the database.
+--
+-- CHOOSING:
+--   2A (preferred) -- index the PARENT. Postgres builds it on every partition
+--       and, crucially, every FUTURE partition inherits it automatically. Costs a
+--       build over 2024+2025 that the query will never read.
+--   2B -- index only the current + next year. Minimal downtime, minimal disk. But future
+--       partitions do NOT inherit anything: whoever creates user_block_reward_2028
+--       must remember to index it, or this incident recurs in January.
+--
+-- Rule of thumb given the disk is already the bottleneck: if the cold years together
+-- are under ~20 GB, take 2A and be done with it. If much larger, take 2B to keep the
+-- window short -- and file the 2028 reminder immediately.
+--
+-- APPLIED ON PROD 2026-08-25: measured 2025 = 34.7M rows / 3809 MB, 2026 = 35.5M rows
+-- / 3581 MB, 2027 = empty. No 2024 partition exists. Total ~7.4 GB, under the
+-- threshold, so 2A was chosen and the build completed without blocking any writer.
+
+-- ---------------------------------------------------------------------------
+-- STEP 2A -- PARENT INDEX  (preferred; run EITHER 2A or 2B, not both)
+-- ---------------------------------------------------------------------------
+-- Column order (uid, changed_at): equality first, then the range, so one user's
+-- 7-day window is a single contiguous index range.
+
+CREATE INDEX IF NOT EXISTS idx_ubr_uid_changed_at_save_game
+    ON logs.user_block_reward (uid, changed_at)
+    WHERE reward_type = 'BCOIN' AND reason = 'Save game';
+
+-- ---------------------------------------------------------------------------
+-- STEP 2B -- PER-PARTITION ONLY  (alternative; comment out 2A above if using this)
+-- ---------------------------------------------------------------------------
+-- CREATE INDEX IF NOT EXISTS idx_ubr_2026_uid_changed_at_save_game
+--     ON logs.user_block_reward_2026 (uid, changed_at)
+--     WHERE reward_type = 'BCOIN' AND reason = 'Save game';
+--
+-- CREATE INDEX IF NOT EXISTS idx_ubr_2027_uid_changed_at_save_game
+--     ON logs.user_block_reward_2027 (uid, changed_at)
+--     WHERE reward_type = 'BCOIN' AND reason = 'Save game';
+
+-- ---------------------------------------------------------------------------
+-- STEP 3 -- REFRESH STATS, THEN VERIFY THE PLAN
+-- ---------------------------------------------------------------------------
+-- The planner needs current statistics to pick the new index; do not skip this or
+-- the first post-restart queries may still choose a seq scan.
+
+ANALYZE logs.user_block_reward;
+
+-- Confirm: expect exactly ONE partition touched, an Index Scan on it, and no Seq
+-- Scan on any user_block_reward partition.
+--
+--   EXPLAIN (ANALYZE, BUFFERS)
+--   SELECT COALESCE(SUM(values_changed), 0)
+--   FROM logs.user_block_reward
+--   WHERE uid = <a real uid>
+--     AND reward_type = 'BCOIN' AND reason = 'Save game'
+--     AND changed_at >= (CURRENT_DATE - 7)::timestamptz
+--     AND changed_at <  (CURRENT_DATE)::timestamptz;
+--
+-- Run it in a session with the SAME TimeZone as the game server (Asia/Bangkok), or
+-- the date boundaries will differ from production's -- see the timezone note in
+-- 20260825_100000_fix_auto_mine_price_partition_scan.sql.
+--
+-- To roll back: DROP INDEX logs.idx_ubr_uid_changed_at_save_game; (and the per-partition
+-- names if 2B was used). The pre-fix function body is in git history, before the commit
+-- that added this migration -- there is deliberately no rollback script in this
+-- directory, since migrations here are run in timestamp order and a revert script would
+-- be executed last on any fresh run.

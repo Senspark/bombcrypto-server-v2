@@ -130,7 +130,7 @@ interface IUserDataAccess : IGlobalService {
     )
     
     fun loadUserAutoMinePackage(uid: Int, dataType: DataType): IUserAutoMine
-    fun loadAutoMinePackagePrice(uid: Int, listArrayPackage: JsonArray): ISFSArray
+    fun loadAutoMinePackagePrice(uid: Int, dataType: DataType, listArrayPackage: JsonArray): ISFSArray
     
     fun resetShieldHero(
         dataType: DataType,

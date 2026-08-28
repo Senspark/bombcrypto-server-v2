@@ -55,6 +55,7 @@ class UserRockManager(
     private val _pendingTransactions: ConcurrentHashMap<String, Int> = ConcurrentHashMap(mapOf())
     private val _api: IRestApi = OkHttpRestApi()
 
+    private val _createRockTag = "[CREATE_ROCK]"
     private val _upgradeShieldVerifyTag = "[UPGRADE_SHIELD_VERIFY]"
     private val _upgradeShieldPollIntervalMs = 5_000L
     private val _upgradeShieldPollMaxAttempts = 12
@@ -231,22 +232,35 @@ class UserRockManager(
 
         val userHeroFiManager = userController.masterUserManager.heroFiManager
         val userBlockRewardManager = userController.masterUserManager.blockRewardManager
-        var totalRockReceive = sumRockReceive(userHeroFiManager, listIdHero)
-        addTransactionToDatabase(uid, tx, listIdHero, totalRockReceive, network)
+        val localRockReceive = sumRockReceive(userHeroFiManager, listIdHero)
+        addTransactionToDatabase(uid, tx, listIdHero, localRockReceive, network)
         userHeroFiManager.syncBomberMan()
 
         try {
-            if (checkValidTransaction(tx, listIdHero, walletAddress, network.name)) {
-                updateStatus(uid, tx, network, Status.DONE)
-                if (totalRockReceive == 0f) {
-                    val listHero = _heroBuilder.getHeroFiFromDatabase(network, listIdHero, HeroType.FI.value)
-                    val listRockReceive = listHero.map {
-                        if (it.isHeroS)
-                            convertHeroRockConfig[it.rarity]!!.heroS
-                        else convertHeroRockConfig[it.rarity]!!.heroL
+            val heroDetails = checkValidTransaction(tx, listIdHero, walletAddress, network.name)
+            if (heroDetails != null) {
+                // The burn event carries the details of every hero, including ones this server never
+                // synced (a third-party client can burn without the user ever logging in). The local
+                // and database prices only cover synced heroes, so use them just for burns older than
+                // the CreateRockDetails contract upgrade.
+                var totalRockReceive: Float
+                if (heroDetails.isNotEmpty()) {
+                    totalRockReceive = sumRockFromDetails(heroDetails, network)
+                    _logger.log("$_createRockTag tx=$tx uid=$uid heroes=${heroDetails.size} rock=$totalRockReceive local=$localRockReceive")
+                } else {
+                    totalRockReceive = localRockReceive
+                    if (totalRockReceive == 0f) {
+                        val listHero = _heroBuilder.getHeroFiFromDatabase(network, listIdHero, HeroType.FI.value)
+                        val listRockReceive = listHero.map {
+                            if (it.isHeroS)
+                                convertHeroRockConfig[it.rarity]!!.heroS
+                            else convertHeroRockConfig[it.rarity]!!.heroL
+                        }
+                        totalRockReceive = listRockReceive.sum()
                     }
-                    totalRockReceive = listRockReceive.sum()
+                    _logger.log("$_createRockTag No on-chain details tx=$tx uid=$uid rock=$totalRockReceive (legacy burn)")
                 }
+                updateStatus(uid, tx, network, Status.DONE, totalRockReceive)
                 _rewardDataAccess.addUserBlockReward(
                     uid,
                     BLOCK_REWARD_TYPE.ROCK,
@@ -269,6 +283,20 @@ class UserRockManager(
         }
     }
 
+    private fun sumRockFromDetails(heroDetails: List<String>, network: DataType): Float {
+        var result = 0f
+        heroDetails.forEach {
+            val details = BlockchainHeroDetails(it, network)
+            val config = convertHeroRockConfig[details.rarity]
+            if (config == null) {
+                _logger.log("$_createRockTag Missing burn config rarity=${details.rarity} heroId=${details.heroId}")
+                throw CustomException("Invalid hero data")
+            }
+            result += if (details.isHeroS()) config.heroS else config.heroL
+        }
+        return result
+    }
+
     private fun sumRockReceive(userHeroFiManager: IUserHeroFiManager, listHeroId: List<Int>): Float {
         var result = 0f
         listHeroId.forEach {
@@ -284,12 +312,16 @@ class UserRockManager(
         return result
     }
 
+    /**
+     * Returns the burned heroes' on-chain details when the transaction is confirmed, null when it is
+     * rejected. The list is empty for burns older than the CreateRockDetails contract upgrade.
+     */
     private fun checkValidTransaction(
         tx: String,
         listIdHero: List<Int>,
         walletAddress: String,
         network: String
-    ): Boolean {
+    ): List<String>? {
         val body = Json.run {
             buildJsonObject {
                 put("tx", tx)
@@ -313,8 +345,17 @@ class UserRockManager(
         val message = jsonData["message"] ?: throw CustomException("Invalid response: message not found")
         val confirmed = message.jsonObject["confirmed"]
             ?: throw CustomException("Invalid response: confirmed not found")
+        if (!confirmed.toString().toBoolean()) {
+            return null
+        }
 
-        return confirmed.toString().toBoolean()
+        val heroDetails = message.jsonObject["hero_details"]?.jsonArray ?: return emptyList()
+        val details = heroDetails.map { it.jsonPrimitive.content }
+        if (details.size != listIdHero.size) {
+            _logger.log("$_createRockTag Details mismatch tx=$tx heroes=${listIdHero.size} details=${details.size}")
+            throw CustomException("Invalid hero data")
+        }
+        return details
     }
 
     private fun addTransactionToDatabase(
@@ -331,8 +372,8 @@ class UserRockManager(
         return _gameDataAccessPostgreSql.checkValidCreateRock(uid, tx, network)
     }
 
-    private fun updateStatus(uid: Int, tx: String, network: DataType, status: Status) {
-        _gameDataAccessPostgreSql.updateStatusCreateRock(uid, tx, network, status.name)
+    private fun updateStatus(uid: Int, tx: String, network: DataType, status: Status, amount: Float? = null) {
+        _gameDataAccessPostgreSql.updateStatusCreateRock(uid, tx, network, status.name, amount)
     }
 
     private fun getCommandUpgradeShield(walletAddress: String, heroId: Int, network: String): Pair<Int, String> {

@@ -225,17 +225,22 @@ class UsersManager(logger: ILogger) : IUsersManager {
             val tookMs = System.currentTimeMillis() - startMs
             if (!success) {
                 _logger.log("[InitFail] disconnect uid=${controller.userId} landing=${controller.landing} took=${tookMs}ms (initDependencies failed)")
-                _usersNames.remove(controller.userName)
                 val userId = controller.userId
+                if (_usersNames[controller.userName] === controller) {
+                    _usersNames.remove(controller.userName)
+                }
                 val userInfo = controller.userInfo
                 val dataType = userInfo?.dataType
                 if (dataType != null) {
-                    _usersIds[userId]?.remove(dataType)
+                    if (_usersIds[userId]?.get(dataType) === controller) {
+                        _usersIds[userId]?.remove(dataType)
+                        _checkAlive.removeKeepAlive(userId, dataType, controller.landing)
+                        _checkAlive.removeTimeout(userId, dataType, controller.landing)
+                    }
                     // If no more data types for this user, remove the entire entry
                     if (_usersIds[userId]?.isEmpty() == true) {
                         _usersIds.remove(userId)
                     }
-                    _checkAlive.removeKeepAlive(userId, dataType, controller.landing)
                 } else {
                     // Fallback: remove all entries for this user
                     _usersIds.remove(userId)
@@ -277,14 +282,23 @@ class UsersManager(logger: ILogger) : IUsersManager {
 
     private fun disposeUser(userController: IUserController) {
         userController.dispose()
-        _usersNames.remove(userController.userName)
         val userId = userController.userId
-        
+
+        // Guard reference-equality: dispose muộn của phiên cũ không được gỡ map của phiên mới vừa
+        // thay chỗ.
+        if (_usersNames[userController.userName] === userController) {
+            _usersNames.remove(userController.userName)
+        }
+
         // Get the data type from the user info to remove the specific entry
         val userInfo = userController.userInfo
         val dataType = userInfo?.dataType
         if (dataType != null) {
-            _usersIds[userId]?.remove(dataType)
+            if (_usersIds[userId]?.get(dataType) === userController) {
+                _usersIds[userId]?.remove(dataType)
+                _checkAlive.removeKeepAlive(userId, dataType, userController.landing)
+                _checkAlive.removeTimeout(userId, dataType, userController.landing)
+            }
             // If no more data types for this user, remove the entire entry
             if (_usersIds[userId]?.isEmpty() == true) {
                 _usersIds.remove(userId)
@@ -292,10 +306,6 @@ class UsersManager(logger: ILogger) : IUsersManager {
         } else {
             // Fallback: remove all entries for this user
             _usersIds.remove(userId)
-        }
-        
-        if (dataType != null) {
-            _checkAlive.removeTimeout(userId, dataType, userController.landing)
         }
         _loggedOutUsers.remove(userId)
         _logger.log("Dispose user ${userController.userName}")

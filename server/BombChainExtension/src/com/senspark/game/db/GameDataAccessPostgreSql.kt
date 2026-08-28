@@ -21,6 +21,7 @@ import com.senspark.game.utils.deserialize
 import com.senspark.game.utils.serialize
 import com.senspark.lib.db.BaseDataAccess
 import com.smartfoxserver.v2.entities.data.ISFSArray
+import com.smartfoxserver.v2.entities.data.SFSArray
 import kotlinx.serialization.json.Json
 import org.intellij.lang.annotations.Language
 import org.jetbrains.exposed.sql.insert
@@ -856,6 +857,10 @@ class GameDataAccessPostgreSql(
         configHeroTraditionalManager: IConfigHeroTraditionalManager
     ): ISFSArray {
         val itemIds = configHeroTraditionalManager.itemIds
+        // Server không hỗ trợ hero traditional -> itemIds rỗng, `IN ()` là syntax error của Postgres
+        if (itemIds.isEmpty()) {
+            return SFSArray()
+        }
         val statement = """
             SELECT ub.*,
                    ub.charactor                                            AS skin,
@@ -987,15 +992,25 @@ class GameDataAccessPostgreSql(
         return sfsArray.size() < 1
     }
 
-    override fun updateStatusCreateRock(uid: Int, tx: String, network: DataType, status: String): Boolean {
+    override fun updateStatusCreateRock(
+        uid: Int,
+        tx: String,
+        network: DataType,
+        status: String,
+        amount: Float?
+    ): Boolean {
         val statement = """
             UPDATE "user_create_rock"
-            SET "status" = ?
+            SET "status" = ?${if (amount != null) ", \"rock_amount\" = ?" else ""}
             WHERE "uid" = ?
               AND "tx" = ?
               AND "network" = ?;
             """.trimIndent()
-        val params = arrayOf<Any?>(status, uid, tx, network.name)
+        val params = if (amount != null) {
+            arrayOf<Any?>(status, amount, uid, tx, network.name)
+        } else {
+            arrayOf<Any?>(status, uid, tx, network.name)
+        }
         return executeUpdate(statement, params)
     }
 
