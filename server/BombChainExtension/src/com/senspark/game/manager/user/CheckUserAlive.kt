@@ -61,6 +61,14 @@ class CheckUserAlive(logger: ILogger, timeOut: Long) {
         return _timeOutUserIds.contains(Pair(userId, SessionKey(dataType, landing)))
     }
 
+    // Phiên có đang được theo dõi keep-alive không. addUserToCheck ở admission luôn tạo bản ghi, nên
+    // slot còn trong _usersIds mà KHÔNG có bản ghi ở đây = phiên mồ côi: checkKeepAlive không bao giờ
+    // thấy -> không bao giờ vào _timeOutUserIds -> isHaveOldSession vĩnh viễn false. Manager dùng hàm này
+    // để nhận diện và evict, thay vì coi nhầm là phiên còn sống rồi reject login mãi mãi.
+    fun hasKeepAlive(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): Boolean {
+        return _lastKeepAliveTime[userId]?.containsKey(SessionKey(dataType, landing)) == true
+    }
+
     // Snapshot các phiên đã timeout (uid, dataType, landing) để manager evict ghost chủ động khỏi _usersIds.
     fun getTimedOutSessions(): List<Triple<Int, EnumConstants.DataType, EnumConstants.Landing>> {
         return _timeOutUserIds.map { (userId, key) -> Triple(userId, key.dataType, key.landing) }
