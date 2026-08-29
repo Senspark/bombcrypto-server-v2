@@ -22,6 +22,7 @@ import com.senspark.game.handler.stake.GetMinStakeHeroHandler
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.blockChain.IBlockchainResponseManager
+import com.senspark.game.manager.rental.IHouseRentalResponseManager
 import com.senspark.game.manager.claim.IClaimResponseManager
 import com.senspark.game.manager.crosschainDepositBridge.ICrosschainDepositBridgeResponseManager
 import com.senspark.game.manager.nativeDeposit.INativeDepositResponseManager
@@ -117,6 +118,12 @@ class ServerInitializerBnbPol(
             }
             messenger.listen(StreamKeys.AP_BL_SYNC_DEPOSIT) { data ->
                 blockchainManager.listenSyncDeposit(data.value)
+            }
+
+            // P2P house rental: events published by the marketplace backend
+            val rentalResponseManager = _netServices.get<IHouseRentalResponseManager>()
+            messenger.listen(StreamKeys.AP_RENTAL_SYNC) { data ->
+                rentalResponseManager.listenRentalSync(data.value)
             }
 
             val claimResponseManager = _netServices.get<IClaimResponseManager>()

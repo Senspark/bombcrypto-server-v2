@@ -138,6 +138,10 @@ object SFSField {
     const val House_Gen_Id: String = "house_gen_id"
     const val House_Id: String = "house_id"
     const val Active: String = "active"
+
+    // P2P house rental: 0 = not rented, 1 = rented by me, 2 = rented out to someone
+    const val RentalState: String = "rental_state"
+    const val RentalEndTime: String = "rental_end_time"
     const val Charge: String = "charge"
     const val Max_Slot: String = "max_slot"
     const val Restore_HP: String = "restore_hp"

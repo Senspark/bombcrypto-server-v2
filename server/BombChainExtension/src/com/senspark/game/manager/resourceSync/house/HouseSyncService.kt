@@ -21,6 +21,12 @@ class HouseSyncService(
     private val dataAccessManager: IDataAccessManager,
     private val gameDataAccess: IGameDataAccess,
 ) : IHouseSyncService {
+
+    private companion object {
+        const val RENTAL_STATE_NONE = 0
+        const val RENTAL_STATE_RENTED_BY_ME = 1
+        const val RENTAL_STATE_RENTED_OUT = 2
+    }
     override fun syncHouses(userController: IUserController, syncedDetails: List<HouseDetails>): ISFSObject {
         val houseController: IUserHouseManager = userController.masterUserManager.houseManager
         val houseIds: MutableList<Int> = ArrayList()
@@ -152,11 +158,27 @@ class HouseSyncService(
         val houseController: IUserHouseManager = userController.masterUserManager.houseManager
         // Remove tren server
         for (id in houseIds) {
+            // A house the player rents from someone else is not theirs to lose
+            // here: it only disappears when the rental contract ends.
+            if (houseController.isRentedHouse(id)) {
+                continue
+            }
             houseController.removeHouse(id)
         }
 
+        val ownedIds = houseIds.filterNot { houseController.isRentedHouse(it) }
+        if (ownedIds.isEmpty()) {
+            return
+        }
+
         // Delete house tren DB
-        dataAccessManager.gameDataAccess.deleteHouseNotExist(userController.dataType, userController.userId, houseIds)
+        dataAccessManager.gameDataAccess.deleteHouseNotExist(userController.dataType, userController.userId, ownedIds)
+
+        // The house left this player on-chain: kill any live rental listing and
+        // flag an ongoing rental so the charge job ends it on the next cycle.
+        ownedIds.forEach {
+            dataAccessManager.gameDataAccess.onHouseOwnerChanged(userController.dataType, it, null)
+        }
     }
 
     private fun addHouses(userController: IUserController, detailList: List<HouseDetails>) {
@@ -165,6 +187,14 @@ class HouseSyncService(
             val house = House.newInstance(details)
             dataAccessManager.gameDataAccess.insertNewHouse(userController.dataType, userController.userId, house)
             houseController.addHouse(house)
+
+            // The house just changed hands (insertNewHouse reassigns the uid):
+            // drop the previous owner's listing and flag an ongoing rental.
+            dataAccessManager.gameDataAccess.onHouseOwnerChanged(
+                userController.dataType,
+                house.houseId,
+                userController.userId
+            )
         }
     }
 
@@ -174,10 +204,7 @@ class HouseSyncService(
         val houseController: IUserHouseManager = userController.masterUserManager.houseManager
         val houses: List<House> = houseController.toArray()
         for (house in houses) {
-            val objData = SFSObject()
-            objData.putUtfString(SFSField.House_Gen_Id, house.details.details)
-            objData.putInt(SFSField.Active, if (house.isActive) 1 else 0)
-            sfsHouses.addSFSObject(objData)
+            sfsHouses.addSFSObject(houseController.toSfsObject(house))
         }
         val sfsArrNewHouse = SFSArray()
         for (details in newDetails) {

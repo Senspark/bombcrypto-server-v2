@@ -58,6 +58,8 @@ import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.LegacyUsersManager
 import com.senspark.game.manager.UsersManager
 import com.senspark.game.manager.blockChain.BlockchainResponseManager
+import com.senspark.game.manager.rental.HouseRentalResponseManager
+import com.senspark.game.manager.rental.IHouseRentalResponseManager
 import com.senspark.game.manager.blockChain.IBlockchainResponseManager
 import com.senspark.game.manager.claim.ClaimResponseManager
 import com.senspark.game.manager.claim.IClaimResponseManager
@@ -369,6 +371,12 @@ class ServicesInitializerBnbPol(
                 n.get<IHeroBuilder>(),
                 n.get<IBlockchainDatabaseManager>(),
                 g.get<ICoroutineScope>(),
+                logger
+            )
+        }
+        n.register(IHouseRentalResponseManager::class) {
+            HouseRentalResponseManager(
+                n.get<IUsersManager>(),
                 logger
             )
         }

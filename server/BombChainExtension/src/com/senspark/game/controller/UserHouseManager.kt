@@ -11,11 +11,13 @@ import com.senspark.game.db.IGameDataAccess
 import com.senspark.game.db.ITHModeDataAccess
 import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.GameConstants
+import com.senspark.game.declare.SFSField
 import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.hero.IUserHeroFiManager
 import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.SFSArray
+import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
 import java.time.Instant
 import java.time.LocalDateTime
@@ -50,12 +52,102 @@ class UserHouseManager(
     //       Ref: client PR bombcrypto-client-v2#5
     private val PAGE_LIMIT = Int.MAX_VALUE
 
+    private companion object {
+        const val RENTAL_STATE_NONE = 0
+        const val RENTAL_STATE_RENTED_BY_ME = 1
+        const val RENTAL_STATE_RENTED_OUT = 2
+    }
+
+    /**
+     * Houses this user rents from another player (P2P rental closed on the
+     * marketplace site). Kept apart from owned houses so we never persist them
+     * as if they belonged to the renter.
+     */
+    private val _rentedHouseIds: MutableSet<Int> = Collections.newSetFromMap(ConcurrentHashMap())
+
     private fun getItems(): MutableMap<Int, House> {
         if (!::_items.isInitialized) {
-            val mapHouse = gameDataAccess.loadUserHouse(_dataType, _userId, PAGE_LIMIT, 0)
+            val mapHouse = gameDataAccess.loadUserHouse(_dataType, _userId, PAGE_LIMIT, 0).toMutableMap()
+
+            // A rented house behaves like one of the player's own houses while
+            // the contract is active: it can be activated and heroes rest in it.
+            val rented = gameDataAccess.loadRentedHouses(_dataType, _userId)
+            rented.forEach { (houseId, house) ->
+                mapHouse[houseId] = house
+                _rentedHouseIds.add(houseId)
+            }
+
             _items = ConcurrentHashMap(mapHouse)
         }
         return _items
+    }
+
+    override fun isRentedHouse(houseId: Int): Boolean = _rentedHouseIds.contains(houseId)
+
+    override fun toSfsObject(house: House): ISFSObject {
+        val obj = SFSObject()
+        obj.putUtfString(SFSField.House_Gen_Id, house.details.details)
+        obj.putInt(SFSField.Active, if (house.isActive) 1 else 0)
+        if (house.endTimeRent != 0L) {
+            obj.putLong("end_time_rent", house.endTimeRent)
+        }
+
+        // P2P rental: 0 = not rented, 1 = rented by me, 2 = my house rented out
+        if (isRentedHouse(house.houseId)) {
+            // For the renter the period end already arrives in end_time_rent
+            // (loadRentedHouses reads current_period_end).
+            obj.putInt(SFSField.RentalState, RENTAL_STATE_RENTED_BY_ME)
+            obj.putLong(SFSField.RentalEndTime, house.endTimeRent)
+            return obj
+        }
+
+        val rental = gameDataAccess.findActiveRental(_dataType, house.houseId)
+        if (rental != null) {
+            // Here the house came from user_house, so endTimeRent belongs to the
+            // old in-game rent; the P2P period end comes from house_rental itself.
+            obj.putInt(SFSField.RentalState, RENTAL_STATE_RENTED_OUT)
+            obj.putLong(SFSField.RentalEndTime, rental.periodEndMs)
+            return obj
+        }
+
+        obj.putInt(SFSField.RentalState, RENTAL_STATE_NONE)
+        return obj
+    }
+
+    override fun persistHouseStage(houses: List<House>) {
+        val (rented, owned) = houses.partition { isRentedHouse(it.houseId) }
+
+        if (owned.isNotEmpty()) {
+            gameDataAccess.updateUserHouseStage(_dataType, _userId, owned)
+        }
+        rented.forEach {
+            gameDataAccess.setRentedHouseActive(_dataType, _userId, it.houseId, it.isActive)
+        }
+    }
+
+    override fun refreshRentedHouses() {
+        if (!::_items.isInitialized) {
+            return
+        }
+
+        val rented = gameDataAccess.loadRentedHouses(_dataType, _userId)
+
+        // Drop contracts that ended (expired, out of funds or house sold)
+        _rentedHouseIds.filterNot { rented.containsKey(it) }.forEach { houseId ->
+            _rentedHouseIds.remove(houseId)
+            val removed = _items.remove(houseId)
+            if (removed?.isActive == true) {
+                // The renter loses the house: heroes inside go to sleep
+                heroManager.housingHeroes.forEach { heroManager.setSleep(it) }
+            }
+        }
+
+        rented.forEach { (houseId, house) ->
+            if (!_items.containsKey(houseId)) {
+                _items[houseId] = house
+                _rentedHouseIds.add(houseId)
+            }
+        }
     }
 
     override fun loadMoreHouses(offset: Int, limit: Int) {
@@ -127,7 +219,7 @@ class UserHouseManager(
         //TH khong có bomberman nao dang trong house thi cap nhat lai active house là xong
         //Hoặc là active cùng loại nhà. như nhà common sang nhà common khác
         if (currBbmInHouse <= 0 || newHouse.houseId == oldHouse.houseId) {
-            gameDataAccess.updateUserHouseStage(_dataType, _userId, arr)
+            persistHouseStage(arr)
             return ArrayList()
         }
 
@@ -154,7 +246,7 @@ class UserHouseManager(
         }
 
         //update db thoi
-        gameDataAccess.updateUserHouseStage(_dataType, _userId, arr)
+        persistHouseStage(arr)
         gameDataAccess.updateBombermanStage(_userId, lstBbm, energiesRecovery)
         return lstBbm
     }
