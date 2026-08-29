@@ -146,6 +146,11 @@ class HeroSyncService(
                     hero.type.value, hero.shield.toString()
                 )
             }
+        } else {
+            // Stake is insufficient - remove shield from database
+            if (!hero.isHeroS) {
+                _gameDataAccess.addShieldToBomber(detail.dataType, hero.heroId, hero.type.value, "[]")
+            }
         }
     }
 
@@ -312,6 +317,9 @@ class HeroSyncService(
                             if (shieldInDatabase == "[]") {
                                 existingHero.addBasicShield()
                             }
+                        } else {
+                            // Stake is insufficient - remove shield
+                            _gameDataAccess.addShieldToBomber(detail.dataType, existingHero.heroId, existingHero.type.value, "[]")
                         }
                     }
 
