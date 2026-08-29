@@ -29,7 +29,7 @@ export default class MatchFinderWithBotIfNewPlayer implements IMatchFinder {
     }
 
     private tryCreateMatch(user: IUser): IMatch | null {
-        if (user.mode !== OnlySupportPvpMode) {
+        if (user.mode !== OnlySupportPvpMode || user.data.wagerMode !== 0) {
             return null;
         }
         if (user.totalMatchCount > this._config.maxTotalMatchForFindingBot) {

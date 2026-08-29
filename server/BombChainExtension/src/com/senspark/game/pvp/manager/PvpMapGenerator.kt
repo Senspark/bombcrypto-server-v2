@@ -20,63 +20,13 @@ class PvpMapGenerator(
     private val _logger: ILogger,
 ) : IMapGenerator {
     override fun generate(): MapInfo {
-        _logger.log("[Pvp][DefaultPvpMapGenerator:generate]")
+        _logger.log("[Pvp][DefaultPvpMapGenerator:generate] Pattern: ${_config.mapPatternId}")
         val tileset = _config.tilesetList.random()
 
-        // FIXME: client must support manual hard blocks.
-        @Suppress("SpellCheckingInspection")
-        val pattern2 = StringMapPattern(
-            """
-                p_b___xbbbx___b_p
-                __x__xbbbbbx__x__
-                _b__x_bxbxb_x__b_
-                x__x_b_b_b_b_x__x
-                ___bbxb_b_bxbb___
-                __xbbbbxbxbbbbx__
-                x__b_xbbbbbx_b__x
-                _x_xb_bxbxb_bxbx_
-                __xbbx_bbb_xbbx__
-                ___b__bxbxb_bb___
-                ___xbx_b_b_xbx___
-                x__bbbbxbxbbbbx_x
-                b___xb__b__bx___b
-                _x___xbbxbbx___x_
-                p_b___xbbbx___b_p
-            """.trimIndent()
-        )
-//        val pattern = StringMapPattern(
-//            """
-//                0_b...........b_3
-//                _x.x.x.x.x.x.x.x_
-//                b...............b
-//                .x.x.x.x.x.x.x.x.
-//                .................
-//                .x.x.x.x.x.x.x.x.
-//                .................
-//                .x.x.x.x.x.x.x.x.
-//                .................
-//                .x.x.x.x.x.x.x.x.
-//                b...............b
-//                _x.x.x.x.x.x.x.x_
-//                2_b...........b_1
-//            """.trimIndent()
-//        )
-        val pattern = StringMapPattern(
-            """
-                0_b.........b_3
-                _x.x.x.x.x.x.x_
-                b.............b
-                .x.x.x.x.x.x.x.
-                ...............
-                .x.x.x.x.x.x.x.
-                ...............
-                .x.x.x.x.x.x.x.
-                b.............b
-                _x.x.x.x.x.x.x_
-                2_b.........b_1
-            """.trimIndent()
-        )
-        val positionGenerator = DefaultPositionGenerator("0123".toList())
+        val pattern = StringMapPattern(MapPatternRegistry.getPattern(_config.mapPatternId))
+        
+        val spawnIds = (0 until _config.maxPlayers).joinToString("")
+        val positionGenerator = DefaultPositionGenerator(spawnIds.toList())
         val blocks = _blockGenerator.generate(pattern)
         val fallingBlockPattern = _config.fallingBlockPatternList.random()
         val fallingBlockGenerator = fallingBlockPattern.toGenerator()

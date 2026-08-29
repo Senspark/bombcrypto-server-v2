@@ -42,9 +42,12 @@ class PvpDataInfo(
     override val boosters: List<Int>,
     override val availableBoosters: Map<Int, Int>,
     override val hero: PvpHeroInfo,
-    override val avatar: Int?
-
-    ) : IPvpDataInfo
+    override val avatar: Int?,
+    override val wagerMode: Int = 0,
+    override val wagerTier: Int = 0,
+    override val wagerToken: Int = 0,
+    override val network: String = ""
+) : IPvpDataInfo
 
 @Serializable
 class PvpData(

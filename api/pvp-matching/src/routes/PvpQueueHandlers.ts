@@ -119,7 +119,11 @@ export default class PvpQueueHandlers {
                 boosters: body.data.boosters,
                 availableBoosters: body.data.availableBoosters,
                 avatar: parseAvatar(body.data.avatar),
-                hero: body.data.hero
+                hero: body.data.hero,
+                wagerMode: body.wagerMode,
+                wagerTier: body.wagerTier,
+                wagerToken: body.wagerToken,
+                gameMode: body.gameMode
             }
         };
         return user;

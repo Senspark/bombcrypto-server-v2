@@ -14,10 +14,15 @@ export interface IJoinQueueRequestBody {
         availableBoosters: Map<number, number>,
         hero: IMatchHeroInfo,
         avatar: number,
+        network: string,
         // Other aux data, may vary.
     },
     timestamp?: number,
     newServer?: boolean,
+    wagerMode: number,
+    wagerTier: number,
+    wagerToken: number,
+    gameMode: number,
 }
 
 export interface ILeaveQueueRequestBody {
@@ -96,6 +101,12 @@ export interface IUser {
 
         // Hero data.
         hero: IMatchHeroInfo,
+
+        wagerMode: number,
+        wagerTier: number,
+        wagerToken: number,
+        gameMode: number,
+        network: string,
     },
 }
 
@@ -160,12 +171,16 @@ export interface IMatchRule {
     teamSize: number;
 
     /** Whether a draw result is allowed. */
-    canDraw: boolean;
+    canDraw: Boolean;
 
     /** Minimum number of rounds. */
     round: number;
 
     isTournament: boolean;
+
+    gameMode: number;
+
+    wagerMode: number;
 }
 
 export interface IPvpReport {
@@ -200,6 +215,8 @@ export enum PvpMode {
     FFA_2_B3 = 1 << 4, // 16
     FFA_2_B5 = 1 << 5, // 32
     FFA_2_B7 = 1 << 6, // 64
+    Team_3v3 = 1 << 7, // 128
+    BATTLE_ROYALE = 1 << 8, // 256
 }
 
 export interface IPvpResultInfo {
@@ -241,6 +258,8 @@ export interface IMatchRuleInfo {
     round: number;
     canDraw: boolean;
     isTournament: boolean;
+    gameMode: number;
+    wagerMode: number;
 }
 
 export interface IMatchTeamInfo {

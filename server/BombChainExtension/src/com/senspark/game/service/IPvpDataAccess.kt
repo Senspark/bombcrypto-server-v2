@@ -40,4 +40,5 @@ interface IPvpDataAccess : IService, IGlobalService {
     fun decayUserRank(season: Int, decayUsers: MutableMap<Int, Int>)
     fun getAmountPvpMatchesCurrentDate(userId: Int, season: Int): Int
     fun getAllAmountPvpMatchesCurrentDate(season: Int): Map<Int, Int>
+    fun getTotalPvpMatches(userId: Int): Int
 }

@@ -30,7 +30,7 @@ export default class MatchFinderWithBotIfWaitTooLong implements IMatchFinder {
     }
 
     private tryCreateMatch(user: IUser, now: number): IMatch | null {
-        if (user.mode !== OnlySupportSingleMode) {
+        if (user.mode !== OnlySupportSingleMode || user.data.wagerMode !== 0) {
             return null;
         }
         if (now - user.refreshTimestamp <= this._config.maxTimeForFindingUser) {

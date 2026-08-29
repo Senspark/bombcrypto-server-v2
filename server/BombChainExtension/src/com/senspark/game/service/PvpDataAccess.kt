@@ -499,4 +499,31 @@ class PvpDataAccess(
         statement.executeQuery { result[it.getInt("uid")] = it.getInt("matches_in_current_date")}
         return result
     }
+
+    override fun getTotalPvpMatches(userId: Int): Int {
+        var total = 0
+        try {
+            // Get all season tables
+            val sqlTables = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'user_pvp_rank_ss_%'"
+            val tableNames = mutableListOf<String>()
+            sqlTables.executeQuery { rs ->
+                while (rs.next()) {
+                    tableNames.add(rs.getString("table_name"))
+                }
+            }
+
+            // Sum total_match from each table for this user
+            for (table in tableNames) {
+                val sqlCount = "SELECT total_match FROM $table WHERE uid = ?"
+                _db.createQueryBuilder(false).addStatement(sqlCount, arrayOf(userId)).executeQuery { rs ->
+                    if (rs.next()) {
+                        total += rs.getInt("total_match")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            _logLogger.error("Error calculating total pvp matches for user $userId", e)
+        }
+        return total
+    }
 }

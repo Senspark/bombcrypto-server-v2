@@ -21,6 +21,8 @@ import com.senspark.game.extension.modules.SvServicesContainerContainer
 import com.senspark.game.manager.DefaultDatabase
 import com.senspark.game.manager.IPvpEnvManager
 import com.senspark.game.manager.PvpEnvManager
+import com.senspark.game.manager.IUsersManager
+import com.senspark.game.manager.UsersManager
 import com.senspark.game.manager.pvp.MatchInfoUpdatedBroadcaster
 import com.senspark.game.manager.pvp.PvpMatchManager
 import com.senspark.game.pvp.PvpInternalMessageHandler
@@ -37,6 +39,8 @@ import com.smartfoxserver.v2.api.CreateRoomSettings
 import com.smartfoxserver.v2.entities.Room
 import com.smartfoxserver.v2.extensions.SFSExtension
 import java.util.concurrent.ScheduledThreadPoolExecutor
+import com.senspark.game.service.IPvpRankingService
+import com.senspark.game.service.PvpRankingService
 
 //import org.koin.core.context.startKoin
 //import org.koin.core.module.Module
@@ -97,6 +101,13 @@ object PvpZoneExtensionModules {
             scheduler,
             logger
         )
+
+        val pvpWagerService = PvpWagerService(database, logger, postgreSQLDatabaseStatement())
+        val usersManager = UsersManager(logger)
+        val chatManager = PvpChatManager(logger)
+        val lobbyStateManager = PvpLobbyStateManager(cache, logger)
+        val rankingService = PvpRankingService(database, logger)
+
         val pvpInternalMessageHandler = PvpInternalMessageHandler(logger, parentZone)
         val pvpMatchManager = PvpMatchManager(
             defaultDatabaseManager,
@@ -115,6 +126,9 @@ object PvpZoneExtensionModules {
             cache,
             pvpDataAccess,
             pvpRankManager,
+            pvpWagerService,
+            usersManager,
+            rankingService
         )
         val serverInfoManager = ServerInfoManager(envManager, cache, logger)
 
@@ -137,7 +151,12 @@ object PvpZoneExtensionModules {
         globalServices.register(ILibDataAccess::class) { libDataAccess }
         globalServices.register(IShopDataAccess::class) { shopDataAccess }
         globalServices.register(IPvpDataAccess::class) { pvpDataAccess }
+        globalServices.register(IPvpWagerService::class) { pvpWagerService }
         globalServices.register(ISvServicesContainer::class) { serverServicesContainer }
+        globalServices.register(IUsersManager::class) { usersManager }
+        globalServices.register(IPvpRankingService::class) { rankingService }
+        globalServices.register(IPvpChatManager::class) { chatManager }
+        globalServices.register(IPvpLobbyStateManager::class) { lobbyStateManager }
 
         val msg = mutableListOf<String>()
         globalServices.forEach { t ->
@@ -164,6 +183,11 @@ object PvpZoneExtensionModules {
             pvpMatchManager,
             serverInfoManager,
             gameConfigManager,
+            pvpWagerService,
+            chatManager,
+            lobbyStateManager,
+            usersManager,
+            rankingService
         )
     }
 
@@ -203,4 +227,9 @@ data class PvpServices(
     val matchManager: IMatchManager,
     val serverInfoManager: IServerInfoManager,
     val gameConfigManager: GameConfigManager,
+    val wagerService: IPvpWagerService,
+    val chatManager: IPvpChatManager,
+    val lobbyStateManager: IPvpLobbyStateManager,
+    val usersManager: IUsersManager,
+    val rankingService: IPvpRankingService,
 )

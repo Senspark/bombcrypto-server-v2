@@ -38,5 +38,5 @@ interface IUserBlockRewardManager : IService {
     fun getTotalBasDepositHaving(): Float
     fun getTotalVicDepositHaving(): Float
     fun addMiningRewards(rewardDetail: RewardDetail)
-
+    fun deductReward(value: Float, rewardType: BLOCK_REWARD_TYPE, dataType: DataType)
 }

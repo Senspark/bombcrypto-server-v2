@@ -16,6 +16,10 @@ class MatchInfoClient(
     @SerialName("team") val team: List<IMatchTeamInfo>,
     @SerialName("slot") val slot: Int,
     @SerialName("info") val info: List<IMatchUserInfo>,
+    @SerialName("wager_mode") val wagerMode: Int = 0,
+    @SerialName("wager_tier") val wagerTier: Int = 0,
+    @SerialName("wager_token") val wagerToken: Int = 0,
+    @SerialName("game_mode") val gameMode: Int = 1,
 ) {
     fun toMatchInfo(): MatchInfo {
         return MatchInfo(
@@ -29,11 +33,17 @@ class MatchInfoClient(
                 teamSize = rule.team_size,
                 canDraw = rule.can_draw,
                 round = rule.round,
-                isTournament = rule.is_tournament
+                isTournament = rule.is_tournament,
+                gameMode = rule.game_mode,
+                wagerMode = rule.wager_mode
             ),
             team = team,
             slot = slot,
             info = info,
+            gameMode = gameMode,
+            wagerMode = wagerMode,
+            wagerTier = wagerTier,
+            wagerToken = wagerToken,
         )
 
     }
@@ -50,6 +60,10 @@ class MatchInfo(
     @SerialName("team") override val team: List<IMatchTeamInfo>,
     @SerialName("slot") override val slot: Int,
     @SerialName("info") override val info: List<IMatchUserInfo>,
+    @SerialName("game_mode") override val gameMode: Int = 1,
+    @SerialName("wager_mode") override val wagerMode: Int = 0,
+    @SerialName("wager_tier") override val wagerTier: Int = 0,
+    @SerialName("wager_token") override val wagerToken: Int = 0,
 ) : IMatchInfo {
     companion object {
         const val PROPERTY_KEY = "JOIN_PVP_MATCH_INFO"
