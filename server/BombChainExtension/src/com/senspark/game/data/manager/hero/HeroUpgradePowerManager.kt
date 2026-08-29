@@ -64,14 +64,14 @@ class HeroUpgradePowerManager(
     }
 
     override fun getPowerIncrease(rare: Int, level: Int): Int {
-        val power: HeroUpgradePower = get(rare) ?: return 0
-        val powers: List<Int> = power.powers
-
-        // Level bat dau tu 1 nen tru di 1
-        return if ((level - 1) < powers.size) {
-            powers[level - 1]
-        } else {
-            0
+        // Uniform scaling for Hero Evolution V2 (Rarity-independent)
+        // Scaling Principle: L2-L5 (+1/lvl), L6-L9 (+2/lvl), L10 (+3)
+        return when {
+            level <= 1 -> 0
+            level <= 5 -> level - 1           // L2:1, L3:2, L4:3, L5:4
+            level <= 9 -> 4 + (level - 5) * 2 // L6:6, L7:8, L8:10, L9:12
+            level >= 10 -> 15                 // L10:15
+            else -> 0
         }
     }
 }
