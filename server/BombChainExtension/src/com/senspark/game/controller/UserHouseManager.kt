@@ -72,7 +72,17 @@ class UserHouseManager(
     }
 
     override val activeHouse: House?
-        get() = getItems().values.firstOrNull { it.isActive }
+        get() {
+            val houses = getItems().values
+            val active = houses.firstOrNull { it.isActive }
+            if (active == null && houses.isNotEmpty()) {
+                val first = houses.first()
+                first.isActive = true
+                gameDataAccess.updateUserHouseStage(_dataType, _userId, listOf(first))
+                return first
+            }
+            return active
+        }
 
     override fun getHouse(id: Int): House? {
         return getItems()[id]
@@ -83,15 +93,24 @@ class UserHouseManager(
     }
 
     override fun setActiveHouse(houseId: Int) {
-        //deactive house cu
         val oldActiveHouse = activeHouse
-        if (oldActiveHouse != null) {
-            oldActiveHouse.isActive = true
-        }
-        //set active house moi
         val newActiveHouse = getHouse(houseId)
+        
         if (newActiveHouse != null) {
-            newActiveHouse.isActive = false
+            val updateList = mutableListOf<House>()
+            
+            // Deactivate old house if it's different
+            if (oldActiveHouse != null && oldActiveHouse.houseId != newActiveHouse.houseId) {
+                oldActiveHouse.isActive = false
+                updateList.add(oldActiveHouse)
+            }
+            
+            // Activate new house
+            newActiveHouse.isActive = true
+            updateList.add(newActiveHouse)
+            
+            // Save to database
+            gameDataAccess.updateUserHouseStage(_dataType, _userId, updateList)
         }
     }
 
