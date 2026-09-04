@@ -1912,6 +1912,8 @@ url_config_tasks	https://game.bombcrypto.io/tasks_data/data/data_v42.json	2024-0
 daily_task_config_url	https://game.bombcrypto.io/daily_tasks_data/data/data_v2.json	2025-03-28 09:12:55
 coin_ranking_season_day	27	2025-07-04 03:09:01
 pvp_ranking_season_day	27	2025-07-04 03:41:49
+native_rate_update_minutes	15	2026-09-04 12:00:00
+native_rate_max_change_percent	20	2026-09-04 12:00:00
 \.
 
 

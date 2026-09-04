@@ -38,6 +38,13 @@ data class PriceTokenResponseData(
     val priceBcoinBNB: Float,
     @SerialName("polygon_bcoin")
     val priceBcoinPolygon: Float,
+    // The chain's own coin. Defaulted, not required: an api/blockchain older than these fields simply
+    // omits them, and a missing native price must degrade to "no dynamic rate" rather than fail the
+    // whole parse and take the gem swap's prices down with it.
+    @SerialName("bnb_native")
+    val priceNativeBNB: Float = 0f,
+    @SerialName("polygon_native")
+    val priceNativePolygon: Float = 0f,
 )
 
 class SwapTokenRealtimeManager(
@@ -50,7 +57,13 @@ class SwapTokenRealtimeManager(
 ) : ISwapTokenRealtimeManager {
 
     private val _api: IRestApi = OkHttpRestApi()
-    private val tokenPrice: MutableMap<DataType, Map<BLOCK_REWARD_TYPE, Float>> = mutableMapOf()
+
+    // Swapped whole rather than cleared and refilled: readers run on request threads while the price
+    // scheduler writes, and a reader landing between clear() and putAll() saw an empty map -- which the
+    // !! in getGemRatio/tokenConvert turns into a failed swap. Publishing a new immutable map makes the
+    // update a single visible step, so a reader sees either the old prices or the new ones.
+    @Volatile
+    private var tokenPrice: Map<DataType, Map<BLOCK_REWARD_TYPE, Float>> = emptyMap()
     private lateinit var swapRealtimeConfig: SwapTokenRealtimeConfig
     private var remainingTotalSwap: Float = 0f
 
@@ -58,7 +71,7 @@ class SwapTokenRealtimeManager(
     private val _scheduler: IScheduler = SmartFoxScheduler(1, _logger)
 
     override fun initialize() {
-        tokenPrice.putAll(reloadTokenPrice())
+        reloadTokenPrice()
         swapRealtimeConfig = _shopDataAccess.loadSwapTokenRealtimeConfig()
         remainingTotalSwap = swapRealtimeConfig.remainingTotalSwap
 
@@ -102,21 +115,44 @@ class SwapTokenRealtimeManager(
             val priceTokens = deserialize<PriceTokenResponseData>(message.toString())
 
             val result: MutableMap<DataType, Map<BLOCK_REWARD_TYPE, Float>> = mutableMapOf()
+            // The native coin rides in the same map, keyed by its own reward type: it is one more USD
+            // quote per network, and keeping it here means one fetch feeds both the gem swap and the
+            // native rate.
             result[DataType.BSC] = mutableMapOf(
                 BLOCK_REWARD_TYPE.BCOIN to priceTokens.priceBcoinBNB,
-                BLOCK_REWARD_TYPE.SENSPARK to priceTokens.priceSenBNB
+                BLOCK_REWARD_TYPE.SENSPARK to priceTokens.priceSenBNB,
+                BLOCK_REWARD_TYPE.BNB_DEPOSITED to priceTokens.priceNativeBNB
             )
             result[DataType.POLYGON] = mutableMapOf(
                 BLOCK_REWARD_TYPE.BCOIN to priceTokens.priceBcoinPolygon,
-                BLOCK_REWARD_TYPE.SENSPARK to priceTokens.priceSenPolygon
+                BLOCK_REWARD_TYPE.SENSPARK to priceTokens.priceSenPolygon,
+                BLOCK_REWARD_TYPE.POL_DEPOSITED to priceTokens.priceNativePolygon
             )
-            tokenPrice.clear()
-            tokenPrice.putAll(result)
+            tokenPrice = result
             return result
         } catch (ex: Exception) {
             _logger.error("API Fail reload token price:\n" + ex.message)
             return mutableMapOf()
         }
+    }
+
+    /**
+     * How much native coin one BCOIN is worth right now on [dataType], from the last fetched USD
+     * quotes: the USD cancels out, so the caller gets a pure BCOIN -> native rate.
+     *
+     * null when either side is missing or non-positive -- an unpriced network, a stale api/blockchain
+     * that does not send the native quote yet, or a failed fetch. Callers must keep whatever rate they
+     * already had; there is no sensible substitute for "we do not know the price".
+     */
+    override fun getNativePerBcoin(dataType: DataType): Double? {
+        val nativeType = dataType.convertToNativeDepositType() ?: return null
+        val prices = tokenPrice[dataType] ?: return null
+        val bcoinUsd = prices[BLOCK_REWARD_TYPE.BCOIN] ?: return null
+        val nativeUsd = prices[nativeType] ?: return null
+        if (bcoinUsd <= 0f || nativeUsd <= 0f) {
+            return null
+        }
+        return bcoinUsd.toDouble() / nativeUsd.toDouble()
     }
 
     override fun previewConversion(
