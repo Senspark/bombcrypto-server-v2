@@ -78,5 +78,11 @@ interface IShopDataAccess : IGlobalService {
     fun loadBurnHeroConfig(): Map<Int, RockAmount>
     fun loadRockPackageConfig(): List<RockPackage>
     fun loadNativeRateConfig(): Map<EnumConstants.DataType, Double>
+
+    /**
+     * Writes the market rate for one network and stamps modify_date. Returns false when the write did
+     * not land -- the caller must not report a rate it failed to store.
+     */
+    fun updateNativeRate(network: EnumConstants.DataType, rate: Double): Boolean
     fun loadHouseRentPackageConfig(): Map<EnumConstants.DataType, List<HouseRentPackage>>
 }

@@ -26,6 +26,11 @@ class NullSwapTokenRealtimeManager : ISwapTokenRealtimeManager {
         return 0f
     }
 
+    // No quotes here, so no dynamic rate: callers keep whatever rate they already had.
+    override fun getNativePerBcoin(dataType: DataType): Double? {
+        return null
+    }
+
     override fun refillRemainingTotalSwap() {}
 
     override fun getTimeUpdatePrice(): Int {

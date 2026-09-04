@@ -16,6 +16,9 @@ interface ISwapTokenRealtimeManager : IService, IServerService {
         tokenType: Int
     ): Float
 
+    /** BCOIN -> native coin rate for [dataType] from the latest USD quotes; null when unknown. */
+    fun getNativePerBcoin(dataType: EnumConstants.DataType): Double?
+
     fun refillRemainingTotalSwap()
     fun getTimeUpdatePrice(): Int
     fun getMinGemSwap(): Int
