@@ -748,6 +748,16 @@ class ShopDataAccess(
         return result
     }
 
+    override fun updateNativeRate(network: DataType, rate: Double): Boolean {
+        require(rate > 0) { "Invalid native rate for ${network.name}: $rate" }
+        val statement = """
+            UPDATE config_native_rate
+            SET native_per_bcoin = ?, modify_date = now()
+            WHERE network = ?;
+            """
+        return executeUpdate(statement, arrayOf(rate, network.name))
+    }
+
     override fun loadHouseRentPackageConfig(): Map<DataType, List<HouseRentPackage>> {
         val statement = "SELECT * FROM config_package_rent_house_v2;"
         val result: MutableMap<DataType, ArrayList<HouseRentPackage>> = mutableMapOf()

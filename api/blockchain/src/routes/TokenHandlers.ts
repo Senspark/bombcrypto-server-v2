@@ -5,6 +5,10 @@ import IDependencies from "../services/IDependencies";
 import ILogger from "../services/ILogger";
 import {CachedKeys} from "../cache/CachedKeys";
 
+// How long a fetched price set answers further requests before going upstream again. Shorter than any
+// consumer's own refresh interval, so a scheduler never reads a price older than its own tick.
+const COINS_PRICE_TTL_SECONDS = 60;
+
 export default class TokenHandlers {
   constructor(
     private readonly _dep: IDependencies
@@ -35,14 +39,27 @@ export default class TokenHandlers {
   /**
    * Lưu trữ lại giá coin gần nhất vào cache
    * Trong trường hợp fetch error thì sẽ lấy từ cache
+   *
+   * Two caches, two jobs: FRESH is a short TTL window that collapses the calls arriving from every
+   * zone's price scheduler into one upstream fetch, LAST_GOOD never expires and is what answers when
+   * CoinGecko is down. Without the window each caller was its own fetch, and the native rate job made
+   * that worse — see the call budget in the README.
    */
   async getCoinsPrice(req: Request, res: Response) {
+    const fresh = await this._getCoinsPriceFromCached(CachedKeys.AP_BL_COINS_PRICE_FRESH);
+    if (fresh) {
+      res.sendSuccess(fresh);
+      return;
+    }
+
     let resultData = await this._getCoinsPriceFromApi();
     const isAllFetched = Object.values(resultData).every(v => v > 0);
     if (isAllFetched) {
-      await this._dep.redis.set(CachedKeys.AP_BL_COINS_PRICE, JSON.stringify(resultData));
+      const payload = JSON.stringify(resultData);
+      await this._dep.redis.set(CachedKeys.AP_BL_COINS_PRICE, payload);
+      await this._dep.redis.setWithTTL(CachedKeys.AP_BL_COINS_PRICE_FRESH, payload, COINS_PRICE_TTL_SECONDS);
     } else {
-      const cachedData = await this._getCoinsPriceFromCached();
+      const cachedData = await this._getCoinsPriceFromCached(CachedKeys.AP_BL_COINS_PRICE);
       if (cachedData) {
         resultData = cachedData;
       }
@@ -50,10 +67,9 @@ export default class TokenHandlers {
     res.sendSuccess(resultData);
   }
 
-  async _getCoinsPriceFromCached(): Promise<ICoinsPrice | null> {
+  async _getCoinsPriceFromCached(key: string = CachedKeys.AP_BL_COINS_PRICE): Promise<ICoinsPrice | null> {
     try {
-      const k = CachedKeys.AP_BL_COINS_PRICE;
-      const cached = await this._dep.redis.get(k);
+      const cached = await this._dep.redis.get(key);
       if (cached) {
         return JSON.parse(cached);
       }
@@ -65,50 +81,53 @@ export default class TokenHandlers {
   }
 
   /**
+   * One request for every coin instead of one per coin: the per-coin /coins/<id> endpoint cost four
+   * upstream calls per caller, which does not fit CoinGecko's free monthly credits once a scheduler
+   * polls it. /simple/price returns the same USD figures for all ids at once.
+   *
    * @example
    * {
    *  "polygon_sen": 0.00302789,
    *  "polygon_bcoin": 0.02098667,
    *  "bnb_bcoin": 0.01292032,
-   *  "bnb_sen": 0.00235193
+   *  "bnb_sen": 0.00235193,
+   *  "polygon_native": 0.092547,
+   *  "bnb_native": 716.3
    * }
    */
   async _getCoinsPriceFromApi(): Promise<ICoinsPrice> {
-    interface TokenData {
-      market_data: {
-        current_price: {
-          usd: number
-        }
+    // field name -> CoinGecko id. `*_native` is the chain's own coin (POL / BNB), which is what the
+    // native-priced sinks charge in; BCOIN and SEN are listed separately per chain because the two
+    // bridged tokens do not trade at the same price.
+    const ids: Record<keyof ICoinsPrice, string> = {
+      bnb_bcoin: 'bomber-coin',
+      bnb_sen: 'senspark',
+      bnb_native: 'binancecoin',
+      polygon_bcoin: 'bombcrypto-coin',
+      polygon_sen: 'senspark-matic',
+      polygon_native: 'polygon-ecosystem-token',
+    };
+
+    const resultData: Record<string, number> = {};
+    Object.keys(ids).forEach(name => resultData[name] = 0);
+
+    try {
+      const url = `https://api.coingecko.com/api/v3/simple/price`
+        + `?ids=${Object.values(ids).join(',')}&vs_currencies=usd`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const parsed = (await response.json()) as Record<string, { usd?: number }>;
+        Object.entries(ids).forEach(([name, id]) => {
+          resultData[name] = parsed[id]?.usd ?? 0;
+        });
+      } else {
+        this.#logger.errors(`Failed to fetch token prices`, new Error(`HTTP ${response.status}`));
       }
+    } catch (e) {
+      this.#logger.errors(`Failed to fetch token prices`, e);
     }
 
-    let resultData = {};
-
-    type Tokens = [name: string, url: string];
-    const tokens: Tokens[] = [
-      ['bnb_bcoin', 'https://api.coingecko.com/api/v3/coins/bomber-coin'],
-      ['bnb_sen', 'https://api.coingecko.com/api/v3/coins/senspark'],
-      ['polygon_bcoin', 'https://api.coingecko.com/api/v3/coins/bombcrypto-coin'],
-      ['polygon_sen', 'https://api.coingecko.com/api/v3/coins/senspark-matic'],
-    ];
-
-    await Promise.all(tokens.map(async ([name, url]) => {
-      let price = 0;
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          const parsedResponse: TokenData = (await response.json()) as TokenData;
-          price = parsedResponse.market_data.current_price.usd;
-        }
-      } catch (e) {
-        this.#logger.errors(`Failed to fetch token price for ${name}`, e);
-        price = 0;
-      }
-
-      resultData[name] = price;
-    }));
-
-    return resultData as ICoinsPrice;
+    return resultData as unknown as ICoinsPrice;
   }
   //endregion
 
@@ -163,6 +182,8 @@ export default class TokenHandlers {
 interface ICoinsPrice {
   polygon_sen: number;
   polygon_bcoin: number;
+  polygon_native: number;
   bnb_bcoin: number;
   bnb_sen: number;
+  bnb_native: number;
 }

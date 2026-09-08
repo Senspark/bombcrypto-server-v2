@@ -13627,6 +13627,12 @@ CREATE INDEX idx_user_native_deposited_pending
 -- price list for three sinks. Its own table rather than a game_config key so the lookup is by
 -- _network — a value already in scope everywhere the rate is needed — instead of a hardcoded key
 -- string, and so the rate is a typed column instead of a varchar needing a cast.
+--
+-- The rate is no longer hand-maintained: the BNB/POL extension's price scheduler rewrites it from the
+-- market (bcoin_usd / native_usd, the same quotes the gem swap already fetches), so every sink stays
+-- one conversion behind its BCOIN list price instead of drifting as the pair moves. modify_date says
+-- when that last happened — a rate much older than the scheduler's interval means the writer or its
+-- upstream is down and the last known rate is still what gets charged.
 CREATE TABLE public.config_native_rate (
     network          character varying(20) NOT NULL,       -- BSC | POLYGON
     native_per_bcoin double precision NOT NULL,            -- native coin charged per 1 BCOIN of list price
