@@ -5,11 +5,14 @@ import com.senspark.common.utils.IServerLogger
 import com.senspark.common.utils.toSFSArray
 import com.senspark.game.api.IServerInfoManager
 import com.senspark.game.controller.LegacyUserController
+import com.senspark.game.data.manager.nativeRate.INativeRateManager
+import com.senspark.game.data.manager.nativeRate.NativeRateStep
 import com.senspark.game.data.manager.pvp.IPvpRankingManager
 import com.senspark.game.data.manager.pvp.IPvpRankingRewardManager
 import com.senspark.game.data.manager.season.IPvpSeasonManager
 import com.senspark.game.data.manager.treassureHunt.ICoinRankingManager
 import com.senspark.game.data.model.config.UserPvpRankingReward
+import com.senspark.game.db.IShopDataAccess
 import com.senspark.game.db.IUserDataAccess
 import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.GameConstants.SCHEDULE_STATUS
@@ -45,6 +48,8 @@ class ExtensionSchedulerBnbPol(
     private val _scheduler = service.get<IScheduler>()
     private val _envManager = service.get<IEnvManager>()
     private val _userDataAccess = service.get<IUserDataAccess>()
+    private val _shopDataAccess = service.get<IShopDataAccess>()
+    private val _nativeRateManager = service.get<INativeRateManager>()
     private val _usersManager = netService.get<IUsersManager>()
     private val _logger = netService.get<IServerLogger>()
     private val _configManager = service.get<IGameConfigManager>()
@@ -65,6 +70,10 @@ class ExtensionSchedulerBnbPol(
     // overlap and read the same rows twice.
     private val _nativeReconcileRunning = AtomicBoolean(false)
 
+    // Same reason as above: the rate tick does an HTTP fetch plus a write, and a slow upstream must not
+    // stack ticks on top of each other.
+    private val _nativeRateRunning = AtomicBoolean(false)
+
     override fun initialize() {
         scheduleGetServerInfo()
         scheduleSwapTokenPrice()
@@ -77,6 +86,7 @@ class ExtensionSchedulerBnbPol(
         scheduleChangeDailyTask()
         scheduleRefreshMinPriceMarket()
         scheduleNativeWithdrawReconcile()
+        scheduleNativeRate()
     }
 
     /**
@@ -102,6 +112,97 @@ class ExtensionSchedulerBnbPol(
                 }
             }
         }
+    }
+
+    /**
+     * Keeps native prices tracking the market.
+     *
+     * Everything priced in native coin -- the rock pack, auto mine, the IAP gem shop -- is listed in
+     * BCOIN and converted through the single rate in config_native_rate. That rate used to be typed in
+     * by hand, which means it was only ever right on the day it was written: as the BCOIN/native pair
+     * moves, every one of those prices drifts away from its list price together. This rewrites it from
+     * the market, rate = bcoin_usd / native_usd, using the same quotes the gem swap already fetches.
+     *
+     * Nothing about how a price is computed changes -- fn_native_price and its callers are untouched.
+     * Only who maintains the number.
+     *
+     * Only this extension runs it: BSC and POLYGON are the only networks with a native balance, and
+     * both live here, so there is exactly one writer and no cross-zone coordination to get wrong.
+     *
+     * Two failure modes are deliberately survivable. An unusable quote leaves the stored rate alone --
+     * the last real market rate keeps being charged, which beats any substitute we could invent -- and
+     * a move larger than the configured percentage is clamped rather than refused, so a real move still
+     * arrives over the next few ticks while a bad quote never lands whole.
+     */
+    private fun scheduleNativeRate() {
+        val taskName = getTasksName("scheduleNativeRate")
+        val minutes = _configManager.getInt(NATIVE_RATE_UPDATE_MINUTES_KEY, DEFAULT_NATIVE_RATE_UPDATE_MINUTES)
+            .coerceIn(1, 24 * 60)
+        // Started a little after boot rather than at zero: scheduleSwapTokenPrice fires its own price
+        // fetch there, and two ticks racing at startup is pointless work on the slowest moment of the
+        // server's life. The rate is not needed before the first player opens a shop.
+        _scheduler.schedule(taskName, 30_000, minutes.minutes.inWholeMilliseconds.toInt()) {
+            if (!_nativeRateRunning.compareAndSet(false, true)) {
+                _logger.warn("[native-rate] previous tick still running, skipping this one")
+                return@schedule
+            }
+            _coroutineScope.scope.launch(Dispatchers.IO) {
+                try {
+                    updateNativeRate()
+                } catch (e: Exception) {
+                    _logger.error("[native-rate] tick failed: ${e.message}", e)
+                } finally {
+                    _nativeRateRunning.set(false)
+                }
+            }
+        }
+    }
+
+    private fun updateNativeRate() {
+        // Refetch rather than read whatever the swap scheduler last left in memory: that one runs on its
+        // own, much slower interval, and a rate computed from an hour-old quote is the thing this job
+        // exists to avoid. The fetch is one cached upstream call.
+        _swapTokenManager.reloadTokenPrice()
+
+        val maxChangePercent = _configManager
+            .getInt(NATIVE_RATE_MAX_CHANGE_PERCENT_KEY, DEFAULT_NATIVE_RATE_MAX_CHANGE_PERCENT)
+            .coerceIn(1, 100)
+
+        listOf(EnumConstants.DataType.BSC, EnumConstants.DataType.POLYGON).forEach { network ->
+            val quoted = _swapTokenManager.getNativePerBcoin(network)
+            if (quoted == null || quoted <= 0.0) {
+                _logger.warn("[native-rate] $network: no usable quote, keeping the stored rate")
+                return@forEach
+            }
+
+            val current = _nativeRateManager.nativePerBcoin(network)
+            val applied = NativeRateStep.clamp(current, quoted, maxChangePercent)
+            // The DB layer logs and swallows its own errors, so a failed write comes back as false rather
+            // than an exception: report the rate only once it is actually stored.
+            val stored = try {
+                _shopDataAccess.updateNativeRate(network, applied)
+            } catch (e: Exception) {
+                _logger.error("[native-rate] $network: failed to store rate $applied: ${e.message}", e)
+                false
+            }
+            if (!stored) {
+                _logger.error("[native-rate] $network: rate $applied was not stored, keeping the previous one")
+                return@forEach
+            }
+            if (applied != quoted) {
+                _logger.log(
+                    "[native-rate] $network: quote $quoted clamped to $applied " +
+                        "(max ${maxChangePercent}% from $current)"
+                )
+            } else {
+                _logger.log("[native-rate] $network: rate $applied (was $current)")
+            }
+        }
+
+        // Read back from the table rather than caching what we just computed: a write that silently did
+        // nothing, or a row changed by hand between ticks, must not leave the price lists showing a rate
+        // the charge would not use. Both sides then read the same number.
+        _nativeRateManager.setConfig(_shopDataAccess.loadNativeRateConfig())
     }
 
     /**
@@ -295,5 +396,20 @@ class ExtensionSchedulerBnbPol(
 
     private fun getTasksName(name: String): String {
         return "$name-BNB"
+    }
+
+    private companion object {
+        // game_config keys. The interval is read when the scheduler starts (restart to change it); the
+        // ceiling is read every tick.
+        const val NATIVE_RATE_UPDATE_MINUTES_KEY = "native_rate_update_minutes"
+        const val NATIVE_RATE_MAX_CHANGE_PERCENT_KEY = "native_rate_max_change_percent"
+
+        // 15 minutes: short enough that a swing cannot leave prices wrong for long, long enough that the
+        // price a player is looking at does not move under them mid-purchase.
+        const val DEFAULT_NATIVE_RATE_UPDATE_MINUTES = 15
+
+        // A single tick may move the rate by at most this much. Sized so an ordinary day never touches it
+        // and a broken quote cannot land in one step.
+        const val DEFAULT_NATIVE_RATE_MAX_CHANGE_PERCENT = 20
     }
 }

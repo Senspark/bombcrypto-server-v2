@@ -100,7 +100,7 @@ Error codes ([src/ErrorCode.ts](src/ErrorCode.ts)):
 | Method | Path | Query | Description |
 |---|---|---|---|
 | `GET` | `/total_coins` | `network` | Total BCOIN supply minus balances held at known contracts |
-| `GET` | `/coins_price` | — | Current USD prices for `{bnb_bcoin, bnb_sen, polygon_bcoin, polygon_sen}` from CoinGecko; falls back to Redis cache on upstream failure |
+| `GET` | `/coins_price` | — | Current USD prices for `{bnb_bcoin, bnb_sen, bnb_native, polygon_bcoin, polygon_sen, polygon_native}` from CoinGecko (one `/simple/price` call, cached 60s); falls back to the last known good set in Redis on upstream failure |
 | `GET` | `/circulating_supply` | `network` | Total coins minus balances held at `lockedAddresses` |
 | `GET` | `/coin_balance` | `network`, `address` | BCOIN balance for a wallet. CORS enabled |
 | `GET` | `/total_hero` | `network` | Current BHero token-id counter |
