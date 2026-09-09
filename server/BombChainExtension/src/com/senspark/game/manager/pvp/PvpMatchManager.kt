@@ -19,9 +19,14 @@ import com.senspark.game.pvp.info.IMatchHistoryInfo
 import com.senspark.game.pvp.info.MatchInfo
 import com.senspark.game.pvp.manager.*
 import com.senspark.game.service.IPvpDataAccess
-import com.senspark.game.utils.DefaultScheduler
 import com.senspark.game.utils.ISender
 import com.senspark.game.utils.SafeScheduler
+import com.senspark.game.service.*
+import com.senspark.game.declare.ErrorCode
+import com.senspark.game.exception.CustomException
+import com.senspark.game.manager.IUsersManager
+import com.senspark.game.pvp.config.PvpWagerTier
+import com.senspark.game.pvp.config.PvpWagerToken
 import com.smartfoxserver.v2.api.CreateRoomSettings
 import com.smartfoxserver.v2.entities.SFSRoomRemoveMode
 import com.smartfoxserver.v2.entities.User
@@ -105,6 +110,9 @@ class PvpMatchManager(
     private val _cache: ICacheService,
     private val _pvpDataAccess: IPvpDataAccess,
     private val _pvpRankManager: IRankManager,
+    private val _wagerService: IPvpWagerService,
+    private val _usersManager: IUsersManager,
+    private val _rankingService: IPvpRankingService,
 ) : IMatchManager {
     companion object {
         private const val MATCH_EXPIRY_TIME_IN_MILLIS = 300 * 1000 // 5 minutes per match token.
@@ -114,17 +122,34 @@ class PvpMatchManager(
     private val _matchMapLocker = Any()
     private val _matchMap = mutableMapOf<String, IMatchEntry>()
     private val _reportApi = PvpReportApi(_envManager)
-    //private val _resultApi = PvpResultApi(_logger, _envManager)
+    
+    // Shared executor for all PvP rooms to ensure scalability (Stress Test fix)
+    private val _sharedExecutor = ScheduledThreadPoolExecutor(Runtime.getRuntime().availableProcessors() * 4).apply {
+        removeOnCancelPolicy = true
+    }
 
     init {
         _scheduler.schedule("PvpMatchManager_update", 0, 1000) {
             val now = _timeManager.timestamp
             synchronized(_matchMapLocker) {
                 _matchMap.entries.removeIf { (id, entry) ->
+                    val duration = now - entry.startTimestamp
+                    
+                    // Orphaned Match Watchdog: Refund if match didn't finish within timeout
+                    if (!entry.isFinished && duration > PvpWagerConfig.MATCH_START_TIMEOUT * 1000) {
+                        _logger.log("[Pvp][Watchdog] Match $id timed out. Refunding players.")
+                        try {
+                            _wagerService.refundMatch(id)
+                        } catch (e: Exception) {
+                            _logger.error("[Pvp][Watchdog] Failed to refund match $id: ${e.message}")
+                        }
+                        entry.finish(PvpResultInfo(id = id, results = emptyList())) // Force finish
+                    }
+
                     if (!entry.isFinished) {
                         return@removeIf false
                     }
-                    val duration = now - entry.startTimestamp
+                    
                     if (duration < MATCH_EXPIRY_TIME_IN_MILLIS) {
                         return@removeIf false
                     }
@@ -159,6 +184,22 @@ class PvpMatchManager(
     override fun join(user: User) {
         _logger.log("[Pvp][PvpMatchManager:join] user=$user")
         val info = user.getJoinPVPMatchInfo()
+        
+        // FASE 2: Escrow Debit
+        if (info.wagerMode == 1) {
+            val tier = PvpWagerTier.from(info.wagerTier)
+            val token = PvpWagerToken.from(info.wagerToken)
+            val userId = _usersManager.getUserId(user.name)
+            if (userId == -1) {
+                throw CustomException("User not found: ${user.name}", ErrorCode.USER_NOT_FOUND)
+            }
+            
+            if (!_wagerService.debitEscrow(info.id, userId, tier, token)) {
+                throw CustomException("Insufficient funds for wager", ErrorCode.PVP_JOIN_FAILED)
+            }
+            _logger.log("[Pvp][Wager] Debited escrow for user=$userId, match=${info.id}, amount=${tier.amount}")
+        }
+
         val aesKey = getAESKey(user.name)
         user.setProperty(UserPvpProperty.AES_KEY, aesKey)
         synchronized(_matchMapLocker) {
@@ -168,7 +209,15 @@ class PvpMatchManager(
                     require(false) { "Observer cannot create a room" }
                 }
                 // Create room immediately.
-                val extension = createRoom(info)
+                val extension = try {
+                    createRoom(info)
+                } catch (e: Exception) {
+                    _logger.error("[Security] Room creation failed for matchId=${info.id}. Refunding players.")
+                    if (info.wagerMode == 1) {
+                        _wagerService.refundMatch(info.id)
+                    }
+                    throw e
+                }
                 MatchEntry(info.timestamp, extension, _messageBridge)
             }
             item.join(user)
@@ -203,13 +252,33 @@ class PvpMatchManager(
         // Database.
         _databaseManager.addMatch(resultInfo, stats)
 
-        // delay 2 giây để tránh trường hợp client nhận PVP_FINISH_MATCH sau entry.finish
+        // Delay 2 seconds to ensure client receives result before match entry is destroyed
         CoroutineScope(Dispatchers.Default).launch {
             delay(2000)
 
             synchronized(_matchMapLocker) {
                 val entry = _matchMap[resultInfo.id] ?: return@synchronized
+                
+                // FASE 2: Prize Distribution
+                if (resultInfo.wagerMode == 1) {
+                    try {
+                        _wagerService.distributePrize(resultInfo)
+                        _logger.log("[Pvp][Wager] Distributed prizes for match=${resultInfo.id}")
+                    } catch (e: Exception) {
+                        _logger.log("[Pvp][Wager][ERROR] Failed to distribute prize for match=${resultInfo.id}: ${e.message}")
+                    }
+                }
+
                 _logger.log("[Pvp][MatchEntry:finish] id=${resultInfo.id}")
+                
+                // FASE 5: Ranking Update
+                try {
+                    _rankingService.updateRankings(resultInfo)
+                    _logger.log("[Pvp][Ranking] Updated rankings for match=${resultInfo.id}")
+                } catch (e: Exception) {
+                    _logger.log("[Pvp][Ranking][ERROR] Failed to update rankings for match=${resultInfo.id}: ${e.message}")
+                }
+
                 // Must call finish latest, this will also destroy the current thread.
                 entry.finish(resultInfo)
             }
@@ -228,6 +297,9 @@ class PvpMatchManager(
             team = info.team,
             slot = info.info.size,
             info = info.info,
+            wagerMode = info.wagerMode,
+            wagerTier = info.wagerTier,
+            wagerToken = info.wagerToken,
         )
         val settings = CreateRoomSettings().apply {
             groupId = "pvp"
@@ -246,7 +318,6 @@ class PvpMatchManager(
         val room = _roomCreator.createRoom(settings)
         val extension = room.extension as IRoomExtension
         extension.initialize(object : IMatchFactory {
-            private val _executor = ScheduledThreadPoolExecutor(2)
             private lateinit var _scheduler: IScheduler
             private lateinit var _controller: IMatchController
             private lateinit var _handlers: List<RoomHandler>
@@ -255,8 +326,8 @@ class PvpMatchManager(
             override val handlers get() = _handlers
 
             override fun initialize(logger: ILogger) {
-                // Force MatchController created in the same class loader with PvpZoneExtension.
-                _scheduler = SafeScheduler(logger, DefaultScheduler(logger, _executor))
+                // Use shared executor from PvpMatchManager for better resource management
+                _scheduler = SafeScheduler(logger, DefaultScheduler(logger, _sharedExecutor))
                 _controller = PvpMatchController(
                     observerInfo,
                     settings.maxSpectators,
@@ -264,7 +335,7 @@ class PvpMatchManager(
                     logger,
                     this@PvpMatchManager,
                     _messageBridge,
-                    createMapGenerator(),
+                    createMapGenerator(info.mode),
                     _pvpRankManager,
                     _scheduler
                 )
@@ -285,14 +356,14 @@ class PvpMatchManager(
 
             override fun destroy() {
                 _scheduler.clearAll()
-                _executor.shutdownNow()
+                // Do NOT shut down shared executor here
             }
         }, _logger)
         return extension
     }
 
-    private fun createMapGenerator(): IMapGenerator {
-        val mapConfig = ConstantMapConfig()
+    private fun createMapGenerator(mode: PvpMode): IMapGenerator {
+        val mapConfig = DynamicMapConfig(mode)
         val blockHealthManager = DefaultBlockHealthManager(_pvpDataAccess.queryPvPBlockHealth())
         val chestDropRate = _pvpDataAccess.queryPvPChestDropRate()
         val itemDropRate = _pvpDataAccess.queryPvPItemDropRate()

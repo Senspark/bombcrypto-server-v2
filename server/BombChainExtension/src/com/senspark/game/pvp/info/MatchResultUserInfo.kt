@@ -20,4 +20,5 @@ class MatchResultUserInfo(
     @SerialName("used_boosters") override val usedBoosters: Map<Int, Int>,
     @SerialName("quit") override val quit: Boolean,
     @SerialName("hero") override val hero: IMatchResultHeroInfo,
+    @SerialName("ranking") override val ranking: Int,
 ) : IMatchResultUserInfo

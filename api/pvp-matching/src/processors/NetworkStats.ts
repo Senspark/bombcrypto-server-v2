@@ -26,23 +26,34 @@ export default class NetworkStats implements INetworkStats {
         return Array.from(this.pings.keys());
     }
 
-    static findLowestPingZone(a: INetworkStats, b: INetworkStats): string {
-
-        if (a.lowestPingZone === b.lowestPingZone) {
-            return a.lowestPingZone;
-        }
+    static findLowestPingZone(...stats: INetworkStats[]): string {
+        if (stats.length === 0) return DEFAULT_ZONE;
+        if (stats.length === 1) return stats[0].lowestPingZone;
 
         // The average of each user's zone is used to select the zone with the lowest pings
-        const bothPings = new Map<string, number>();
-        const bothZones = new Set<string>([...a.zones, ...b.zones]);
-        bothZones.forEach(z => {
-            if (a.pings.has(z) && b.pings.has(z)) {
-                const avg = ((a.pings.get(z) ?? PING_THRESHOLD) + (b.pings.get(z) ?? PING_THRESHOLD)) / 2;
-                bothPings.set(z, avg);
+        const combinedPings = new Map<string, number>();
+        const allZones = new Set<string>(stats.flatMap(s => s.zones));
+        
+        allZones.forEach(z => {
+            let allHaveZone = true;
+            let sum = 0;
+            for (const s of stats) {
+                if (!s.pings.has(z)) {
+                    allHaveZone = false;
+                    break;
+                }
+                sum += s.pings.get(z) ?? PING_THRESHOLD;
+            }
+            if (allHaveZone) {
+                combinedPings.set(z, sum / stats.length);
             }
         });
 
-        return NetworkStats.getLowestPingZone(bothPings);
+        if (combinedPings.size === 0) {
+            return stats[0].lowestPingZone;
+        }
+
+        return NetworkStats.getLowestPingZone(combinedPings);
     }
 
     private static getLowestPingZone(pings: PingData): string {

@@ -219,7 +219,7 @@ class UserBlockRewardManager(
     }
 
     // COIN network
-    // Star core của RON và BAS sẽ có network type là RON và BAS để phân biệt với network bsc và polygon do dùng chung ví và client
+    // Star core của RON và BAS sẽ có network type là RON và BAS để phân biệt with network bsc và polygon do dùng chung ví và client
     override fun getTotalCoinFiHaving(dataType: DataType): Float {
         if(dataType.isEthereumAirdropUser()) {
             return getRewardValue(BLOCK_REWARD_TYPE.COIN, dataType)
@@ -307,5 +307,18 @@ class UserBlockRewardManager(
             }
             else -> throw CustomException("fun checkEnoughReward ::TODO ${rewardType.name}")
         }
+    }
+
+    override fun deductReward(value: Float, rewardType: BLOCK_REWARD_TYPE, dataType: DataType) {
+        val rewardHaving = getRewardsHaving()
+        if (!rewardHaving.containsKey(rewardType) || !rewardHaving[rewardType]!!.containsKey(dataType)) {
+            throw CustomException("Not enough $value ${rewardType.name} ($dataType)")
+        }
+        val uReward = rewardHaving[rewardType]!![dataType]!!
+        if (uReward.values < value) {
+            throw CustomException("Not enough $value ${rewardType.name} ($dataType)")
+        }
+        uReward.deductValues(value)
+        _mediator.saveLater(SAVE.REWARD)
     }
 }

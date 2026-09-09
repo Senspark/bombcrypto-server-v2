@@ -14,6 +14,14 @@ interface IMatchRuleInfoClient {
     val can_draw: Boolean
 
     val is_tournament: Boolean
+
+    val game_mode: Int
+
+    val wager_mode: Int
+ 
+    val wager_tier: Int
+ 
+    val wager_token: Int
 }
 
 interface IMatchRuleInfo {
@@ -30,4 +38,12 @@ interface IMatchRuleInfo {
     val canDraw: Boolean
 
     val isTournament: Boolean
+
+    val gameMode: Int
+
+    val wagerMode: Int
+ 
+    val wagerTier: Int
+ 
+    val wagerToken: Int
 }

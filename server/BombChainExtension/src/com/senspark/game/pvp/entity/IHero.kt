@@ -74,6 +74,7 @@ interface IHero : IEntity {
     val damageSource: HeroDamageSource
     val items: Map<HeroItem, Int>
     val collectedItems: List<Int>
+    val deathTimestamp: Long
 
     /** Vertical position. */
     val x: Float

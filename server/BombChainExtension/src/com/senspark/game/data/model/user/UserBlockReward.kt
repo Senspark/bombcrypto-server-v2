@@ -32,6 +32,11 @@ class UserBlockReward {
         this.totalValues += values
     }
 
+    @Synchronized
+    fun deductValues(values: Float) {
+        this.values -= values
+    }
+
     fun getRemainTimeCanClaim(nextTimeCanClaimReward: Int): Int {
         val currTime = System.currentTimeMillis()
         val nextTimeCanClaim = lastTimeClaimSuccess + nextTimeCanClaimReward * 60 * 1000 //m * 60s * 1000ms

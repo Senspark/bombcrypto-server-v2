@@ -36,4 +36,7 @@ interface IMatchResultUserInfo {
 
     /** Hero info. */
     val hero: IMatchResultHeroInfo
+
+    /** Final ranking in match (1st, 2nd, 3rd...). */
+    val ranking: Int
 }

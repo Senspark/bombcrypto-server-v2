@@ -30,6 +30,10 @@ class JoinPvpQueueRequest(
     @SerialName("boosters") val boosters: List<Int>,
     @SerialName("pings") private val _pings: List<NetworkInfo>,
     @SerialName("avatar") val avatar: Int? = null,
+    @SerialName("wager_mode") val wagerMode: Int = 0,
+    @SerialName("wager_tier") val wagerTier: Int = 0,
+    @SerialName("wager_token") val wagerToken: Int = 0,
+    @SerialName("game_mode") val gameMode: Int = 1,
 ) {
     @Transient
     val pings = _pings.associate { it.zoneId to it.ping }
@@ -64,7 +68,11 @@ class PvpJoinQueueHandler : BaseEncryptRequestHandler() {
                 request.heroId,
                 request.boosters,
                 request.pings,
-                request.avatar?: 0, //Support client cũ không gửi avatar
+                request.avatar ?: 0, //Support client cũ không gửi avatar
+                request.gameMode,
+                request.wagerMode,
+                request.wagerTier,
+                request.wagerToken
             )
 
             trGameplayManager.joinPvp(controller.userId, controller.dataType)

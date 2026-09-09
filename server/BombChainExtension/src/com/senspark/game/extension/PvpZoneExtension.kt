@@ -41,6 +41,26 @@ class PvpZoneExtension : SFSExtension(), IApiExtension {
     
     private fun registerScheduledTasks() {
         updateServerInfo()
+        registerRankingResetTask()
+        registerFeeProcessingTask()
+    }
+    
+    private fun registerFeeProcessingTask() {
+        allServices.scheduler.schedule("feeProcessingTask", 0, 3600 * 1000) { // Every hour
+            val processor = com.senspark.game.pvp.service.PvpFeeProcessor(
+                allServices.database,
+                allServices.logger,
+                allServices.pvpDataAccess.statement // Accessing statement from dataAccess
+            )
+            processor.processPendingFees()
+        }
+    }
+    
+    private fun registerRankingResetTask() {
+        allServices.scheduler.schedule("rankingResetTask", 0, 3600 * 1000) { // Every hour
+            val task = com.senspark.game.pvp.manager.PvpRankingResetTask(allServices.database, allServices.logger)
+            task.run()
+        }
     }
     
     private fun updateServerInfo(){

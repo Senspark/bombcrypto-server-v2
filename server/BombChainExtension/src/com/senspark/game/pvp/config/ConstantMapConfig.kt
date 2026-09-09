@@ -20,4 +20,6 @@ class ConstantMapConfig : IMapConfig {
         FallingBlockPattern.TopLeftDualCcw,
     )
     override val explodeDuration = 3000
+    override val maxPlayers = 2
+    override val mapPatternId = "SMALL_1V1"
 }

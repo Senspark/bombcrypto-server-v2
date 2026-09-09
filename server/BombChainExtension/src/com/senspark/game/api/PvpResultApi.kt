@@ -76,6 +76,7 @@ class PvpResultUserInfoClient(
     override val damageSource: Int,
     override val rewards: Map<Int, Float>,
     override val collectedItems: List<Int>,
+    override val ranking: Int,
 ) : IPvpResultUserInfoClient
 
 @Serializable
@@ -91,6 +92,11 @@ class PvpResultInfoClient(
     override val rule: IMatchRuleInfoClient,
     override val team: List<IMatchTeamInfo>,
     override val info: List<IPvpResultUserInfoClient>,
+    override val wagerMode: Int = 0,
+    override val wagerTier: Int = 0,
+    override val wagerToken: Int = 0,
+    override var signature: String? = null,
+    override var integrityLogs: String? = null,
 ) : IPvpResultInfoClient {
     companion object {
         fun parse(data: IPvpResultInfoClient): String {
@@ -117,6 +123,7 @@ class PvpResultUserInfo(
     override val damageSource: Int,
     override val rewards: Map<Int, Float>,
     override val collectedItems: List<Int>,
+    override val ranking: Int,
 ) : IPvpResultUserInfo
 
 @Serializable
@@ -132,6 +139,11 @@ class PvpResultInfo(
     override val rule: IMatchRuleInfo,
     override val team: List<IMatchTeamInfo>,
     override val info: List<IPvpResultUserInfo>,
+    override val wagerMode: Int = 0,
+    override val wagerTier: Int = 0,
+    override val wagerToken: Int = 0,
+    override var signature: String? = null,
+    override var integrityLogs: String? = null,
 ) : IPvpResultInfo {
     companion object {
         fun parse(data: ISFSObject): IPvpResultInfo {

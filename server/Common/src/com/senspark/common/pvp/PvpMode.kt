@@ -27,7 +27,9 @@ enum class PvpMode(val value: Int) {
     Team_2v2(1 shl 3), // Team size=2, room size=4 (i.e. 2v2).
     FFA_2_B3(1 shl 4), // Team size=1, room size=2, round=3, non-drawable (i.e. 1v1, bo3, non-drawable).
     FFA_2_B5(1 shl 5), // Team size=1, room size=2, round=5, non-drawable (i.e. 1v1, bo5, non-drawable).
-    FFA_2_B7(1 shl 6); // Team size=1, room size=2, round=7, non-drawable (i.e. 1v1, bo7, non-drawable).
+    FFA_2_B7(1 shl 6), // Team size=1, room size=2, round=7, non-drawable (i.e. 1v1, bo7, non-drawable).
+    Team_3v3(1 shl 7), // Team size=3, room size=6 (i.e. 3v3).
+    BATTLE_ROYALE(1 shl 8); // Team size=1, room size=6 (i.e. 6 players FFA).
 
     companion object {
         private val types = PvpMode.values().associateBy { it.value }
