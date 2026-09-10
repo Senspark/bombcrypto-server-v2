@@ -835,6 +835,10 @@ COPY public.config_hero_upgrade_power (rare, datas) FROM stdin;
 3	[0,1,2,3,5]
 4	[0,1,2,3,5]
 5	[0,1,2,3,5]
+6	[0,1,2,3,5]
+7	[0,1,2,3,5]
+8	[0,1,2,3,5]
+9	[0,1,2,3,5]
 \.
 
 
