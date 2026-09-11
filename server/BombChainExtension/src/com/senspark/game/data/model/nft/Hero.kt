@@ -112,6 +112,12 @@ class Hero(
         }
 
     val isFakeS get() = _helper.isFakeS(this)
+
+    /// Stamina base mais o ganho dos niveis 6-10. O campo [stamina] continua cru, igual a
+    /// [bombPower] em relacao a getTotalPower.
+    val totalStamina get() = _helper.getTotalStamina(rarity, level, stamina)
+
+    val maxEnergy get() = _helper.getMaxEnergy(rarity, level, stamina)
     
     private val percentSaveEnergy = _helper.getPercentSaveEnergy(this)
 
@@ -125,7 +131,6 @@ class Hero(
     }
 
     fun addEnergy(value: Int): Int {
-        val maxEnergy = stamina * 50
         val energyRecovery = min(value, maxEnergy - energy)
         _energy += energyRecovery
         return energyRecovery

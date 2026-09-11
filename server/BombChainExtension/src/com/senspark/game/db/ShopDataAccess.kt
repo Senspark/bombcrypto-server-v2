@@ -109,6 +109,20 @@ class ShopDataAccess(
         return result
     }
 
+    override fun loadHeroUpgradeStamina(): Map<Int, HeroUpgradeStamina> {
+        val result: MutableMap<Int, HeroUpgradeStamina> = HashMap()
+        val statement = "SELECT * FROM config_hero_upgrade_stamina order by rare;"
+        executeQuery(statement, arrayOf()) {
+            val upgradeStamina = HeroUpgradeStamina()
+            upgradeStamina.rare = it.getInt("rare")
+            val datas = it.getString("datas")
+            val costLst = deserializeList<Int>(datas)
+            upgradeStamina.staminas = costLst
+            result[upgradeStamina.rare] = upgradeStamina
+        }
+        return result
+    }
+
     override fun loadBomberAbility(): Map<Int, HeroAbilityConfig> {
         val result: MutableMap<Int, HeroAbilityConfig> = HashMap()
         val statement = "SELECT * FROM config_bomber_ability"
