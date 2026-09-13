@@ -35,6 +35,13 @@ class ActiveHouseV2Handler : BaseEncryptRequestHandler() {
             null
         )
 
+        // A house rented out to another player stays blocked for its owner (and
+        // for whoever buys it mid-contract) until the rental ends.
+        val rental = factoryDataAccess.gameDataAccess.findActiveRental(controller.dataType, houseId)
+        if (rental != null && rental.renterUid != controller.userId) {
+            return sendError(controller, requestId, ErrorCode.HOUSE_RENTED, null)
+        }
+
         val houseGenId = newHouse.details.details
         val oldHouseActive: House? = uHouseController.activeHouse
         //TH chua co nha nao active
@@ -42,7 +49,9 @@ class ActiveHouseV2Handler : BaseEncryptRequestHandler() {
             newHouse.isActive = true
             val arr = ArrayList<House>()
             arr.add(newHouse)
-            factoryDataAccess.gameDataAccess.updateUserHouseStage(controller.dataType, controller.userId, arr)
+            // Routed through the manager so a rented house is persisted in
+            // house_rental instead of user_house (whose row is the owner's).
+            uHouseController.persistHouseStage(arr)
             return sendUpdateActiveHouse(controller, requestId, houseGenId, ArrayList())
         }
 

@@ -39,10 +39,7 @@ class SyncHouseV4Handler : BaseEncryptRequestHandler() {
         val houses = houseController.toArray()
         val sfsHouses = SFSArray()
         for (house in houses) {
-            val objData = SFSObject()
-            objData.putUtfString(SFSField.House_Gen_Id, house.details.details)
-            objData.putInt(SFSField.Active, if (house.isActive) 1 else 0)
-            sfsHouses.addSFSObject(objData)
+            sfsHouses.addSFSObject(houseController.toSfsObject(house))
         }
         val dataToSend = SFSObject()
         dataToSend.putSFSArray(SFSField.Houses, sfsHouses)
@@ -57,11 +54,7 @@ class SyncHouseV4Handler : BaseEncryptRequestHandler() {
 
         val sfsHouses = SFSArray()
         for (house in houses) {
-            val objData = SFSObject()
-            objData.putUtfString(SFSField.House_Gen_Id, house.details.details)
-            objData.putInt(SFSField.Active, if (house.isActive) 1 else 0)
-            if (house.endTimeRent != 0L) objData.putLong("end_time_rent", house.endTimeRent)
-            sfsHouses.addSFSObject(objData)
+            sfsHouses.addSFSObject(houseController.toSfsObject(house))
         }
 
         val oldSeasonHeroes = SFSArray()

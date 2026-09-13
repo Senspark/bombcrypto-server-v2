@@ -52,6 +52,9 @@ class StreamKeys {
     companion object {
         const val AP_BL_HERO_STAKE_STR = "AP_BL_HERO_STAKE_STR"
 
+        // marketplace backend -> game server (P2P house rental)
+        const val AP_RENTAL_SYNC = "AP_RENTAL_SYNC"
+
         const val SV_GAME_JOIN_PVP_STR = "SV_GAME_JOIN_PVP_STR" // server game -> api pvp-matching
         const val SV_GAME_LEAVE_PVP_STR = "SV_GAME_LEAVE_PVP_STR" // server game -> api pvp-matching
 
