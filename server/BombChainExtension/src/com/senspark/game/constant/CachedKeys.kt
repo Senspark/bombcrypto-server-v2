@@ -44,6 +44,15 @@ class CachedKeys {
 }
 
 /**
+ * Kênh Redis Pub/Sub: không lưu vào dataset, subscriber offline thì message mất.
+ */
+class ChannelKeys {
+    companion object {
+        const val SV_TH_MODE_RACE_CHANNEL = "SV_TH_MODE_RACE_CHANNEL" // server game -> api th-mode-server
+    }
+}
+
+/**
  * Tên được đặt theo nguồn phát event này:
  * - AP: Api backend
  * - SV: Server Smartfox
@@ -70,7 +79,6 @@ class StreamKeys {
         const val AP_BAS_TRANSACTION = "AP:BAS:MERCHANT:TRANSACTION"//api deposit bas -> server game.
         const val AP_VIC_TRANSACTION = "AP:VIC:MERCHANT:TRANSACTION"//api deposit vic -> server game.
 
-        const val SV_TH_MODE_RACE = "SV_TH_MODE_RACE"
         const val SV_KICK_USER = "SV_KICK_USER"
         const val SV_ADMIN_COMMAND = "SV:ADMIN_COMMAND"
         

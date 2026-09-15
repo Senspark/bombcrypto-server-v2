@@ -70,7 +70,7 @@ class CalculateRewardManager(
         } else {
             pool[ticketId]!!.ticketCount++
         }
-        _thModeRaceBroadcaster.sendUserToRedis(
+        _thModeRaceBroadcaster.record(
             raceId,
             userId.userId,
             userId.userName,

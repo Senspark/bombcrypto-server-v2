@@ -4,7 +4,15 @@ import com.senspark.common.service.IGlobalService
 import com.senspark.common.service.IService
 
 interface IMessengerService: IService, IGlobalService {
-    fun send(key: String, message: String)
+    /**
+     * @param maxLen khác null thì XADD kèm `MAXLEN ~ maxLen` để stream không phình vô hạn
+     */
+    fun send(key: String, message: String, maxLen: Long? = null)
+
+    /**
+     * Redis Pub/Sub, fire-and-forget: không lưu vào dataset, không có lịch sử
+     */
+    fun publish(channel: String, message: String)
 
     /**
      * Callback mà return true thì sẽ tự động xoá message

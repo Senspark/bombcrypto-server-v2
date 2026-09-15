@@ -292,6 +292,7 @@ class ServicesInitializerBnbPol(
                 g.get<ITHModeDataAccess>(),
                 logger,
                 g.get<IMessengerService>(),
+                g.get<IScheduler>(),
                 n.get<IHeroStakeManager>(),
                 _extension
             )

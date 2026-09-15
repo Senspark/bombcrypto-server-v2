@@ -27,14 +27,30 @@ class MessengerService(
         _scheduler.schedule("Messengers", 0, SCHEDULER_TIME, ::listenToStreams)
     }
 
-    override fun send(key: String, message: String) {
+    override fun send(key: String, message: String, maxLen: Long?) {
         try {
             val cmd = _connection.sync()
             val data = HashMap<String, String>()
             data["data"] = message
-            cmd.xadd(key, data)
+            if (maxLen == null) {
+                cmd.xadd(key, data)
+            } else {
+                cmd.xadd(key, XAddArgs.Builder.maxlen(maxLen).approximateTrimming(), data)
+            }
         } catch (ex: Exception) {
             _logger.error(ex)
+        }
+    }
+
+    override fun publish(channel: String, message: String) {
+        try {
+            _connection.async().publish(channel, message).whenComplete { _, ex ->
+                if (ex != null) {
+                    _logger.error("[MESSENGER_SERVICE] PUBLISH $channel ERR: ${ex.message}")
+                }
+            }
+        } catch (ex: Exception) {
+            _logger.error("[MESSENGER_SERVICE] PUBLISH $channel ERR: ${ex.message}")
         }
     }
 
