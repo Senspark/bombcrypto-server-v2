@@ -91,5 +91,8 @@ class StreamKeys {
         // Native (BNB / POL) deposit + withdraw — server game <-> ap-deposit-native.
         const val SV_DEPNATIVE_REQUEST_STR = "SV_DEPNATIVE_REQUEST_STR"   // server -> signer: counters read / withdraw-sign
         const val AP_DEPNATIVE_RESULT_STR = "AP_DEPNATIVE_RESULT_STR"     // signer -> server: result, by correlationId
+
+        // map-service -> server: bomb explode results (keep in sync with map-service StreamKeys).
+        const val AP_MAP_EXPLODE_RESULT_STR = "AP_MAP_EXPLODE_RESULT_STR"
     }
 }

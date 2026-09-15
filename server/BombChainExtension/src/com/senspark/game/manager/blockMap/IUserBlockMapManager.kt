@@ -8,6 +8,15 @@ import com.senspark.game.exception.CustomException
 import com.smartfoxserver.v2.entities.data.ISFSArray
 import com.smartfoxserver.v2.entities.data.ISFSObject
 
+enum class PlantBombResult {
+    OK,
+    TARGET_MISMATCH,
+    TOO_FAST,
+    NO_BOMB_TO_PLANT,
+}
+
+data class TakenBomb(val cell: Pair<Int, Int>, val plantedAt: Long)
+
 interface IUserBlockMapManager {
     val locker: Any
     fun saveMap(userId: Int, needSave: MutableMap<EnumConstants.SAVE, Boolean>)
@@ -23,4 +32,17 @@ interface IUserBlockMapManager {
 
     fun canSetBoom(col: Int, row: Int): Boolean
     fun explode(bbm: Hero, colBoom: Int, rowBoom: Int, blockArr: ISFSArray): ISFSObject
+
+    // ================== V6 server-assigned bomb targeting ==================
+    // See server/docs/explode_v6.md. Callers must hold `locker`.
+
+    fun getOrCreateTarget(heroId: Int, seed: Pair<Int, Int>?): Pair<Int, Int>?
+
+    fun plantBomb(heroId: Int, bombNo: Int, col: Int, row: Int, speed: Int, bombCount: Int): PlantBombResult
+
+    fun takePlantedBomb(heroId: Int, bombNo: Int, col: Int, row: Int): TakenBomb?
+
+    fun rejectTarget(heroId: Int, col: Int, row: Int)
+
+    fun debugTarget(heroId: Int): Pair<Int, Int>?
 }

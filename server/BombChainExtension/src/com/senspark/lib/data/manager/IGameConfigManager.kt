@@ -6,6 +6,17 @@ interface IGameConfigManager : IGlobalService {
     val maintenanceTimestamp: Long
     val isKickWhenHack: Int
     val timeBombExplode: Int
+
+    // START_PLANT_BOMB move-time check — see server/docs/explode_v6.md.
+    val isCheckPlantMoveSpeed: Boolean
+    // false = detect and log only, never reject.
+    val isRejectPlantTooFast: Boolean
+    val plantMoveSpeedToleranceMs: Int
+    // e.g. 1.15 = allow moving 15% faster than the speed stat.
+    val plantMoveSpeedMultiplier: Float
+    // Floor on tiles/second, avoids divide by zero.
+    val plantMoveSpeedMin: Float
+
     val nextTimeCanClaimReward: Int
     val minPve2Reward: Float
     val maxPve2Reward: Float

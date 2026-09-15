@@ -60,4 +60,7 @@ object HandlerCommand {
     const val UpgradeShieldLevelResponse = "UPGRADE_SHIELD_LEVEL_RESPONSE"
 
     const val BheroStakePush = "BHERO_STAKE_PUSH"
+
+    // Server-timed bomb explode push (see server/docs/explode_v6.md).
+    const val ResponseExplode = "RESPONSE_EXPLODE"
 }

@@ -1,5 +1,6 @@
 package com.senspark.game.extension.helper
 
+import com.senspark.common.cache.IFastStreamRedis
 import com.senspark.common.cache.IMessengerService
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.declare.SFSCommand
@@ -96,6 +97,7 @@ import com.senspark.game.handler.upgradeHero.UpgradeHeroTrHandler
 import com.senspark.game.handler.user.GetOtherUserInfoHandler
 import com.senspark.game.handler.user.MarkItemViewedHandler
 import com.senspark.game.manager.IUsersManager
+import com.senspark.game.manager.blockMap.mapservice.IMapExplodeResultRouter
 import com.smartfoxserver.v2.entities.Zone
 import com.smartfoxserver.v2.extensions.SFSExtension
 
@@ -131,6 +133,8 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V2, UserAutoMinePackagePriceV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V3, UserAutoMinePackagePriceV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.START_EXPLODE_V5, StartExplodeV5Handler::class.java)
+        helper.addRequestHandler(SFSCommand.START_PLANT_BOMB, StartPlantBombHandler::class.java)
+        helper.addRequestHandler(SFSCommand.GET_BOMB_TARGET, GetBombTargetHandler::class.java)
         helper.addRequestHandler(SFSCommand.SEND_CLIENT_LOG, SendClientLogHandler::class.java)
 
         // pvp
@@ -286,6 +290,13 @@ class ServerInitializerAll(
         messenger.listen(StreamKeys.SV_ADMIN_COMMAND) { message ->
             adminCmdStreamProcessor.process(message.value)
             false
+        }
+
+        // map-service explode results -> owning UserBlockMapManagerV2 (FastStreamRedis for low latency).
+        val mapExplodeResultRouter = _services.get<IMapExplodeResultRouter>()
+        val fastStreamRedis = _services.get<IFastStreamRedis>()
+        fastStreamRedis.listen(StreamKeys.AP_MAP_EXPLODE_RESULT_STR) { message ->
+            mapExplodeResultRouter.handle(message.value)
         }
     }
 

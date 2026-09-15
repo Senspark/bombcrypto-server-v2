@@ -213,6 +213,9 @@ object SFSCommand {
     const val GET_COIN_RANKING_V2: String = "GET_COIN_RANKING_V2"
     const val GET_ALL_SEASON_COIN_RANKING_V2: String = "GET_ALL_SEASON_COIN_RANKING_V2"
     const val START_EXPLODE_V5: String = "START_EXPLODE_V5"
+    // V6 server-assigned targeting; explode is pushed via RESPONSE_EXPLODE (see server/docs/explode_v6.md).
+    const val START_PLANT_BOMB: String = "START_PLANT_BOMB"
+    const val GET_BOMB_TARGET: String = "GET_BOMB_TARGET"
     const val GET_COIN_LEADERBOARD_CONFIG_V2: String = "GET_COIN_LEADERBOARD_CONFIG_V2"
 
     const val GET_INVOICE_DEPOSIT_TON_V2: String = "GET_INVOICE_DEPOSIT_TON_V2"

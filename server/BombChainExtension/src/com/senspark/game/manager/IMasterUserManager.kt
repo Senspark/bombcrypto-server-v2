@@ -5,6 +5,7 @@ import com.senspark.game.manager.ads.IUserBonusRewardManager
 import com.senspark.game.manager.adventure.IUserAdventureModeManager
 import com.senspark.game.manager.autoMine.UserAutoMineManager
 import com.senspark.game.manager.blockMap.IUserBlockMapManager
+import com.senspark.game.manager.blockMap.IUserBlockMapManagerV2
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
 import com.senspark.game.manager.blockReward.IUserMiningModeManager
 import com.senspark.game.manager.claim.IClaimManager
@@ -36,6 +37,7 @@ interface IMasterUserManager {
     val houseManager: IUserHouseManager
     val userOldItemManager: IUserOldItemManager
     val userBlockMapManager: IUserBlockMapManager
+    val userBlockMapManagerV2: IUserBlockMapManagerV2
     val blockRewardManager: IUserBlockRewardManager
     val userStakeManager: IUserStakeManager
     val userDepositedTransactionManager: IUserDepositedTransactionManager

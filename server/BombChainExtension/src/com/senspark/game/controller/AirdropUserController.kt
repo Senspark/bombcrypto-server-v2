@@ -211,6 +211,7 @@ class AirdropUserController(
                 EnumMap(EnumConstants.BLOCK_REWARD_TYPE::class.java),
                 EnumConstants.MatchResult.OUT
             )
+            masterUserManager.userBlockMapManagerV2.notifySessionEnd()
         }
         _allHeroesFiManager.removeSubManager(_userInfo.id, _userInfo.dataType)
         if (_inGame) {
@@ -325,7 +326,7 @@ class AirdropUserController(
         _lastTimeSaveGame = Date()
         saveEnergy()
         saveReward()
-        masterUserManager.userBlockMapManager.saveMap(userId, _needSave)
+        masterUserManager.userBlockMapManagerV2.saveMap(userId, _needSave)
     }
 
     override fun ban(isBan: Int, banReason: String, banExpired: Timestamp?) {

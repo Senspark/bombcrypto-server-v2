@@ -21,8 +21,13 @@ class SmartFoxScheduler(
         if (_runningTasks.containsKey(key)) {
             clear(key)
         }
+        // Self-evict so one-shot keys don't grow _runningTasks unbounded.
         val task = _scheduler.schedule({
-            runAction(action)
+            try {
+                runAction(action)
+            } finally {
+                _runningTasks.remove(key)
+            }
         }, delay, TimeUnit.MILLISECONDS)
         _runningTasks[key] = task
     }

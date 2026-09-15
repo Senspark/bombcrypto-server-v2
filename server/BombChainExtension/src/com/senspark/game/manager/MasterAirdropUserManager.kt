@@ -10,6 +10,8 @@ import com.senspark.game.manager.ads.UserBonusRewardManager
 import com.senspark.game.manager.adventure.UserAdventureModeManager
 import com.senspark.game.manager.autoMine.UserAutoMineManager
 import com.senspark.game.manager.blockMap.UserBlockMapManagerImpl
+import com.senspark.game.manager.blockMap.UserBlockMapManagerV2
+import com.senspark.game.manager.blockMap.mapservice.MapServiceClient
 import com.senspark.game.manager.blockReward.UserBlockRewardManager
 import com.senspark.game.manager.blockReward.UserMiningModeManager
 import com.senspark.game.manager.claim.ClaimManagerPolygon
@@ -54,7 +56,13 @@ class MasterAirdropUserManager(
     override val heroTRManager =
         UserHeroTRManager(_mediator, blockRewardManager, userMaterialManager, userMissionManager)
     override val heroFiManager = UserHeroFiManager(_mediator, houseManager, blockRewardManager)
-    override val userBlockMapManager = UserBlockMapManagerImpl(_mediator, blockRewardManager)
+    override val userBlockMapManager = UserBlockMapManagerImpl(_mediator, blockRewardManager, heroFiManager)
+    override val userBlockMapManagerV2 = UserBlockMapManagerV2(
+        _mediator,
+        blockRewardManager,
+        heroFiManager,
+        MapServiceClient(_mediator.services.get<IEnvManager>().mapServicePath)
+    )
     override val userStakeManager = UserStakeManager(_mediator)
     override val userDepositedTransactionManager = UserDepositedTransactionManager(_mediator)
     override val userStakeVipManager = UserStakeVipManagerImpl(_mediator)
