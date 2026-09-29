@@ -11,6 +11,7 @@ interface IPvpEnvManager : IGlobalService {
     val appStage: AppStage
     val serverId: String
     val apiUrl: String
+    val botQuitsEarly: Boolean
     
     val postgresDriverName: String
     val postgresConnectionString: String

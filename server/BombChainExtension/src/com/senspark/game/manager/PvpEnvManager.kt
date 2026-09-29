@@ -10,6 +10,9 @@ class PvpEnvManager : IPvpEnvManager {
     override val serverId: String = getEnv("SERVER_ID")
     override val apiUrl: String = getEnv("AP_PVP_MATCHING")
 
+    // Local testing only: the bot quits 5s into each round so the player always wins.
+    override val botQuitsEarly = appStage == AppStage.LOCAL && getEnv("PVP_BOT_QUITS_EARLY", "0") == "1"
+
     override val postgresDriverName = "org.postgresql.Driver"
     override val postgresConnectionString = getEnv("POSTGRES_CONNECTION_STRING")
     override val postgresUsername = getEnv("POSTGRES_USERNAME")

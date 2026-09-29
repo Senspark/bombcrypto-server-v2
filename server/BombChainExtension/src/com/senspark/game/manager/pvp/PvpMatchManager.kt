@@ -266,7 +266,8 @@ class PvpMatchManager(
                     _messageBridge,
                     createMapGenerator(),
                     _pvpRankManager,
-                    _scheduler
+                    _scheduler,
+                    _envManager.botQuitsEarly,
                 )
                 _controller.initialize()
                 val dispatcher = _executor.asCoroutineDispatcher()
