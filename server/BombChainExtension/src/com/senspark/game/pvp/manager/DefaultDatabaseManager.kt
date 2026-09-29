@@ -5,6 +5,7 @@ import com.senspark.common.pvp.IMatchStats
 import com.senspark.common.utils.ILogger
 import com.senspark.game.api.IPvpResultInfo
 import com.senspark.game.api.IPvpResultUserInfo
+import com.senspark.game.declare.UserNameSuffix
 import com.senspark.game.pvp.entity.HeroDamageSource
 import com.senspark.game.schema.TableLogPlayPvp
 import org.jetbrains.exposed.sql.insert
@@ -17,7 +18,7 @@ class DefaultDatabaseManager(
     private val _logger: ILogger
 ) : IDatabaseManager {
     private fun parseUsername(info: IPvpResultUserInfo): String {
-        return if (info.isBot) "-1" else info.username
+        return if (info.isBot) "-1" else UserNameSuffix.removeSuffixName(info.username)
     }
 
     private fun parseLoseReason(info: IPvpResultInfo, slot: Int): String {
@@ -69,13 +70,13 @@ class DefaultDatabaseManager(
         val queryBuilder = _db.createQueryBuilder(_log)
         val statementUserPvp = """
             INSERT INTO user_pvp(uid, last_played_hero_id)
-            VALUES ((SELECT id_user FROM "user" WHERE user_name = ?), ?)
+            VALUES (?, ?)
             ON CONFLICT (uid) DO UPDATE SET last_played_hero_id = excluded.last_played_hero_id;
         """.trimIndent()
         info.info
             .filter { !it.isBot }
             .forEach {
-                queryBuilder.addStatementUpdate(statementUserPvp, arrayOf(it.username, it.heroId))
+                queryBuilder.addStatementUpdate(statementUserPvp, arrayOf(it.userId, it.heroId))
             }
         queryBuilder.executeMultiQuery()
     }

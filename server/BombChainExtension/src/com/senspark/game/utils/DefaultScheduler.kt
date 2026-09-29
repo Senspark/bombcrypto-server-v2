@@ -2,6 +2,7 @@ package com.senspark.game.utils
 
 import com.senspark.common.service.IScheduler
 import com.senspark.common.utils.ILogger
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -10,7 +11,7 @@ class DefaultScheduler(
     private val _logger: ILogger,
     private val _executor: ScheduledThreadPoolExecutor,
 ) : IScheduler {
-    private val _futureMap = mutableMapOf<String, ScheduledFuture<*>>()
+    private val _futureMap = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
     override fun initialize() {
     }
