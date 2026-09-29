@@ -55,8 +55,6 @@ object HandlerCommand {
 
     const val ApproveClaimResponse = "APPROVE_CLAIM_RESPONSE"
 
-    const val CrosschainDepositBridgeWithdrawResponse = "CROSSCHAIN_DEPOSIT_BRIDGE_WITHDRAW_RESPONSE"
-
     const val UpgradeShieldLevelResponse = "UPGRADE_SHIELD_LEVEL_RESPONSE"
 
     const val BheroStakePush = "BHERO_STAKE_PUSH"
