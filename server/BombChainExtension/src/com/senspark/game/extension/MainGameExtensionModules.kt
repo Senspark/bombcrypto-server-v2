@@ -27,6 +27,8 @@ import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.coroutines.CoroutineScope
 import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.*
+import com.senspark.game.manager.heroCage.HeroCageRewardManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.manager.online.IUserOnlineManager
 import com.senspark.game.manager.online.UserOnlineManager
 import com.senspark.game.service.*
@@ -140,6 +142,9 @@ object MainGameExtensionModules {
         g.register(INativeRateManager::class) { NativeRateManager(g.get<IShopDataAccess>(), g.get<IGlobalLogger>()) }
         g.register(ITreasureHuntConfigManager::class) { TreasureHuntConfigManager(g.get<ITHModeDataAccess>()) }
         g.register(IUserOnlineManager::class) { UserOnlineManager(g.get<ICacheService>(), g.get<IGlobalLogger>()) }
+        g.register(IHeroCageRewardManager::class) {
+            HeroCageRewardManager(g.get<IGameConfigManager>(), g.get<IRewardDataAccess>(), g.get<IGlobalLogger>())
+        }
 
         val svServices = ServerServicesInitializer.createServices(g, extension)
         

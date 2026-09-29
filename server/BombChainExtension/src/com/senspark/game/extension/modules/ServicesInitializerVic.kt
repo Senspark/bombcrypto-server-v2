@@ -79,6 +79,7 @@ import com.senspark.game.manager.user.IUserLinkManager
 import com.senspark.game.manager.user.UserLinkManager
 import com.senspark.game.pvp.IPvpResultManager
 import com.senspark.game.pvp.PvpResultManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.pvp.manager.IPvpQueueManager
 import com.senspark.game.pvp.manager.PvpQueueManager
 import com.senspark.game.pvp.manager.PvpRankManager
@@ -196,6 +197,7 @@ class ServicesInitializerVic(
                 n.get<IUsersManager>(),
                 g.get<ITrGameplayManager>(),
                 n.get<IPvpRankingManager>(),
+                g.get<IHeroCageRewardManager>(),
             )
         }
         n.register(IGameFeatureConfigManager::class) { GameFeatureConfigManager(g.get<IGameDataAccess>()) }

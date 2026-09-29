@@ -77,6 +77,7 @@ import com.senspark.game.handler.onBoarding.GetOnBoardingConfigHandler
 import com.senspark.game.handler.onBoarding.UpdateUserOnBoardingHandler
 import com.senspark.game.handler.pvp.*
 import com.senspark.game.handler.request.ApproveClaimHandlerV4
+import com.senspark.game.handler.request.ClaimHeroCageHandler
 import com.senspark.game.handler.request.CrosschainDepositBridgeWithdrawHandler
 import com.senspark.game.handler.request.CrosschainDepositBridgeNotifyHandler
 import com.senspark.game.handler.request.WithdrawNativeHandler
@@ -146,6 +147,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.GET_BONUS_REWARD_PVP_V3, GetBonusRewardPvpHandler::class.java)
         helper.addRequestHandler(SFSCommand.KEEP_JOINING_PVP_QUEUE_V2, PvpKeepJoiningQueueHandler::class.java)
         helper.addRequestHandler(SFSCommand.CLAIM_PVP_MATCH_REWARD_V2, ClaimPvpMatchRewardHandler::class.java)
+        helper.addRequestHandler(SFSCommand.CLAIM_HERO_CAGE, ClaimHeroCageHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_RANK_INFO_V2, GetRankInfoHandler::class.java)
 
         // hero tr

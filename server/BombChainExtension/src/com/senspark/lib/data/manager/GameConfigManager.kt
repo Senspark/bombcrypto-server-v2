@@ -99,6 +99,7 @@ class GameConfigManager(logger: ILogger) : BaseDataManager<String, String>(logge
     // hashData directly (no error log when absent); default 1 = ON, matching the seeded value.
     override val bridgeDepositEnabled get() = getInt("bridge_deposit_enabled", 1) == 1
     override val bridgeWithdrawEnabled get() = getInt("bridge_withdraw_enabled", 1) == 1
+    override val heroCageRate get() = getFloat("hero_cage_rate", 0f)
 
     // ----------------- Custom -----------------
     override fun getString(key: String, default: String): String {

@@ -2,6 +2,7 @@ package com.senspark.game.handler.pvp
 
 import com.senspark.game.controller.IUserController
 import com.senspark.game.declare.SFSCommand
+import com.senspark.game.declare.SFSField
 import com.senspark.game.handler.sol.BaseEncryptRequestHandler
 import com.senspark.game.pvp.IPvpResultManager
 import com.smartfoxserver.v2.entities.data.ISFSObject
@@ -22,6 +23,7 @@ class ClaimPvpMatchRewardHandler : BaseEncryptRequestHandler() {
                 response.apply {
                     putUtfString("reward_id", reward.rewardId)
                     putBool("is_out_of_chest_slot", reward.isOutOfChestSlot)
+                    putBool(SFSField.HAS_HERO_CAGE, reward.hasHeroCage)
                 }
                 sendSuccess(controller, requestId, response)
             } catch (ex: Exception) {

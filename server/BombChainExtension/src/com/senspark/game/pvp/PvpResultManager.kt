@@ -21,6 +21,7 @@ import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.dailyTask.DailyTaskManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.schema.TableUserBooster
 import com.senspark.game.service.IPvpDataAccess
 import com.senspark.game.user.IGachaChestManager
@@ -41,7 +42,8 @@ class PvpResultManager(
     private val _missionManager: IMissionManager,
     private val _usersManager: IUsersManager,
     private val _trGameplayManger: ITrGameplayManager,
-    private val _pvpRankingManger: IPvpRankingManager
+    private val _pvpRankingManger: IPvpRankingManager,
+    private val _heroCageRewardManager: IHeroCageRewardManager,
 ) : IPvpResultManager {
     
     companion object {
@@ -51,6 +53,7 @@ class PvpResultManager(
     private class MatchReward(
         override val rewardId: String,
         override val isOutOfChestSlot: Boolean,
+        override val hasHeroCage: Boolean = false,
     ) : IPvpMatchReward
 
     // Save on memory.
@@ -170,7 +173,9 @@ class PvpResultManager(
             } else {
                 // Update to the correct value. al
                 isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId)
-                _userRewards.put(userInfo.userId, MatchReward(rewardId, isOutOfChestSlot))
+                val hasHeroCage = userInfo.teamId == info.winningTeam &&
+                        controller != null && _heroCageRewardManager.roll(controller.userInfo)
+                _userRewards.put(userInfo.userId, MatchReward(rewardId, isOutOfChestSlot, hasHeroCage))
             }
         }
     }

@@ -1918,6 +1918,7 @@ coin_ranking_season_day	27	2025-07-04 03:09:01
 pvp_ranking_season_day	27	2025-07-04 03:41:49
 native_rate_update_minutes	15	2026-09-04 12:00:00
 native_rate_max_change_percent	20	2026-09-04 12:00:00
+hero_cage_rate	0.0025	2026-09-29 12:00:00
 \.
 
 

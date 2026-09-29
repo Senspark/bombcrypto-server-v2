@@ -161,6 +161,8 @@ object SFSField {
     const val TOTAL_STAKE: String = "total_stake"
     const val APD: String = "apd"
     const val RECEIVE_AMOUNT: String = "receive_amount"
+    const val HAS_HERO_CAGE: String = "has_hero_cage"
+    const val NETWORK: String = "network"
     const val IsDangerous: String = "is_dangerous"
     const val HeroType: String = "hero_type"
     const val Shields: String = "shields"
