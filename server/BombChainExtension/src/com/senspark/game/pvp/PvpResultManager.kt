@@ -44,19 +44,23 @@ class PvpResultManager(
     private val _pvpRankingManger: IPvpRankingManager
 ) : IPvpResultManager {
     
+    companion object {
+        private const val CLAIM_TIMEOUT_MS = 10_000L
+    }
+
     private class MatchReward(
         override val rewardId: String,
         override val isOutOfChestSlot: Boolean,
     ) : IPvpMatchReward
 
     // Save on memory.
-    private val _userRewards = mutableMapOf<Int, IPvpMatchReward>()
+    private val _userRewards = PendingRewards()
 
     override fun initialize() {
     }
 
-    override fun claimReward(userId: Int): IPvpMatchReward? {
-        return _userRewards.remove(userId)
+    override suspend fun claimReward(userId: Int): IPvpMatchReward? {
+        return _userRewards.take(userId, CLAIM_TIMEOUT_MS)
     }
 
     override fun handleResult(info: IPvpResultInfo) {
@@ -161,16 +165,22 @@ class PvpResultManager(
                 controller?.apply {
                     masterUserManager.userBonusRewardManager.addRewardsAds(rewardId)
                 }
+                // The client has never received the draw rewardId; keep "" until that is decided.
+                _userRewards.put(userInfo.userId, MatchReward("", false))
             } else {
                 // Update to the correct value. al
                 isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId)
-                _userRewards[userInfo.userId] = MatchReward(rewardId, isOutOfChestSlot)
+                _userRewards.put(userInfo.userId, MatchReward(rewardId, isOutOfChestSlot))
             }
         }
     }
 
     private fun handleTournamentResult(info: IPvpResultInfo) {
         _userDataAccess.updateTournamentResult(info)
+        // No reward, but the client still claims: answer it right away instead of letting it wait out the timeout.
+        info.info
+            .filter { !it.isBot && it.serverId == _envManager.serverId }
+            .forEach { _userRewards.put(it.userId, MatchReward("", false)) }
     }
 
     private fun saveUsedBoosters(controller: IUserController?, usedBoosters: Map<Int, Int>, userId: Int) {

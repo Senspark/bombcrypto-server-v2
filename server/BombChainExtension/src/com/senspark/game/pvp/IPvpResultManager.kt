@@ -9,6 +9,6 @@ interface IPvpMatchReward {
 }
 
 interface IPvpResultManager : IServerService {
-    fun claimReward(userId: Int): IPvpMatchReward?
+    suspend fun claimReward(userId: Int): IPvpMatchReward?
     fun handleResult(info: IPvpResultInfo)
 }
