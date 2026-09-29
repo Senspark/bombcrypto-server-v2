@@ -5,18 +5,15 @@ export const CachedKeys = {
     AP_PVP_MY_MATCH: 'AP_PVP_MY_MATCH',
 };
 
-/**
- * Names are assigned according to the event source:
- * - AP: API backend
- * - SV: Smartfox Server
- */
-export const StreamKeys = {
-    SV_GAME_JOIN_PVP_STR: "SV_GAME_JOIN_PVP_STR",
-    SV_GAME_LEAVE_PVP_STR: "SV_GAME_LEAVE_PVP_STR",
+export const Channels = {
+    SV_PVP_CHANNEL: "SV_PVP_CHANNEL",
+};
 
-    AP_PVP_MATCH_FOUND_STR: "AP_PVP_MATCH_FOUND_STR",
-
-    SV_PVP_MATCH_STARTED_STR: "SV_PVP_MATCH_STARTED_STR",
-    SV_PVP_MATCH_UPDATED_STR: "SV_PVP_MATCH_UPDATED_STR",
-    SV_PVP_MATCH_FINISHED_STR: "SV_PVP_MATCH_FINISHED_STR",
+// Must match PvpBusTypes in CachedKeys.kt
+export const PvpBusTypes = {
+    PVP_JOIN_QUEUE: "PVP_JOIN_QUEUE", // server game -> api pvp-matching
+    PVP_LEAVE_QUEUE: "PVP_LEAVE_QUEUE", // server game -> api pvp-matching
+    PVP_MATCH_FOUND: "PVP_MATCH_FOUND", // api pvp-matching -> server game
+    PVP_MATCH_UPDATED: "PVP_MATCH_UPDATED", // server pvp -> api pvp-matching
+    PVP_MATCH_FINISHED: "PVP_MATCH_FINISHED", // server pvp -> server game, api pvp-matching
 };

@@ -5,7 +5,7 @@ import {IJoinQueueRequestBody, ILeaveQueueRequestBody, IPvpResultInfo, IUser} fr
 import PvpQueue from "../processors/PvpQueue";
 import {Messenger} from "../processors/IMessenger";
 import NetworkStats from "../processors/NetworkStats";
-import {StreamKeys} from "../cache/CachedKeys";
+import {Channels, PvpBusTypes} from "../cache/CachedKeys";
 import BetterJson from "../processors/BetterJson";
 import UserMeetManager from "../processors/UserMeetManager";
 import PvpConfigHandlers from "./PvpConfigHandlers";
@@ -21,9 +21,9 @@ export default class PvpQueueHandlers {
         this._userMatchManager = new UserMeetManager(_deps);
         this._queue = new PvpQueue(_deps, new Messenger(_deps), this._userMatchManager, _pvpConfigHandlers);
         this._pvpConfigHandlers = _pvpConfigHandlers;
-        _deps.messenger.listen(StreamKeys.SV_GAME_JOIN_PVP_STR, this.joinQueueByStream.bind(this));
-        _deps.messenger.listen(StreamKeys.SV_GAME_LEAVE_PVP_STR, this.leaveQueueByStream.bind(this));
-        _deps.messenger.listen(StreamKeys.SV_PVP_MATCH_FINISHED_STR, this.endMatchByStream.bind(this));
+        _deps.messenger.onBus(Channels.SV_PVP_CHANNEL, PvpBusTypes.PVP_JOIN_QUEUE, this.joinQueueByStream.bind(this));
+        _deps.messenger.onBus(Channels.SV_PVP_CHANNEL, PvpBusTypes.PVP_LEAVE_QUEUE, this.leaveQueueByStream.bind(this));
+        _deps.messenger.onBus(Channels.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_FINISHED, this.endMatchByStream.bind(this));
     }
 
     public async joinQueue(req: Request, res: Response) {

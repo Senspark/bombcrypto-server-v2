@@ -15,6 +15,16 @@ interface IMessengerService: IService, IGlobalService {
     fun publish(channel: String, message: String)
 
     /**
+     * Pub/Sub bus: một channel chở nhiều loại message, phân biệt bằng `type`
+     */
+    fun publishBus(channel: String, type: String, data: String)
+
+    /**
+     * Callback chạy trên một thread riêng, tuần tự theo thứ tự message đến
+     */
+    fun onBus(channel: String, type: String, callback: (String) -> Unit)
+
+    /**
      * Callback mà return true thì sẽ tự động xoá message
      */
     fun listen(key: String, callback: (Message) -> Boolean)

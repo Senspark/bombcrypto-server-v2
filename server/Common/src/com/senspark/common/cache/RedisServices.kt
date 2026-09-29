@@ -5,6 +5,7 @@ import com.senspark.common.utils.ILogger
 import io.lettuce.core.RedisClient
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection
 
 class RedisServices(connectionString: String) : IRedisServices {
 
@@ -35,6 +36,10 @@ class RedisServices(connectionString: String) : IRedisServices {
         return _client.connect()
     }
 
+    override fun getNewPubSubConnection(): StatefulRedisPubSubConnection<String, String> {
+        return _client.connectPubSub()
+    }
+
     override fun dispose() {
         _client.shutdown()
     }
@@ -42,5 +47,6 @@ class RedisServices(connectionString: String) : IRedisServices {
 
 interface IRedisServices {
     fun getNewConnection(): StatefulRedisConnection<String, String>
+    fun getNewPubSubConnection(): StatefulRedisPubSubConnection<String, String>
     fun dispose()
 }

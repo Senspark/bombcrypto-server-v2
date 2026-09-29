@@ -5,6 +5,16 @@ import com.senspark.common.utils.ILogger
 import com.senspark.common.utils.LazyMutable
 import io.lettuce.core.*
 import io.lettuce.core.api.StatefulRedisConnection
+import io.lettuce.core.pubsub.RedisPubSubAdapter
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import kotlin.collections.HashMap
 
 class MessengerService(
@@ -21,6 +31,26 @@ class MessengerService(
     private val _latestIds = mutableMapOf<String, String>()
     private val _connection: StatefulRedisConnection<String, String> by LazyMutable {
         _redis.getNewConnection()
+    }
+
+    // _connection is held by the blocking XREAD loop; PUBLISH must not queue behind it.
+    private val _publishConnection: StatefulRedisConnection<String, String> by lazy {
+        _redis.getNewConnection()
+    }
+
+    // Subscribed connection can not run other commands, so the bus gets its own. Lettuce calls the listener on
+    // its I/O thread, which must not block: callbacks run on a single dedicated thread, in arrival order.
+    private val _busCallbacks = ConcurrentHashMap<Pair<String, String>, CopyOnWriteArrayList<(String) -> Unit>>()
+    private val _busChannels = ConcurrentHashMap.newKeySet<String>()
+    private val _busExecutor = Executors.newSingleThreadExecutor()
+    private val _busConnection: StatefulRedisPubSubConnection<String, String> by lazy {
+        _redis.getNewPubSubConnection().apply {
+            addListener(object : RedisPubSubAdapter<String, String>() {
+                override fun message(channel: String, message: String) {
+                    _busExecutor.execute { dispatchBus(channel, message) }
+                }
+            })
+        }
     }
 
     override fun initialize() {
@@ -44,13 +74,46 @@ class MessengerService(
 
     override fun publish(channel: String, message: String) {
         try {
-            _connection.async().publish(channel, message).whenComplete { _, ex ->
+            _publishConnection.async().publish(channel, message).whenComplete { _, ex ->
                 if (ex != null) {
                     _logger.error("[MESSENGER_SERVICE] PUBLISH $channel ERR: ${ex.message}")
                 }
             }
         } catch (ex: Exception) {
             _logger.error("[MESSENGER_SERVICE] PUBLISH $channel ERR: ${ex.message}")
+        }
+    }
+
+    override fun publishBus(channel: String, type: String, data: String) {
+        val message = buildJsonObject {
+            put("type", type)
+            put("data", data)
+        }.toString()
+        publish(channel, message)
+    }
+
+    override fun onBus(channel: String, type: String, callback: (String) -> Unit) {
+        _logger.log("Listen to $channel:$type")
+        _busCallbacks.computeIfAbsent(Pair(channel, type)) { CopyOnWriteArrayList() }.add(callback)
+        if (_busChannels.add(channel)) {
+            _busConnection.sync().subscribe(channel)
+        }
+    }
+
+    private fun dispatchBus(channel: String, message: String) {
+        try {
+            val envelope = Json.parseToJsonElement(message).jsonObject
+            val type = envelope["type"]!!.jsonPrimitive.content
+            val data = envelope["data"]!!.jsonPrimitive.content
+            _busCallbacks[Pair(channel, type)]?.forEach {
+                try {
+                    it(data)
+                } catch (ex: Exception) {
+                    _logger.error("[MESSENGER_SERVICE] BUS $channel:$type ERR: ${ex.message}")
+                }
+            }
+        } catch (ex: Exception) {
+            _logger.error("[MESSENGER_SERVICE] BUS $channel bad message: ${ex.message}")
         }
     }
 
@@ -76,6 +139,11 @@ class MessengerService(
     override fun destroy() {
         _listeners.clear()
         _latestIds.clear()
+        if (_busChannels.isNotEmpty()) {
+            _busConnection.close()
+        }
+        _busExecutor.shutdownNow()
+        _publishConnection.close()
         _connection.close()
         _redis.dispose()
     }
