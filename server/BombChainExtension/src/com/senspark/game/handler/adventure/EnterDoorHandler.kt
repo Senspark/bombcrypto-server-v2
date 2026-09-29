@@ -4,10 +4,12 @@ import com.senspark.game.controller.IUserController
 import com.senspark.game.db.ILogDataAccess
 import com.senspark.game.declare.KickReason
 import com.senspark.game.declare.SFSCommand
+import com.senspark.game.declare.SFSField
 import com.senspark.game.declare.customEnum.BanReason
 import com.senspark.game.exception.HackException
 import com.senspark.game.handler.sol.BaseEncryptRequestHandler
 import com.senspark.game.manager.dailyTask.DailyTaskManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.smartfoxserver.v2.entities.data.ISFSObject
 import com.smartfoxserver.v2.entities.data.SFSObject
 
@@ -19,16 +21,17 @@ class EnterDoorHandler : BaseEncryptRequestHandler() {
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         try {
             controller.saveGameAndLoadReward()
-            val triple = controller.masterUserManager.userAdventureModeManager.enterDoor()
+            val result = controller.masterUserManager.userAdventureModeManager.enterDoor()
             controller.loadReward()
+            val hasHeroCage = result.isFirstClear && services.get<IHeroCageRewardManager>().roll(controller.userInfo)
             val sfsObject = SFSObject.newInstance().apply {
-                putSFSArray("rewards", triple.second)
-                putUtfString("reward_id", triple.first)
+                putSFSArray("rewards", result.rewards)
+                putUtfString("reward_id", result.rewardId)
+                putBool(SFSField.HAS_HERO_CAGE, hasHeroCage)
             }
 
             // Kiểm tra xem đây có phải mode đánh boss ko để complete daily task
-            val isBossLevel = triple.third
-            if(isBossLevel) {
+            if(result.isBossLevel) {
                 controller.masterUserManager.userDailyTaskManager.updateProgressTask(DailyTaskManager.DefeatBossInAdventure)
             }
             // Hoàn thành 1 level adventure mode, check và update daily task
