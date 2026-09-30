@@ -1,10 +1,8 @@
 package com.senspark.game.handler.request
 
 import com.senspark.game.controller.IUserController
-import com.senspark.game.declare.EnumConstants.DataType
 import com.senspark.game.declare.SFSCommand
 import com.senspark.game.declare.SFSField
-import com.senspark.game.exception.CustomException
 import com.senspark.game.handler.sol.BaseEncryptRequestHandler
 import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.smartfoxserver.v2.entities.data.ISFSObject
@@ -18,10 +16,8 @@ class ClaimHeroCageHandler : BaseEncryptRequestHandler() {
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         coroutine.scope.launch(Dispatchers.IO) {
             try {
-                val network = DataType.values().firstOrNull { it.name == data.getUtfString(SFSField.NETWORK) }
-                    ?: throw CustomException("Invalid network")
-                services.get<IHeroCageRewardManager>().claim(controller.userId, network)
-                sendSuccess(controller, requestId, SFSObject())
+                val network = services.get<IHeroCageRewardManager>().claim(controller.userId)
+                sendSuccess(controller, requestId, SFSObject().apply { putUtfString(SFSField.NETWORK, network.name) })
             } catch (ex: Exception) {
                 sendExceptionError(controller, requestId, ex)
             }

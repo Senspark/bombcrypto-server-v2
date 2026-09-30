@@ -22,41 +22,41 @@ class HeroCageRewardManager(
         private val NETWORKS = setOf(DataType.BSC, DataType.POLYGON)
     }
 
-    // uid -> expiry (epoch ms).
-    private val _offers = ConcurrentHashMap<Int, Long>()
+    private class Offer(val expiresAt: Long, val network: DataType)
+
+    private val _offers = ConcurrentHashMap<Int, Offer>()
 
     override fun initialize() {
     }
 
     override fun roll(userInfo: IUserInfo): Boolean {
-        // PvP/Adventure sessions are forced to TR, so walletAddress is gone; this is the BSC/POLYGON wallet flag.
-        if (!userInfo.isOriginallyFi) {
+        // PvP/Adventure sessions are forced to TR; the login network survives in originalDataType.
+        val network = userInfo.originalDataType ?: userInfo.dataType
+        if (network !in NETWORKS) {
             return false
         }
         if (Random.nextFloat() >= _gameConfigManager.heroCageRate) {
             return false
         }
-        _offers[userInfo.id] = System.currentTimeMillis() + OFFER_TTL_MS
-        _logger.log("[HeroCage] offer uid=${userInfo.id}")
+        _offers[userInfo.id] = Offer(System.currentTimeMillis() + OFFER_TTL_MS, network)
+        _logger.log("[HeroCage] offer uid=${userInfo.id} network=$network")
         return true
     }
 
-    override fun claim(uid: Int, network: DataType) {
-        if (network !in NETWORKS) {
-            throw CustomException("Invalid network")
-        }
-        val expiresAt = _offers.remove(uid)
-        if (expiresAt == null) {
+    override fun claim(uid: Int): DataType {
+        val offer = _offers.remove(uid)
+        if (offer == null) {
             _logger.log("[HeroCage] claim without offer uid=$uid")
             throw CustomException("Reward not found")
         }
-        if (expiresAt < System.currentTimeMillis()) {
+        if (offer.expiresAt < System.currentTimeMillis()) {
             _logger.log("[HeroCage] claim expired uid=$uid")
             throw CustomException("Reward expired")
         }
         _rewardDataAccess.addUserBlockReward(
-            uid, BLOCK_REWARD_TYPE.BOMBERMAN, network, 1f, reason = ChangeRewardReason.HERO_CAGE
+            uid, BLOCK_REWARD_TYPE.BOMBERMAN, offer.network, 1f, reason = ChangeRewardReason.HERO_CAGE
         )
-        _logger.log("[HeroCage] claimed uid=$uid network=$network")
+        _logger.log("[HeroCage] claimed uid=$uid network=${offer.network}")
+        return offer.network
     }
 }

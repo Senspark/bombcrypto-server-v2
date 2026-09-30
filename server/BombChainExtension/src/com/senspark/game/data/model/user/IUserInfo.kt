@@ -48,6 +48,8 @@ interface IUserInfo {
      * cho phép permission gate (vd chợ V3 sell/edit/cancel) phân biệt FI-bị-ép-adventure với TR/guest THẬT.
      */
     val isOriginallyFi: Boolean
+    /** The network the session logged in with, before [forceAdventureTr] turned it into TR. */
+    val originalDataType: DataType?
 
     /**
      * Adventure/PvP là game TR (hero TR + kinh tế TR riêng biệt). User FI khi vào mode ADVENTURE:
