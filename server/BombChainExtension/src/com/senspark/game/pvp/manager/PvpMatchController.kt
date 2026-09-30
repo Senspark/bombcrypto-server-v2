@@ -51,7 +51,6 @@ class PvpMatchController(
     private val _mapGenerator: IMapGenerator,
     private val _rankManager: IRankManager,
     private val _scheduler: IScheduler,
-    private val _botQuitsEarly: Boolean,
 ) : IMatchController, KoinComponent {
     /** Config. */
     private val _readyTimeOutDuration = 30000
@@ -946,10 +945,6 @@ class PvpMatchController(
                 _matchTimeManager.step(delta)
             }
             _packetManager.flush()
-
-            if (_botQuitsEarly && _timeManager.timestamp - _matchData.roundStartTimestamp > 5000) {
-                _participantControllers.filter { it.info.isBot }.forEach { it.quit() }
-            }
 
             // Check finish.
             val result = checkRoundResult()
