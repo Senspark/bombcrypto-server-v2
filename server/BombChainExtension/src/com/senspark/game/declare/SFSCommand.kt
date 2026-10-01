@@ -213,9 +213,11 @@ object SFSCommand {
     const val GET_COIN_RANKING_V2: String = "GET_COIN_RANKING_V2"
     const val GET_ALL_SEASON_COIN_RANKING_V2: String = "GET_ALL_SEASON_COIN_RANKING_V2"
     const val START_EXPLODE_V5: String = "START_EXPLODE_V5"
-    // V6 server-assigned targeting; explode is pushed via RESPONSE_EXPLODE (see server/docs/explode_v6.md).
-    const val START_PLANT_BOMB: String = "START_PLANT_BOMB"
-    const val GET_BOMB_TARGET: String = "GET_BOMB_TARGET"
+    // Server-driven treasure mode: the server plays; client only re-enacts TREASURE_EVENTS (docs/treasure_server_driven.md).
+    const val START_TREASURE_MODE: String = "START_TREASURE_MODE"
+    const val STOP_TREASURE_MODE: String = "STOP_TREASURE_MODE"
+    const val PAUSE_TREASURE_MODE: String = "PAUSE_TREASURE_MODE"
+    const val RESUME_TREASURE_MODE: String = "RESUME_TREASURE_MODE"
     const val GET_COIN_LEADERBOARD_CONFIG_V2: String = "GET_COIN_LEADERBOARD_CONFIG_V2"
 
     const val GET_INVOICE_DEPOSIT_TON_V2: String = "GET_INVOICE_DEPOSIT_TON_V2"

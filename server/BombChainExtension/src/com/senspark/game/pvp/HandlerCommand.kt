@@ -61,6 +61,6 @@ object HandlerCommand {
 
     const val BheroStakePush = "BHERO_STAKE_PUSH"
 
-    // Server-timed bomb explode push (see server/docs/explode_v6.md).
-    const val ResponseExplode = "RESPONSE_EXPLODE"
+    // Server-driven treasure mode: ordered MOVE/PLANT/EXPLODE/... events (see server/docs/treasure_server_driven.md).
+    const val TreasureEvents = "TREASURE_EVENTS"
 }

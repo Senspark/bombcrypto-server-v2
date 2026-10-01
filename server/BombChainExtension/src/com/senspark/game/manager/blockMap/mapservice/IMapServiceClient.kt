@@ -14,9 +14,16 @@ interface IMapServiceClient {
     // Idempotent.
     fun deleteSession(sessionKey: String)
 
-    fun getTargets(sessionKey: String, request: MsTargetsRequest): MsTargetsResponse
+    // Server-driven treasure mode. A restart while running is a resync (keeps positions and bombs).
+    fun autoStart(sessionKey: String, request: MsAutoStartRequest): MsAutoSnapshotDto
 
-    fun plantBomb(sessionKey: String, request: MsPlantRequest): MsPlantResponse
+    // False if auto mode isn't running (409).
+    fun autoHeroes(sessionKey: String, request: MsAutoHeroesRequest): Boolean
 
-    fun explode(sessionKey: String, request: MsExplodeRequest): MsExplodeResponse
+    // Heroes halt until resumed; live bombs still explode. False if auto mode isn't running (409).
+    fun autoPause(sessionKey: String, paused: Boolean): Boolean
+
+    fun autoStop(sessionKey: String)
+
+    fun autoKeepalive(sessionKey: String): MsAutoKeepaliveResponse
 }

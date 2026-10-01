@@ -2,7 +2,7 @@ package com.senspark.game.manager.blockMap.mapservice
 
 import kotlinx.serialization.Serializable
 
-// Wire contract with MapService: keep in sync with its model/Dtos.kt (no shared module).
+// Wire contract with MapService: keep in sync with its model/Dtos.kt and AutoDtos.kt (no shared module).
 
 @Serializable
 data class MsBlockDto(val i: Int, val j: Int, val type: Int, val hp: Int, val maxHp: Int)
@@ -21,21 +21,11 @@ data class MsRewardConfigDto(
 )
 
 @Serializable
-data class MsGameConfigDto(
-    val isCheckPlantMoveSpeed: Boolean = true,
-    val isRejectPlantTooFast: Boolean = true,
-    val plantMoveSpeedToleranceMs: Int = 1000,
-    val plantMoveSpeedMultiplier: Float = 1.15f,
-    val plantMoveSpeedMin: Float = 1.0f,
-)
-
-@Serializable
 data class MsMapInitRequest(
     val blocks: List<MsBlockDto>,
     val tileset: Int,
     val mode: String,
     val rewardConfig: MsRewardConfigDto? = null,
-    val gameConfig: MsGameConfigDto? = null,
 )
 
 @Serializable
@@ -46,64 +36,7 @@ data class MsMapReplaceRequest(
 )
 
 @Serializable
-data class MsTargetHeroRequest(
-    val heroId: Int,
-    val seedI: Int? = null,
-    val seedJ: Int? = null,
-    val rejectI: Int? = null,
-    val rejectJ: Int? = null,
-)
-
-@Serializable
-data class MsTargetsRequest(val heroes: List<MsTargetHeroRequest>)
-
-@Serializable
-data class MsHeroTargetDto(val heroId: Int, val i: Int, val j: Int)
-
-@Serializable
-data class MsTargetsResponse(val targets: List<MsHeroTargetDto> = emptyList())
-
-@Serializable
-data class MsPlantRequest(
-    val heroId: Int,
-    val bombNo: Int,
-    val i: Int,
-    val j: Int,
-    val speed: Int,
-    val bombCount: Int,
-    // When set, MapService arms the fuse and publishes MsExplodeResultEvent; don't call /explode then.
-    val hero: MsHeroSnapshotDto? = null,
-    val fuseMs: Long? = null,
-)
-
-@Serializable
 data class MsCellDto(val i: Int, val j: Int)
-
-@Serializable
-data class MsPlantResponse(
-    // PlantBombResult name.
-    val result: String,
-    val nextTarget: MsCellDto? = null,
-    // Set even if isRejectPlantTooFast didn't reject; caller decides to kick.
-    val isPlantTooFastHackFlag: Boolean = false,
-    val fuseArmed: Boolean = false,
-)
-
-// One AP_MAP_EXPLODE_RESULT_STR entry; [sessionKey] routes it to the owning manager.
-@Serializable
-data class MsExplodeResultEvent(
-    val sessionKey: String,
-    val heroId: Int,
-    val bombNo: Int,
-    val i: Int,
-    val j: Int,
-    // OK | ALREADY_TAKEN | CANNOT_SET_BOOM
-    val takeResult: String,
-    val blocksHit: List<MsBlockHitDto> = emptyList(),
-    val mapNowEmpty: Boolean = false,
-    val plantedAtMs: Long = 0,
-    val explodedAtMs: Long = 0,
-)
 
 // Hero snapshot for MapService; [dataType] is the DataType enum name used in reward-table keys.
 @Serializable
@@ -123,14 +56,6 @@ data class MsHeroSnapshotDto(
 )
 
 @Serializable
-data class MsExplodeRequest(
-    val bombNo: Int,
-    val i: Int,
-    val j: Int,
-    val hero: MsHeroSnapshotDto,
-)
-
-@Serializable
 data class MsRewardHitDto(val type: String, val value: Float)
 
 @Serializable
@@ -143,9 +68,99 @@ data class MsBlockHitDto(
     val rewards: List<MsRewardHitDto> = emptyList(),
 )
 
+// ================== Server-driven treasure mode (MapService "auto play") ==================
+
 @Serializable
-data class MsExplodeResponse(
-    val takeResult: String,
-    val blocksHit: List<MsBlockHitDto> = emptyList(),
-    val mapNowEmpty: Boolean = false,
+data class MsAutoHeroDto(
+    val hero: MsHeroSnapshotDto,
+    // Raw speed stat == tiles per second.
+    val speed: Int,
+    val bombCount: Int,
+    val blockPass: Boolean = false,
+)
+
+@Serializable
+data class MsAutoStartRequest(
+    val heroes: List<MsAutoHeroDto>,
+    val fuseMs: Long? = null,
+    val mapResetPauseMs: Long? = null,
+    val paused: Boolean = false,
+)
+
+@Serializable
+data class MsAutoPauseRequest(val paused: Boolean)
+
+@Serializable
+data class MsAutoHeroesRequest(
+    val upsert: List<MsAutoHeroDto> = emptyList(),
+    val remove: List<Int> = emptyList(),
+    val reason: String = "removed",
+)
+
+@Serializable
+data class MsHeroPositionDto(val heroId: Int, val i: Int, val j: Int)
+
+@Serializable
+data class MsAutoBombDto(
+    val heroId: Int,
+    val bombNo: Int,
+    val i: Int,
+    val j: Int,
+    val plantedAtMs: Long,
+    val explodeAtMs: Long,
+)
+
+// Events with seq <= [seq] are already reflected here.
+@Serializable
+data class MsAutoSnapshotDto(
+    val seq: Long,
+    val serverTimeMs: Long,
+    val fuseMs: Long,
+    val heroes: List<MsHeroPositionDto> = emptyList(),
+    val bombs: List<MsAutoBombDto> = emptyList(),
+    val blocks: List<MsBlockDto> = emptyList(),
+    val awaitingNewMap: Boolean = false,
+    val resumeAtMs: Long = 0,
+    val paused: Boolean = false,
+)
+
+@Serializable
+data class MsAutoKeepaliveResponse(val running: Boolean, val seq: Long, val paused: Boolean = false)
+
+object MsTreasureEventType {
+    const val MOVE = "MOVE"
+    const val PLANT = "PLANT"
+    const val EXPLODE = "EXPLODE"
+    const val HERO_JOIN = "HERO_JOIN"
+    const val HERO_LEAVE = "HERO_LEAVE"
+    const val NEW_MAP = "NEW_MAP"
+}
+
+// Flat on purpose: each [type] fills only its own fields.
+@Serializable
+data class MsTreasureEventDto(
+    val seq: Long,
+    val type: String,
+    val atMs: Long,
+    val heroId: Int? = null,
+    val i: Int? = null,
+    val j: Int? = null,
+    val path: List<MsCellDto>? = null,
+    val stepMs: Long? = null,
+    val bombNo: Int? = null,
+    val plantedAtMs: Long? = null,
+    val explodeAtMs: Long? = null,
+    val takeResult: String? = null,
+    val blocksHit: List<MsBlockHitDto>? = null,
+    val mapNowEmpty: Boolean? = null,
+    val heroes: List<MsHeroPositionDto>? = null,
+    val resumeAtMs: Long? = null,
+    val reason: String? = null,
+)
+
+// One AP_MAP_TREASURE_EVENT_STR entry.
+@Serializable
+data class MsTreasureEventBatch(
+    val sessionKey: String,
+    val events: List<MsTreasureEventDto>,
 )

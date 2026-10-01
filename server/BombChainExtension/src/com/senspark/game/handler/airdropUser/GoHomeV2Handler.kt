@@ -47,6 +47,7 @@ class GoHomeV2Handler : BaseEncryptRequestHandler() {
 
         bbmController.setGoHouse(bbm)
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return sendSuccess(controller, requestId, bbm)
     }
 

@@ -12,7 +12,7 @@ import com.smartfoxserver.v2.extensions.ExtensionLogLevel
 class StartExplodeV5Handler : BaseEncryptRequestHandler() {
     override val serverCommand = SFSCommand.START_EXPLODE_V5
 
-    // OBSOLETE: use START_EXPLODE_V6
+    // OBSOLETE: treasure mode is server-driven now (START_TREASURE_MODE)
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         return sendError(controller, requestId, ErrorCode.SERVER_ERROR, null)
 

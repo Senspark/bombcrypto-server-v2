@@ -87,6 +87,7 @@ class ActiveBombersHandler : BaseEncryptRequestHandler() {
             )
         }
 
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return sendSuccess(controller, requestId, buildResponse(toChange))
     }
 

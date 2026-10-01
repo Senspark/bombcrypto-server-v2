@@ -237,6 +237,10 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
         return _usersNames.containsKey(sessionKey(userController.userName, userController.landing))
     }
 
+    private fun isRegistered(userController: IUserController): Boolean {
+        return _usersNames[sessionKey(userController.userName, userController.landing)] === userController
+    }
+
     // Method to update keep-alive time for a user
     override fun updateKeepAliveTime(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing) {
         _checkAlive.updateKeepAliveTime(userId, dataType, landing)
@@ -273,6 +277,11 @@ class LegacyUsersManager(logger: ILogger) : IUsersManager {
         var drained = 0
         while (drained < MAX_QUEUE) {
             val controller = _initQueue.poll() ?: break
+            // Logged out while queued: initializing it now would bring a dead session back to life.
+            if (!isRegistered(controller)) {
+                _logger.log("[InitQueue] skip uid=${controller.userId} landing=${controller.landing} (logged out before init)")
+                continue
+            }
             drained++
             val startMs = System.currentTimeMillis()
             val success = controller.initDependencies()

@@ -1,6 +1,5 @@
 package com.senspark.game.manager.blockMap
 
-import com.senspark.common.service.IScheduler
 import com.senspark.common.utils.LazyMutable
 import com.senspark.game.controller.IUserController
 import com.senspark.game.controller.MapData
@@ -25,7 +24,6 @@ import com.senspark.game.manager.hero.IUserHeroFiManager
 import com.senspark.game.manager.stake.IHeroStakeManager
 import com.senspark.game.manager.treasureHuntV2.ITreasureHuntV2Manager
 import com.senspark.game.manager.treasureHuntV2.UserId
-import com.senspark.game.pvp.HandlerCommand
 import com.senspark.game.utils.Utils
 import com.senspark.lib.data.manager.IGameConfigManager
 import com.senspark.lib.utils.Util
@@ -35,7 +33,6 @@ import com.smartfoxserver.v2.entities.data.SFSArray
 import com.smartfoxserver.v2.entities.data.SFSObject
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 class UserBlockMapManagerImpl(
     private val _mediator: UserControllerMediator,
@@ -48,7 +45,6 @@ class UserBlockMapManagerImpl(
     private val _blockDropRateManager = _mediator.services.get<IBlockDropByDayManager>()
     private val _blockRewardDataManager = _mediator.services.get<IBlockRewardDataManager>()
     private val _gameConfigManager = _mediator.services.get<IGameConfigManager>()
-    private val _scheduler = _mediator.services.get<IScheduler>()
 
     private val _treasureHuntV2Manager = _mediator.svServices.get<ITreasureHuntV2Manager>()
     private val _heroStakeManager = _mediator.svServices.get<IHeroStakeManager>()
@@ -56,22 +52,6 @@ class UserBlockMapManagerImpl(
     private var _mapData: MapData by LazyMutable { initMapData() }
     private val _fixedMode = MODE.PVE_V2
     override val locker = Any()
-
-    // V6 server-assigned bomb targeting — heroId -> ..., all access must hold `locker`.
-    private val _heroTargets: MutableMap<Int, Pair<Int, Int>> = ConcurrentHashMap()
-    private val _lastPlantCell: MutableMap<Int, Pair<Int, Int>> = ConcurrentHashMap()
-    // List, not bombNo -> cell: the same bombNo can be re-planted before the previous one explodes.
-    private val _plantedBombs: MutableMap<Int, MutableList<PlantedBomb>> = ConcurrentHashMap()
-
-    private data class PlantedBomb(val bombNo: Int, val cell: Pair<Int, Int>, val plantedAt: Long)
-
-    // Cells a hero reported unusable (rejectTarget); kept until that hero plants again.
-    private val _rejectedCells: MutableMap<Int, MutableSet<Pair<Int, Int>>> = ConcurrentHashMap()
-
-    // Last known cell/time per hero for the move-time check.
-    private val _moveAnchors: MutableMap<Int, MoveAnchor> = ConcurrentHashMap()
-
-    private data class MoveAnchor(val cell: Pair<Int, Int>, val atMs: Long)
 
     // ================== BLOCK MAP ==================
 
@@ -346,11 +326,6 @@ class UserBlockMapManagerImpl(
             throw CustomException("Server Error x043 ", ErrorCode.CREATE_MAP_FAIL)
         }
         _mapData = mapData
-        _heroTargets.clear()
-        _lastPlantCell.clear()
-        _plantedBombs.clear()
-        _rejectedCells.clear()
-        _moveAnchors.clear()
         _mediator.saveLater(SAVE.MAP)
         _mediator.sendDataEncryption(SFSCommand.PVE_NEW_MAP, SFSObject(), true)
     }
@@ -635,274 +610,5 @@ class UserBlockMapManagerImpl(
             hashExplode.replace(bombNo, currTime)
         }
         return false
-    }
-
-    // ================== V6 server-assigned bomb targeting ==================
-    // Callers (StartPlantBombHandler / GetBombTargetHandler / StartExplodeV6Handler) hold `locker`.
-
-    override fun getOrCreateTarget(heroId: Int, seed: Pair<Int, Int>?): Pair<Int, Int>? {
-        val existing = _heroTargets[heroId]
-        if (existing != null) {
-            val stillLegal = _mapData.canSetBoom(existing.first, existing.second) &&
-                _mapData.hasBlockAround(existing.first, existing.second)
-            if (stillLegal) {
-                return existing
-            }
-            _mediator.logger.log(
-                "[EXPLODE_V2] getOrCreateTarget DROP_STALE hero=$heroId staleTarget=${existing.first},${existing.second} " +
-                    "canSetBoom=${_mapData.canSetBoom(existing.first, existing.second)} hasBlockAround=${_mapData.hasBlockAround(existing.first, existing.second)}"
-            )
-        }
-
-        val fromCell = _lastPlantCell[heroId] ?: seed
-        if (fromCell == null) {
-            _mediator.logger.log("[EXPLODE_V2] getOrCreateTarget NO_SEED hero=$heroId")
-            return null
-        }
-        // Anchor from the untrusted seed only once; later anchors come from validated plants.
-        if (!_moveAnchors.containsKey(heroId)) {
-            _moveAnchors[heroId] = MoveAnchor(fromCell, System.currentTimeMillis())
-        }
-        val target = findTargetWithFallbacks(heroId, fromCell)
-        if (target == null) {
-            _mediator.logger.log(
-                "[EXPLODE_V2] getOrCreateTarget NO_TARGET_FOUND hero=$heroId fromCell=${fromCell.first},${fromCell.second}"
-            )
-            return null
-        }
-        _mediator.logger.log(
-            "[EXPLODE_V2] getOrCreateTarget PICKED hero=$heroId target=${target.first},${target.second} fromCell=${fromCell.first},${fromCell.second}"
-        )
-        _heroTargets[heroId] = target
-        return target
-    }
-
-    // Strictest BFS first, then drops exclusions step by step rather than returning no target.
-    private fun findTargetWithFallbacks(heroId: Int, fromCell: Pair<Int, Int>): Pair<Int, Int>? {
-        val bombCells = plantedBombCells()
-        val otherTargets = otherHeroTargets(heroId)
-        val rejected = _rejectedCells[heroId] ?: emptySet<Pair<Int, Int>>()
-
-        _mapData.findBombTarget(fromCell.first, fromCell.second, bombCells + otherTargets + rejected)
-            ?.let { return it }
-
-        // Allow sharing another hero's target cell.
-        if (otherTargets.isNotEmpty()) {
-            _mapData.findBombTarget(fromCell.first, fromCell.second, bombCells + rejected)?.let {
-                _mediator.logger.log("[EXPLODE_V2] getOrCreateTarget SHARED_CELL hero=$heroId target=${it.first},${it.second}")
-                return it
-            }
-        }
-        // Retry rejected cells; they may be reachable now.
-        if (rejected.isNotEmpty()) {
-            _mapData.findBombTarget(fromCell.first, fromCell.second, bombCells)?.let {
-                _mediator.logger.log("[EXPLODE_V2] getOrCreateTarget REUSE_REJECTED hero=$heroId target=${it.first},${it.second}")
-                _rejectedCells.remove(heroId)
-                return it
-            }
-        }
-        // Drop reachability: a block-pass hero can be seeded inside bricks.
-        _mapData.findAnyBombTarget(fromCell.first, fromCell.second, bombCells + rejected)?.let {
-            _mediator.logger.log(
-                "[EXPLODE_V2] getOrCreateTarget UNREACHABLE_FALLBACK hero=$heroId target=${it.first},${it.second} " +
-                    "fromCell=${fromCell.first},${fromCell.second}"
-            )
-            return it
-        }
-        // Everything rejected; start over rather than stall.
-        if (rejected.isNotEmpty()) {
-            _mapData.findAnyBombTarget(fromCell.first, fromCell.second, bombCells)?.let {
-                _mediator.logger.log(
-                    "[EXPLODE_V2] getOrCreateTarget UNREACHABLE_FALLBACK_REUSE_REJECTED hero=$heroId " +
-                        "target=${it.first},${it.second} fromCell=${fromCell.first},${fromCell.second}"
-                )
-                _rejectedCells.remove(heroId)
-                return it
-            }
-        }
-        return null
-    }
-
-    override fun rejectTarget(heroId: Int, col: Int, row: Int) {
-        val cell = col to row
-        if (_heroTargets[heroId] == cell) {
-            _heroTargets.remove(heroId)
-        }
-        val rejected = _rejectedCells.getOrPut(heroId) { ConcurrentHashMap.newKeySet() }
-        rejected.add(cell)
-        _mediator.logger.log(
-            "[EXPLODE_V2] rejectTarget hero=$heroId cell=$col,$row rejectedCount=${rejected.size}"
-        )
-    }
-
-    override fun plantBomb(heroId: Int, bombNo: Int, col: Int, row: Int, speed: Int, bombCount: Int): PlantBombResult {
-        val target = _heroTargets[heroId]
-        if (target == null) {
-            _mediator.logger.log("[EXPLODE_V2] plantBomb REJECT hero=$heroId bombNo=$bombNo reason=no_held_target requestedPos=$col,$row")
-            return PlantBombResult.TARGET_MISMATCH
-        }
-        if (target.first != col || target.second != row) {
-            _mediator.logger.log(
-                "[EXPLODE_V2] plantBomb REJECT hero=$heroId bombNo=$bombNo reason=pos_mismatch requestedPos=$col,$row heldTarget=${target.first},${target.second}"
-            )
-            return PlantBombResult.TARGET_MISMATCH
-        }
-        if (!_mapData.canSetBoom(col, row)) {
-            _mediator.logger.log("[EXPLODE_V2] plantBomb REJECT hero=$heroId bombNo=$bombNo reason=cannot_set_boom pos=$col,$row")
-            return PlantBombResult.TARGET_MISMATCH
-        }
-
-        val now = System.currentTimeMillis()
-        val bombs = _plantedBombs.getOrPut(heroId) { mutableListOf() }
-        // Bombs are removed when their fuse fires, so this list only holds live bombs.
-        if (bombs.size >= bombCount) {
-            _mediator.logger.log(
-                "[EXPLODE_V2] plantBomb REJECT hero=$heroId bombNo=$bombNo reason=no_bomb_to_plant liveCount=${bombs.size} bombCount=$bombCount"
-            )
-            return PlantBombResult.NO_BOMB_TO_PLANT
-        }
-        if (isPlantTooFast(heroId, bombNo, col, row, speed, now)) {
-            return PlantBombResult.TOO_FAST
-        }
-        bombs.add(PlantedBomb(bombNo, col to row, now))
-        _lastPlantCell[heroId] = col to row
-        _heroTargets.remove(heroId)
-        _moveAnchors[heroId] = MoveAnchor(col to row, now)
-        _rejectedCells.remove(heroId)
-        scheduleFuse(heroId, bombNo, col, row)
-        return PlantBombResult.OK
-    }
-
-    // Key includes the cell so re-planting the same bombNo doesn't cancel the pending fuse.
-    private fun scheduleFuse(heroId: Int, bombNo: Int, col: Int, row: Int) {
-        val key = "bombfuse-${_mediator.userId}-${_mediator.dataType}-$heroId-$bombNo-$col-$row"
-        _scheduler.scheduleOnce(key, _gameConfigManager.timeBombExplode) {
-            detonateBomb(heroId, bombNo, col, row)
-        }
-    }
-
-    // Server-timed fuse, so no client explode hack checks. A guard failure pushes nothing;
-    // the client's own fuse clears the bomb visually.
-    private fun detonateBomb(heroId: Int, bombNo: Int, col: Int, row: Int) {
-        val taken = synchronized(locker) { takePlantedBomb(heroId, bombNo, col, row) }
-        if (taken == null) {
-            // Map regenerated or already taken.
-            return
-        }
-
-        val bbm = _heroFiManager.getHero(heroId, _mediator.dataType)
-        if (bbm == null || bbm.details.dataType != _mediator.dataType) {
-            _mediator.logger.log("[EXPLODE_V2] detonateBomb SKIP hero=$heroId bombNo=$bombNo reason=bomberman_null")
-            return
-        }
-        if (!bbm.isActive) {
-            _mediator.logger.log("[EXPLODE_V2] detonateBomb SKIP hero=$heroId bombNo=$bombNo reason=active_invalid")
-            return
-        }
-        if (bbm.stage != GameConstants.BOMBER_STAGE.WORK) {
-            _mediator.logger.log("[EXPLODE_V2] detonateBomb SKIP hero=$heroId bombNo=$bombNo reason=not_working stage=${bbm.stage}")
-            return
-        }
-
-        if (bbm.energy <= 0) {
-            val resultData: ISFSObject = SFSObject()
-            resultData.putLong(SFSField.ID, bbm.heroId.toLong())
-            resultData.putInt("num", bombNo)
-            resultData.putInt("i", col)
-            resultData.putInt("j", row)
-            resultData.putInt(SFSField.Energy, bbm.energy)
-            resultData.putSFSArray(SFSField.Blocks, SFSArray())
-            resultData.putIntArray("attend_pools", listOf<Int>())
-            resultData.putInt(SFSField.HeroType, bbm.type.value)
-            _mediator.sendDataEncryption(HandlerCommand.ResponseExplode, resultData, true)
-            return
-        }
-
-        synchronized(locker) {
-            if (!canSetBoom(col, row)) {
-                _mediator.logger.log("[EXPLODE_V2] detonateBomb SKIP hero=$heroId bombNo=$bombNo reason=cannot_set_boom pos=$col,$row")
-                return
-            }
-            val result = explode(bbm, col, row, SFSArray())
-            result.putInt("num", bombNo)
-            result.putInt("i", col)
-            result.putInt("j", row)
-            _mediator.saveLater(SAVE.HERO_STATUS)
-            _mediator.saveLater(SAVE.MAP)
-            _mediator.sendDataEncryption(HandlerCommand.ResponseExplode, result, true)
-            _mediator.logger.log("[EXPLODE_V2] detonateBomb OK hero=$heroId bombNo=$bombNo pos=$col,$row energy=${bbm.energy}")
-        }
-    }
-
-    // Manhattan-distance move-time check; deliberately generous to avoid false kicks.
-    private fun isPlantTooFast(heroId: Int, bombNo: Int, col: Int, row: Int, speed: Int, now: Long): Boolean {
-        if (!_gameConfigManager.isCheckPlantMoveSpeed) {
-            return false
-        }
-        val anchor = _moveAnchors[heroId] ?: return false
-
-        val distance = Math.abs(col - anchor.cell.first) + Math.abs(row - anchor.cell.second)
-        if (distance <= 0) {
-            return false
-        }
-        val requiredMs = (distance * 1000.0 / tilesPerSecond(speed)).toLong()
-        val elapsedMs = now - anchor.atMs
-        // Clock went backwards.
-        if (elapsedMs < 0) {
-            return false
-        }
-        if (elapsedMs + _gameConfigManager.plantMoveSpeedToleranceMs >= requiredMs) {
-            return false
-        }
-
-        val data = "bbmId:$heroId; plant bomb $bombNo at ($col,$row) ${elapsedMs}ms after " +
-            "(${anchor.cell.first},${anchor.cell.second}), needs ${requiredMs}ms for $distance tiles at speed $speed"
-        _mediator.logger.log(
-            "[EXPLODE_V2] plantBomb TOO_FAST hero=$heroId bombNo=$bombNo pos=$col,$row " +
-                "anchor=${anchor.cell.first},${anchor.cell.second} distance=$distance speed=$speed " +
-                "elapsedMs=$elapsedMs requiredMs=$requiredMs toleranceMs=${_gameConfigManager.plantMoveSpeedToleranceMs} " +
-                "reject=${_gameConfigManager.isRejectPlantTooFast}"
-        )
-        _mediator.tryToKickAndWriteLogHack(GameConstants.LOG_HACK_TYPE.HACK_SPEED, data)
-        return _gameConfigManager.isRejectPlantTooFast
-    }
-
-    // Hunter-mode tiles/second is the raw speed stat (no GetSpeedModified), plus margin.
-    private fun tilesPerSecond(speed: Int): Double {
-        val allowed = speed * _gameConfigManager.plantMoveSpeedMultiplier
-        return maxOf(allowed.toDouble(), _gameConfigManager.plantMoveSpeedMin.toDouble())
-    }
-
-    override fun debugTarget(heroId: Int): Pair<Int, Int>? = _heroTargets[heroId]
-
-    override fun takePlantedBomb(heroId: Int, bombNo: Int, col: Int, row: Int): TakenBomb? {
-        val bombs = _plantedBombs[heroId] ?: return null
-        // Match on cell too: a hero can hold more than one bomb under the same bombNo.
-        val index = bombs.indexOfFirst { it.bombNo == bombNo && it.cell == (col to row) }
-        if (index < 0) {
-            return null
-        }
-        val bomb = bombs.removeAt(index)
-        return TakenBomb(bomb.cell, bomb.plantedAt)
-    }
-
-    private fun otherHeroTargets(excludeHeroId: Int): Set<Pair<Int, Int>> {
-        val result = mutableSetOf<Pair<Int, Int>>()
-        for ((hid, pos) in _heroTargets) {
-            if (hid != excludeHeroId) {
-                result.add(pos)
-            }
-        }
-        return result
-    }
-
-    private fun plantedBombCells(): Set<Pair<Int, Int>> {
-        val result = mutableSetOf<Pair<Int, Int>>()
-        for (bombs in _plantedBombs.values) {
-            for (bomb in bombs) {
-                result.add(bomb.cell)
-            }
-        }
-        return result
     }
 }

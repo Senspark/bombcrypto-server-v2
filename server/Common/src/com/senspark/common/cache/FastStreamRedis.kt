@@ -60,7 +60,6 @@ class FastStreamRedis(
         try {
             val cmd = _connection.sync()
             cmd.xdel(key, id)
-            _logger.log("Deleted message with ID $id from stream $key")
         } catch (ex: Exception) {
             _logger.error("[FAST_STREAM_REDIS] DELETE ERR: ${ex.message}")
         }

@@ -60,6 +60,7 @@ class ChangeBomberManStageV2Handler : BaseEncryptRequestHandler() {
             }
         }
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         if (changeStageWorkHeroes.size() > 0) {
             results.putSFSArray(SFSField.Datas, changeStageWorkHeroes)
             return sendSuccess(controller, requestId, results)

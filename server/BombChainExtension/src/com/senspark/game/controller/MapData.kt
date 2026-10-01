@@ -93,59 +93,6 @@ class MapData {
         return getBlockMap(i, j) != null
     }
 
-    // Mirrors client's BotDestroyBrick.HasBrickAround.
-    fun hasBlockAround(i: Int, j: Int): Boolean {
-        return getBlockMap(i - 1, j) != null ||
-            getBlockMap(i + 1, j) != null ||
-            getBlockMap(i, j - 1) != null ||
-            getBlockMap(i, j + 1) != null
-    }
-
-    // BFS for nearest reachable brick-adjacent cell not in [excluded]; seed itself qualifies.
-    fun findBombTarget(fromI: Int, fromJ: Int, excluded: Set<Pair<Int, Int>>): Pair<Int, Int>? {
-        if (!truePosition(fromI, fromJ)) return null
-
-        val visited = Array(GameConstants.MAP_MAX_COL) { BooleanArray(GameConstants.MAP_MAX_ROW) }
-        val queue: ArrayDeque<Pair<Int, Int>> = ArrayDeque()
-        visited[fromI][fromJ] = true
-        queue.add(fromI to fromJ)
-
-        while (queue.isNotEmpty()) {
-            val (i, j) = queue.removeFirst()
-            if (canSetBoom(i, j) && (i to j) !in excluded && hasBlockAround(i, j)) {
-                return i to j
-            }
-
-            val neighbors = arrayOf(i - 1 to j, i + 1 to j, i to j - 1, i to j + 1)
-            for ((ni, nj) in neighbors) {
-                if (!truePosition(ni, nj) || visited[ni][nj]) continue
-                if (isBlockWall(ni, nj) || isContainBlock(ni, nj)) continue
-                visited[ni][nj] = true
-                queue.add(ni to nj)
-            }
-        }
-        return null
-    }
-
-    // Last resort: nearest brick-adjacent cell ignoring reachability. Pass rejects in [excluded].
-    fun findAnyBombTarget(fromI: Int, fromJ: Int, excluded: Set<Pair<Int, Int>>): Pair<Int, Int>? {
-        var best: Pair<Int, Int>? = null
-        var bestDistance = Int.MAX_VALUE
-        for (i in 0 until GameConstants.MAP_MAX_COL) {
-            for (j in 0 until GameConstants.MAP_MAX_ROW) {
-                if (!canSetBoom(i, j)) continue
-                if ((i to j) in excluded) continue
-                if (!hasBlockAround(i, j)) continue
-                val distance = Math.abs(i - fromI) + Math.abs(j - fromJ)
-                if (distance < bestDistance) {
-                    bestDistance = distance
-                    best = i to j
-                }
-            }
-        }
-        return best
-    }
-
     fun containBlockHPLeft(): Boolean {
         val result = blocks.any { it.hp > 0 }
         return result

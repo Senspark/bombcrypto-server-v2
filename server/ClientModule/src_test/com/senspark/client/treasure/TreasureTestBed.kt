@@ -1,8 +1,8 @@
-package com.senspark.client.mapservicefuse
+package com.senspark.client.treasure
 
-import com.senspark.client.explodev6.TestServerRuntime
 import com.senspark.common.service.IScheduler
 import com.senspark.common.service.ServiceContainer
+import com.senspark.common.utils.AppStage
 import com.senspark.common.utils.IServerLogger
 import com.senspark.game.controller.IUserController
 import com.senspark.game.controller.MapData
@@ -21,24 +21,27 @@ import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.EnumConstants.DataType
 import com.senspark.game.declare.GameConstants
 import com.senspark.game.extension.GlobalServices
+import com.senspark.game.extension.MainGameExtension
 import com.senspark.game.extension.ServerServices
 import com.senspark.game.extension.coroutines.ICoroutineScope
-import com.senspark.game.handler.airdropUser.StartPlantBombHandler
+import com.senspark.game.extension.modules.ISvServicesContainer
+import com.senspark.game.handler.airdropUser.StartTreasureModeHandler
 import com.senspark.game.handler.sol.EncryptionHelper
+import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IMasterUserManager
+import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.blockMap.UserBlockMapManagerV2
-import com.senspark.game.manager.blockMap.mapservice.IMapExplodeResultRouter
 import com.senspark.game.manager.blockMap.mapservice.IMapServiceClient
-import com.senspark.game.manager.blockMap.mapservice.MapExplodeResultRouter
-import com.senspark.game.manager.blockMap.mapservice.MsCellDto
-import com.senspark.game.manager.blockMap.mapservice.MsExplodeRequest
-import com.senspark.game.manager.blockMap.mapservice.MsExplodeResponse
+import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
+import com.senspark.game.manager.blockMap.mapservice.MapTreasureEventRouter
+import com.senspark.game.manager.blockMap.mapservice.MsAutoHeroesRequest
+import com.senspark.game.manager.blockMap.mapservice.MsAutoKeepaliveResponse
+import com.senspark.game.manager.blockMap.mapservice.MsAutoSnapshotDto
+import com.senspark.game.manager.blockMap.mapservice.MsAutoStartRequest
+import com.senspark.game.manager.blockMap.mapservice.MsBlockDto
+import com.senspark.game.manager.blockMap.mapservice.MsHeroPositionDto
 import com.senspark.game.manager.blockMap.mapservice.MsMapInitRequest
 import com.senspark.game.manager.blockMap.mapservice.MsMapReplaceRequest
-import com.senspark.game.manager.blockMap.mapservice.MsPlantRequest
-import com.senspark.game.manager.blockMap.mapservice.MsPlantResponse
-import com.senspark.game.manager.blockMap.mapservice.MsTargetsRequest
-import com.senspark.game.manager.blockMap.mapservice.MsTargetsResponse
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
 import com.senspark.game.manager.hero.IUserHeroFiManager
 import com.senspark.game.manager.stake.IHeroStakeManager
@@ -56,36 +59,76 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.SecretKey
 
 class FakeMapServiceClient : IMapServiceClient {
-    val plants = mutableListOf<MsPlantRequest>()
     val replacedMaps = mutableListOf<MsMapReplaceRequest>()
-    var explodeCalls = 0
-    var plantResponse = MsPlantResponse(result = "OK", nextTarget = MsCellDto(2, 0), fuseArmed = true)
 
-    override fun initSession(sessionKey: String, request: MsMapInitRequest) {}
+    // Records calls; the snapshot echoes the last map MapService was given.
+    val autoStarts = mutableListOf<MsAutoStartRequest>()
+    val autoHeroEdits = mutableListOf<MsAutoHeroesRequest>()
+    var autoStops = 0
+    val autoPauses = mutableListOf<Boolean>()
+    var autoRunning = false
+    var autoPaused = false
+    var autoSeq = 0L
+    var awaitingNewMap = false
+    var keepaliveError: Exception? = null
+    private var _blocks: List<MsBlockDto> = emptyList()
+
+    override fun initSession(sessionKey: String, request: MsMapInitRequest) {
+        _blocks = request.blocks
+    }
+
     override fun replaceMap(sessionKey: String, request: MsMapReplaceRequest) {
         replacedMaps.add(request)
+        _blocks = request.blocks
+    }
+
+    override fun autoStart(sessionKey: String, request: MsAutoStartRequest): MsAutoSnapshotDto {
+        autoStarts.add(request)
+        autoRunning = true
+        autoPaused = request.paused
+        return MsAutoSnapshotDto(
+            seq = autoSeq,
+            serverTimeMs = 1_000,
+            fuseMs = request.fuseMs ?: 3000,
+            heroes = request.heroes.mapIndexed { k, h -> MsHeroPositionDto(h.hero.heroId, 0, 2 * k) },
+            blocks = _blocks,
+            awaitingNewMap = awaitingNewMap,
+        )
+    }
+
+    override fun autoHeroes(sessionKey: String, request: MsAutoHeroesRequest): Boolean {
+        if (!autoRunning) return false
+        autoHeroEdits.add(request)
+        return true
+    }
+
+    override fun autoPause(sessionKey: String, paused: Boolean): Boolean {
+        if (!autoRunning) return false
+        autoPauses.add(paused)
+        autoPaused = paused
+        return true
+    }
+
+    override fun autoStop(sessionKey: String) {
+        autoStops++
+        autoRunning = false
+    }
+
+    override fun autoKeepalive(sessionKey: String): MsAutoKeepaliveResponse {
+        keepaliveError?.let { throw it }
+        return MsAutoKeepaliveResponse(autoRunning, autoSeq, autoPaused)
     }
 
     override fun deleteSession(sessionKey: String) {}
-    override fun getTargets(sessionKey: String, request: MsTargetsRequest) = MsTargetsResponse()
-    override fun plantBomb(sessionKey: String, request: MsPlantRequest): MsPlantResponse {
-        plants.add(request)
-        return plantResponse
-    }
-
-    override fun explode(sessionKey: String, request: MsExplodeRequest): MsExplodeResponse {
-        explodeCalls++
-        return MsExplodeResponse("ALREADY_TAKEN")
-    }
 }
 
-// Real UserBlockMapManagerV2 + StartPlantBombHandler + router (inline); MapService is [mapService].
-class MapServiceFuseTestBed(
+// Real UserBlockMapManagerV2 + StartTreasureModeHandler + router (inline); MapService is [mapService].
+class TreasureTestBed(
     val map: MapData,
     val mapService: IMapServiceClient = FakeMapServiceClient(),
     val userId: Int = 1,
     val dataType: DataType = DataType.BSC,
-    router: IMapExplodeResultRouter? = null,
+    treasureRouter: IMapTreasureEventRouter? = null,
 ) {
     data class Push(val command: String, val data: ISFSObject)
 
@@ -107,9 +150,9 @@ class MapServiceFuseTestBed(
     val heroFiManager: IUserHeroFiManager = mockk(relaxed = true)
     val masterUserManager: IMasterUserManager = mockk(relaxed = true)
 
-    val router: IMapExplodeResultRouter = router ?: MapExplodeResultRouter(logger) { java.util.concurrent.Executor { it.run() } }
+    val treasureRouter: IMapTreasureEventRouter = treasureRouter ?: MapTreasureEventRouter(logger) { java.util.concurrent.Executor { it.run() } }
     val blockMap: UserBlockMapManagerV2
-    val startPlantBombHandler: StartPlantBombHandler
+    val startTreasureModeHandler: StartTreasureModeHandler
     val sessionKey get() = "$userId-$dataType-PVE_V2"
 
     private val _heroes = ConcurrentHashMap<Int, Hero>()
@@ -121,7 +164,6 @@ class MapServiceFuseTestBed(
     init {
         TestServerRuntime.install()
 
-        every { gameConfig.isCheckPlantMoveSpeed } returns false
         every { gameConfig.timeBombExplode } returns 3000
         every { gameConfig.blockDensity } returns 0.5f
         every { gameConfig.maxTitleset } returns 1
@@ -130,8 +172,8 @@ class MapServiceFuseTestBed(
         every { blockDropByDayManager.getBlockDropRate(any(), any()) } returns listOf(100)
         every { blockConfigManager.getConfig(any(), any()) } returns BlockConfig(1, 1, 0)
 
-        val globalServices: GlobalServices = ServiceContainer("fuse-bed-global")
-        val serverServices: ServerServices = ServiceContainer("fuse-bed-server")
+        val globalServices: GlobalServices = ServiceContainer("treasure-bed-global")
+        val serverServices: ServerServices = ServiceContainer("treasure-bed-server")
         val dataAccessManager: IDataAccessManager = mockk(relaxed = true)
         every { dataAccessManager.gameDataAccess } returns gameDataAccess
         globalServices.register(IBlockConfigManager::class) { blockConfigManager }
@@ -143,14 +185,14 @@ class MapServiceFuseTestBed(
         val coroutineScope: ICoroutineScope = mockk(relaxed = true)
         every { coroutineScope.scope } returns kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
         globalServices.register(ICoroutineScope::class) { coroutineScope }
-        globalServices.register(IMapExplodeResultRouter::class) { this.router }
+        globalServices.register(IMapTreasureEventRouter::class) { this.treasureRouter }
         serverServices.register(ITreasureHuntV2Manager::class) { treasureHuntV2Manager }
         serverServices.register(IHeroStakeManager::class) { heroStakeManager }
 
         val mediator = UserControllerMediator(
             userId = userId,
             dataType = dataType,
-            userName = "map-fuse-test-$userId",
+            userName = "treasure-test-$userId",
             walletAddress = null,
             userType = EnumConstants.UserType.FI,
             isOriginallyFi = true,
@@ -175,12 +217,19 @@ class MapServiceFuseTestBed(
         every { masterUserManager.userBlockMapManagerV2 } returns blockMap
         every { masterUserManager.heroFiManager } returns heroFiManager
         every { heroFiManager.getHero(any<Int>(), any<DataType>()) } answers { _heroes[firstArg()] }
+        every { heroFiManager.activeHeroes } answers { _heroes.values.filter { it.isActive } }
+        every { controller.checkHash() } returns true
+        every { controller.svServices } returns serverServices
+        val legacyBlockMap: com.senspark.game.manager.blockMap.IUserBlockMapManager = mockk(relaxed = true)
+        every { legacyBlockMap.getBombermanDangerous(any()) } returns SFSObject().apply { putSFSArray("dangerous", com.smartfoxserver.v2.entities.data.SFSArray()) }
+        every { masterUserManager.userBlockMapManager } returns legacyBlockMap
 
         val userInfo: IUserInfo = mockk(relaxed = true)
         every { userInfo.aesKey } returns _aesKey
+        every { userInfo.type } returns EnumConstants.UserType.FI
         every { controller.userInfo } returns userInfo
         every { controller.userId } returns userId
-        every { controller.userName } returns "map-fuse-test-$userId"
+        every { controller.userName } returns "treasure-test-$userId"
         every { controller.dataType } returns dataType
         every { controller.landing } returns EnumConstants.Landing.TREASURE
         every { controller.logger } returns logger
@@ -197,7 +246,7 @@ class MapServiceFuseTestBed(
         every { controller.send(any(), capture(payload), any()) } answers { _responses.add(payload.captured) }
 
         TestServerRuntime.bind(controller)
-        startPlantBombHandler = StartPlantBombHandler()
+        startTreasureModeHandler = StartTreasureModeHandler()
     }
 
     fun addHero(id: Int, energy: Int = 100, active: Boolean = true, stage: Int = GameConstants.BOMBER_STAGE.WORK): Hero {
@@ -223,18 +272,15 @@ class MapServiceFuseTestBed(
         return hero
     }
 
-    // Returns the decrypted response, or null on error.
-    fun plantViaHandler(heroId: Int, bombNo: Int, i: Int, j: Int): ISFSObject? {
-        val request = SFSObject()
-        request.putInt("id", heroId)
-        request.putInt("num", bombNo)
-        request.putInt("i", i)
-        request.putInt("j", j)
+    fun startTreasureViaHandler(): ISFSObject? = callHandler(startTreasureModeHandler, SFSObject())
+
+    // Full encrypted round trip, like a live request.
+    fun callHandler(handler: com.senspark.game.handler.sol.BaseEncryptRequestHandler, request: ISFSObject): ISFSObject? {
         val envelope = SFSObject()
         envelope.putInt("rid", _nextRequestId++)
         envelope.putUtfString("data", EncryptionHelper.encrypt(request.toJson(), _aesKey))
         val before = _responses.size
-        startPlantBombHandler.handleClientRequest(_sfsUser, envelope)
+        handler.handleClientRequest(_sfsUser, envelope)
         check(_responses.size > before) { "handler produced no response; logged: $loggedErrors" }
         val response = _responses.last()
         if (response.containsKey("ec")) return null
@@ -258,5 +304,56 @@ class MapServiceFuseTestBed(
             })
             return map
         }
+    }
+}
+
+// Plants MainGameExtension.services once per JVM; [bind] switches the current session.
+object TestServerRuntime {
+    lateinit var globalServices: GlobalServices
+        private set
+    lateinit var serverServices: ServerServices
+        private set
+
+    private var _installed = false
+    private var _currentController: IUserController? = null
+
+    fun install() {
+        if (_installed) return
+        _installed = true
+
+        globalServices = ServiceContainer("test-global")
+        serverServices = ServiceContainer("test-server")
+
+        val scheduler: IScheduler = mockk(relaxed = true)
+        // Run fireAndForget inline so the response is ready when dispatch() returns.
+        every { scheduler.fireAndForget(any()) } answers { firstArg<() -> Unit>().invoke() }
+
+        val usersManager: IUsersManager = mockk(relaxed = true)
+        every { usersManager.getUserController(any<User>()) } answers { _currentController }
+
+        val svServices: ISvServicesContainer = mockk(relaxed = true)
+        every { svServices.filter(IUsersManager::class) } returns listOf(usersManager)
+
+        val envManager: IEnvManager = mockk(relaxed = true)
+        every { envManager.appStage } returns AppStage.TEST
+
+        val coroutineScope: ICoroutineScope = mockk(relaxed = true)
+
+        globalServices.register(IScheduler::class) { scheduler }
+        globalServices.register(ISvServicesContainer::class) { svServices }
+        globalServices.register(IEnvManager::class) { envManager }
+        globalServices.register(ICoroutineScope::class) { coroutineScope }
+
+        plantGlobalServices(globalServices)
+    }
+
+    fun bind(controller: IUserController) {
+        _currentController = controller
+    }
+
+    private fun plantGlobalServices(services: GlobalServices) {
+        val field = MainGameExtension::class.java.getDeclaredField("services")
+        field.isAccessible = true
+        field.set(null, services)
     }
 }

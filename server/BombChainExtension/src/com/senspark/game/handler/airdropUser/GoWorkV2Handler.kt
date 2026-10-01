@@ -31,6 +31,7 @@ class GoWorkV2Handler : BaseEncryptRequestHandler() {
 
         bbmController.setWork(bbm)
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return sendSuccess(controller, requestId, bbm)
     }
 

@@ -44,11 +44,6 @@ class GameConfigManager(logger: ILogger) : BaseDataManager<String, String>(logge
     override val maintenanceTimestamp get() = Instant.parse(getString("maintenance_timestamp", "")).epochSecond
     override val isKickWhenHack get() = getInt("is_kick_when_hack", 0)
     override val timeBombExplode get() = getInt("time_bomb_explode", 3000)
-    override val isCheckPlantMoveSpeed get() = getInt("is_check_plant_move_speed", 1) == 1
-    override val isRejectPlantTooFast get() = getInt("is_reject_plant_too_fast", 1) == 1
-    override val plantMoveSpeedToleranceMs get() = getInt("plant_move_speed_tolerance_ms", 1000)
-    override val plantMoveSpeedMultiplier get() = getFloat("plant_move_speed_multiplier", 1.15f)
-    override val plantMoveSpeedMin get() = getFloat("plant_move_speed_min", 1f)
     override val nextTimeCanClaimReward get() = getInt("next_time_can_claim_reward", 1440) // 1 day = 1440 minutes
     override val minPve2Reward get() = getFloat("min_pve_v2_reward", 2.5f)
     override val maxPve2Reward get() = getFloat("max_pve_v2_reward", 4f)

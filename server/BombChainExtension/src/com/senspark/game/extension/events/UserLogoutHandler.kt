@@ -54,12 +54,16 @@ class UserLogoutHandler : MainGameExtensionBaseEventHandler() {
             val userId = userController.userId
             _userOnlineManager.removeUserOnline(userId)
 
-            userController.logOut()
-            user.joinedRooms.forEach { r ->
-                r.extension.handleInternalMessage(SFSCommand.USER_LOGOUT, user)
+            try {
+                // Disconnected while still in the init queue: nothing to save, logOut() would throw.
+                if (userController.isInitialized()) userController.logOut()
+                user.joinedRooms.forEach { r ->
+                    r.extension.handleInternalMessage(SFSCommand.USER_LOGOUT, user)
+                }
+            } finally {
+                // Always: a controller left in the maps rejects every later login as AlREADY_LOGIN.
+                usersManager.remove(userController)
             }
-
-            usersManager.remove(userController)
             treasureHuntV2Manager.leaveRoom(userController)
         } catch (e: Exception) {
             _logger.error("UserLogoutHandler error: ${e.message}")

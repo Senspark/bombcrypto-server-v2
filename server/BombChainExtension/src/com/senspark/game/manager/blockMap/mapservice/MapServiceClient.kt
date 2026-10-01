@@ -67,21 +67,27 @@ class MapServiceClient(private val baseUrl: String) : IMapServiceClient {
         execute(httpRequest, allow404 = true)
     }
 
-    override fun getTargets(sessionKey: String, request: MsTargetsRequest): MsTargetsResponse {
-        val body = post("/sessions/$sessionKey/targets", request.serialize())
-            ?: throw MapServiceException("Empty response from MapService /targets")
+    override fun autoStart(sessionKey: String, request: MsAutoStartRequest): MsAutoSnapshotDto {
+        val body = post("/sessions/$sessionKey/auto/start", request.serialize())
+            ?: throw MapServiceException("Empty response from MapService /auto/start")
         return deserialize(body)
     }
 
-    override fun plantBomb(sessionKey: String, request: MsPlantRequest): MsPlantResponse {
-        val body = post("/sessions/$sessionKey/plant", request.serialize())
-            ?: throw MapServiceException("Empty response from MapService /plant")
-        return deserialize(body)
+    override fun autoHeroes(sessionKey: String, request: MsAutoHeroesRequest): Boolean {
+        return post("/sessions/$sessionKey/auto/heroes", request.serialize(), allow409 = true) != null
     }
 
-    override fun explode(sessionKey: String, request: MsExplodeRequest): MsExplodeResponse {
-        val body = post("/sessions/$sessionKey/explode", request.serialize())
-            ?: throw MapServiceException("Empty response from MapService /explode")
+    override fun autoPause(sessionKey: String, paused: Boolean): Boolean {
+        return post("/sessions/$sessionKey/auto/pause", MsAutoPauseRequest(paused).serialize(), allow409 = true) != null
+    }
+
+    override fun autoStop(sessionKey: String) {
+        post("/sessions/$sessionKey/auto/stop", "{}", allow404 = true)
+    }
+
+    override fun autoKeepalive(sessionKey: String): MsAutoKeepaliveResponse {
+        val body = post("/sessions/$sessionKey/auto/keepalive", "{}")
+            ?: throw MapServiceException("Empty response from MapService /auto/keepalive")
         return deserialize(body)
     }
 }

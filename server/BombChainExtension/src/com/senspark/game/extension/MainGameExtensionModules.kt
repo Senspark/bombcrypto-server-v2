@@ -28,8 +28,8 @@ import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.coroutines.CoroutineScope
 import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.*
-import com.senspark.game.manager.blockMap.mapservice.IMapExplodeResultRouter
-import com.senspark.game.manager.blockMap.mapservice.MapExplodeResultRouter
+import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
+import com.senspark.game.manager.blockMap.mapservice.MapTreasureEventRouter
 import com.senspark.game.manager.online.IUserOnlineManager
 import com.senspark.game.manager.online.UserOnlineManager
 import com.senspark.game.service.*
@@ -132,7 +132,7 @@ object MainGameExtensionModules {
         val logger = g.get<IGlobalLogger>()
 
         g.register(ISender::class) { Sender(extension) }
-        g.register(IMapExplodeResultRouter::class) { MapExplodeResultRouter(logger) }
+        g.register(IMapTreasureEventRouter::class) { MapTreasureEventRouter(logger) }
         g.register(IHandlerLogger::class) {
             HandlerLogger(
                 g.get<IScheduler>(),

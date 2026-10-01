@@ -3,7 +3,7 @@ package com.senspark.common.cache
 import com.senspark.common.service.IGlobalService
 import com.senspark.common.service.IService
 
-// Low-latency [IMessengerService] for a few hot streams (e.g. AP_MAP_EXPLODE_RESULT_STR).
+// Low-latency [IMessengerService] for a few hot streams (e.g. AP_MAP_TREASURE_EVENT_STR).
 interface IFastStreamRedis : IService, IGlobalService {
     fun send(key: String, message: String)
 

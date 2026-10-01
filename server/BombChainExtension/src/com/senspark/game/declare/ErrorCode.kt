@@ -70,15 +70,6 @@ object ErrorCode {
     const val NOT_USER_BAS: Int = 1061
     const val NOT_USER_VIC: Int = 1062
 
-    // START_PLANT_BOMB / GET_BOMB_TARGET — see server/docs/explode_v6.md
-    const val PLANT_TARGET_MISMATCH: Int = 1063
-    // Retired: server times the fuse now.
-    const val EXPLODE_POSITION_MISMATCH: Int = 1064
-    const val NO_BOMB_TARGET: Int = 1065
-    const val PLANT_TOO_FAST: Int = 1066
-    // Retired: server times the fuse now.
-    const val BOMB_EXPLODE_TOO_FAST: Int = 1067
-    const val NO_BOMB_TO_PLANT: Int = 1068
     // MapService call failed after one retry.
     const val MAP_SERVICE_ERROR: Int = 1069
 
