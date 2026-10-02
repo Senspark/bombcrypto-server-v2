@@ -1,9 +1,11 @@
 package com.senspark.game.extension.schedulers
 
+import com.senspark.common.cache.IMessengerService
 import com.senspark.common.service.IScheduler
 import com.senspark.common.utils.IServerLogger
 import com.senspark.common.utils.toSFSArray
 import com.senspark.game.api.IServerInfoManager
+import com.senspark.game.constant.StreamKeys
 import com.senspark.game.controller.LegacyUserController
 import com.senspark.game.data.manager.nativeRate.INativeRateManager
 import com.senspark.game.data.manager.nativeRate.NativeRateStep
@@ -32,6 +34,10 @@ import com.smartfoxserver.v2.entities.data.SFSArray
 import com.smartfoxserver.v2.entities.data.SFSObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -65,6 +71,7 @@ class ExtensionSchedulerBnbPol(
     private val _marketManager = netService.get<IMarketManager>()
     private val _nativeDepositManager = netService.get<INativeDepositManager>()
     private val _coroutineScope = service.get<ICoroutineScope>()
+    private val _messenger = service.get<IMessengerService>()
 
     // Guards the reconcile tick: it now runs off the scheduler thread, so two ticks could otherwise
     // overlap and read the same rows twice.
@@ -203,6 +210,38 @@ class ExtensionSchedulerBnbPol(
         // nothing, or a row changed by hand between ticks, must not leave the price lists showing a rate
         // the charge would not use. Both sides then read the same number.
         _nativeRateManager.setConfig(_shopDataAccess.loadNativeRateConfig())
+
+        publishNativeRate()
+    }
+
+    /**
+     * Hero upgrade, reset skill and reset skin are paid straight to the contract, which prices them as
+     * BCOIN cost x nativeRate with its own on-chain copy of the rate. Handing ap-native-rate-keeper the
+     * rate we just stored keeps that copy on the same peg as Quartz; the keeper decides whether the move
+     * is worth a transaction.
+     *
+     * Sent every tick, changed or not: the stream is fire-and-forget, so a message lost while the keeper
+     * was down is simply replaced by the next one. Published from what the table holds (the same number
+     * the shops charge), never from the raw quote.
+     */
+    private fun publishNativeRate() {
+        listOf(EnumConstants.DataType.BSC, EnumConstants.DataType.POLYGON).forEach { network ->
+            val rate = _nativeRateManager.nativePerBcoin(network) ?: return@forEach
+            try {
+                // Wei per 1 BCOIN as a decimal string: the contract keeps the rate with 18 decimals, and
+                // a Double would not survive JSON on the other side intact.
+                val rateWei = BigDecimal(rate.toString()).movePointRight(18).setScale(0, RoundingMode.HALF_UP)
+                val payload = buildJsonObject {
+                    put("network", network.name)
+                    put("nativePerBcoin", rate)
+                    put("rateWei", rateWei.toPlainString())
+                    put("at", System.currentTimeMillis())
+                }
+                _messenger.send(StreamKeys.SV_NATIVE_RATE_STR, payload.toString())
+            } catch (e: Exception) {
+                _logger.error("[native-rate] $network: failed to publish rate $rate: ${e.message}", e)
+            }
+        }
     }
 
     /**

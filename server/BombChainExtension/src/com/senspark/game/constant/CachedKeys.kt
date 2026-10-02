@@ -91,5 +91,9 @@ class StreamKeys {
         // Native (BNB / POL) deposit + withdraw — server game <-> ap-deposit-native.
         const val SV_DEPNATIVE_REQUEST_STR = "SV_DEPNATIVE_REQUEST_STR"   // server -> signer: counters read / withdraw-sign
         const val AP_DEPNATIVE_RESULT_STR = "AP_DEPNATIVE_RESULT_STR"     // signer -> server: result, by correlationId
+
+        // Native rate (native per BCOIN) — server game -> ap-native-rate-keeper, which mirrors it into
+        // HeroDesign.setNativeRate so hero upgrade / reset skill / reset skin follow the same peg as Quartz.
+        const val SV_NATIVE_RATE_STR = "SV_NATIVE_RATE_STR"               // fire-and-forget, one message per network per tick
     }
 }
