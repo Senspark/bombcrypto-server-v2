@@ -70,5 +70,8 @@ object ErrorCode {
     const val NOT_USER_BAS: Int = 1061
     const val NOT_USER_VIC: Int = 1062
 
+    // MapService call failed after one retry.
+    const val MAP_SERVICE_ERROR: Int = 1069
+
     const val REQUIRE_PASSCODE: Int = 9999
 }

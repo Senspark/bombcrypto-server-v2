@@ -27,6 +27,7 @@ class PropertyEnvManager : IEnvManager {
     private val apPvpMatchingPath = getEnv("AP_PVP_MATCHING")
     override val apMonetizationPath = getEnv("AP_MONETIZATION")
     override val apReferralPath = getEnv("AP_REFERRAL")
+    override val mapServicePath = getEnv("MAP_SERVICE_URL", "http://map-service")
 
     override val logLevelDefault = getLogLevel(getEnv("LOG_LEVEL_DEFAULT", "DEBUG"))
     override val logDb = getEnv("LOG_DB", "false").toBoolean()

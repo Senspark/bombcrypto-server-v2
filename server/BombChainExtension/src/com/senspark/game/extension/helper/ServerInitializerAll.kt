@@ -1,5 +1,6 @@
 package com.senspark.game.extension.helper
 
+import com.senspark.common.cache.IFastStreamRedis
 import com.senspark.common.cache.IMessengerService
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.declare.SFSCommand
@@ -97,6 +98,7 @@ import com.senspark.game.handler.upgradeHero.UpgradeHeroTrHandler
 import com.senspark.game.handler.user.GetOtherUserInfoHandler
 import com.senspark.game.handler.user.MarkItemViewedHandler
 import com.senspark.game.manager.IUsersManager
+import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
 import com.smartfoxserver.v2.entities.Zone
 import com.smartfoxserver.v2.extensions.SFSExtension
 
@@ -132,6 +134,10 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V2, UserAutoMinePackagePriceV2Handler::class.java)
         helper.addRequestHandler(SFSCommand.AUTO_MINE_PRICE_V3, UserAutoMinePackagePriceV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.START_EXPLODE_V5, StartExplodeV5Handler::class.java)
+        helper.addRequestHandler(SFSCommand.START_TREASURE_MODE, StartTreasureModeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.STOP_TREASURE_MODE, StopTreasureModeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.PAUSE_TREASURE_MODE, PauseTreasureModeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.RESUME_TREASURE_MODE, ResumeTreasureModeHandler::class.java)
         helper.addRequestHandler(SFSCommand.SEND_CLIENT_LOG, SendClientLogHandler::class.java)
 
         // pvp
@@ -288,6 +294,14 @@ class ServerInitializerAll(
         messenger.listen(StreamKeys.SV_ADMIN_COMMAND) { message ->
             adminCmdStreamProcessor.process(message.value)
             false
+        }
+
+        // Server-driven treasure mode: MapService's MOVE/PLANT/EXPLODE/... batches -> owning manager
+        // (FastStreamRedis for low latency).
+        val mapTreasureEventRouter = _services.get<IMapTreasureEventRouter>()
+        val fastStreamRedis = _services.get<IFastStreamRedis>()
+        fastStreamRedis.listen(StreamKeys.AP_MAP_TREASURE_EVENT_STR) { message ->
+            mapTreasureEventRouter.handle(message.value)
         }
     }
 

@@ -61,6 +61,8 @@ interface IEnvManager : IGlobalService {
     val getPriceTokenUrl: String
     val avatarClubUrl: String
 
+    val mapServicePath: String
+
     //referral 
     val apReferralPath: String
     val addChildUrl: String

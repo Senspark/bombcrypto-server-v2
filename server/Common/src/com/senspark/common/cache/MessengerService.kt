@@ -125,7 +125,7 @@ class MessengerService(
         }
         _listeners[key]?.add(callback)
     }
-    
+
     override fun delete(key: String, id: String) {
         try {
             val cmd = _connection.sync()

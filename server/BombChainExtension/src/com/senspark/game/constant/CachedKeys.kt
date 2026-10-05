@@ -102,5 +102,9 @@ class StreamKeys {
         // Native (BNB / POL) deposit + withdraw — server game <-> ap-deposit-native.
         const val SV_DEPNATIVE_REQUEST_STR = "SV_DEPNATIVE_REQUEST_STR"   // server -> signer: counters read / withdraw-sign
         const val AP_DEPNATIVE_RESULT_STR = "AP_DEPNATIVE_RESULT_STR"     // signer -> server: result, by correlationId
+
+        // map-service -> server: server-driven treasure mode event batches (keep in sync with map-service
+        // StreamKeys; see docs/treasure_server_driven.md).
+        const val AP_MAP_TREASURE_EVENT_STR = "AP_MAP_TREASURE_EVENT_STR"
     }
 }

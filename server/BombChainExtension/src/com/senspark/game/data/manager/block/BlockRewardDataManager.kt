@@ -88,4 +88,21 @@ class BlockRewardDataManager(
             return sb.toString()
         }
     }
+
+    override fun getRewardOptionsSnapshot(dataType: DataType): Map<Int, List<BlockRewardOption>> {
+        _lock.read {
+            val result = mutableMapOf<Int, List<BlockRewardOption>>()
+            val prefix = "$dataType-"
+            for ((k, rewards) in _blockRewards) {
+                if (!k.startsWith(prefix)) continue
+                val blockType = k.substring(prefix.length).toIntOrNull() ?: continue
+                if (k in _zeroSums) {
+                    result[blockType] = emptyList()
+                    continue
+                }
+                result[blockType] = rewards.map { BlockRewardOption(it.type, it.weight, it.getValue(dataType)) }
+            }
+            return result
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.senspark.game.extension
 
 import com.senspark.common.IDatabase
 import com.senspark.common.cache.ICacheService
+import com.senspark.common.cache.IFastStreamRedis
 import com.senspark.common.cache.IMessengerService
 import com.senspark.common.cache.RedisServices
 import com.senspark.common.service.IScheduler
@@ -27,6 +28,8 @@ import com.senspark.game.extension.modules.ISvServicesContainer
 import com.senspark.game.extension.coroutines.CoroutineScope
 import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.*
+import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
+import com.senspark.game.manager.blockMap.mapservice.MapTreasureEventRouter
 import com.senspark.game.manager.heroCage.HeroCageRewardManager
 import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.manager.online.IUserOnlineManager
@@ -61,6 +64,8 @@ object MainGameExtensionModules {
         val sqlLogger = MySqlLogger(logger, enableLogDb)
         val scheduler = SmartFoxScheduler(envManager.schedulerThreadSize, logger)
         val (cache, messenger) = RedisServices.create(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
+        // Fast-poll listener for hot streams (map-service explode results).
+        val fastStreamRedis = RedisServices.createFastStreamRedis(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
         val gameConfigManager = GameConfigManager(logger)
 
         val database = DefaultDatabase(DatabaseUtils.create(envManager), sqlLogger)
@@ -98,6 +103,7 @@ object MainGameExtensionModules {
         services.register(IEnvManager::class) { envManager }
         services.register(IGlobalLogger::class) { logger }
         services.register(IMessengerService::class) { messenger }
+        services.register(IFastStreamRedis::class) { fastStreamRedis }
         services.register(ICacheService::class) { cache }
         services.register(IScheduler::class) { scheduler }
         services.register(IDataAccessManager::class) { dataAccessManager }
@@ -128,6 +134,7 @@ object MainGameExtensionModules {
         val logger = g.get<IGlobalLogger>()
 
         g.register(ISender::class) { Sender(extension) }
+        g.register(IMapTreasureEventRouter::class) { MapTreasureEventRouter(logger) }
         g.register(IHandlerLogger::class) {
             HandlerLogger(
                 g.get<IScheduler>(),

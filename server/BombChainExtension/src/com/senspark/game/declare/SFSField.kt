@@ -106,6 +106,7 @@ object SFSField {
     const val BombSkin: String = "bomb_skin"
     const val Energy: String = "energy"
     const val Blocks: String = "blocks"
+    const val Targets: String = "targets"
     const val Tileset: String = "tileset"
     const val HP: String = "hp"
     const val Type: String = "type"
