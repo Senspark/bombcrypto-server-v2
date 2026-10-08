@@ -105,6 +105,24 @@ class TreasureModeTest {
     }
 
     @Test
+    fun `with a batch interval events wait for the flush and go out as one ordered push`() {
+        every { bed.envManager.treasureEventsBatchMs } returns 100
+        val flushes = mutableListOf<() -> Unit>()
+        every { bed.scheduler.scheduleOnce(any(), 100, any()) } answers { flushes.add(thirdArg()) }
+        bed.addHero(1)
+        start()
+        val plant = MsTreasureEventDto(3, "PLANT", 1_200, 1, 0, 2, bombNo = 7, plantedAtMs = 1_200, explodeAtMs = 4_200)
+        bed.treasureRouter.handle(batch(move(2)))
+        bed.treasureRouter.handle(batch(plant))
+
+        assertEquals(0, bed.pushesOf(HandlerCommand.TreasureEvents).size, "nothing before the flush")
+        assertEquals(1, flushes.size, "one flush per interval")
+        flushes.single().invoke()
+        assertEquals(listOf(2L, 3L), events().map { it.getLong("seq") })
+        assertEquals(1, bed.pushesOf(HandlerCommand.TreasureEvents).size)
+    }
+
+    @Test
     fun `explode credits energy and rewards and mirrors the map`() {
         val hero = bed.addHero(1)
         start()
@@ -275,7 +293,7 @@ class TreasureModeTest {
 
     @Test
     fun `decodes the compact JSON MapService publishes`() {
-        // Exactly what map-service's RedisStreamTreasureEventPublisher writes (nulls omitted).
+        // Exactly what map-service's RedisPubSubTreasureEventPublisher writes (nulls omitted).
         val raw = """{"sessionKey":"${bed.sessionKey}","events":[
             {"seq":1,"type":"MOVE","atMs":10,"heroId":1,"i":0,"j":0,"path":[{"i":1,"j":0}],"stepMs":200},
             {"seq":2,"type":"PLANT","atMs":210,"heroId":1,"i":1,"j":0,"bombNo":0,"plantedAtMs":210,"explodeAtMs":3210},

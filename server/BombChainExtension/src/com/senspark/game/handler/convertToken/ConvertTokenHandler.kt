@@ -1,35 +1,24 @@
 package com.senspark.game.handler.convertToken
 
 import com.senspark.game.controller.IUserController
+import com.senspark.game.declare.ErrorCode
 import com.senspark.game.declare.SFSCommand
+import com.senspark.game.exception.CustomException
 import com.senspark.game.handler.sol.BaseEncryptRequestHandler
-import com.senspark.game.manager.convertToken.ISwapTokenRealtimeManager
 import com.smartfoxserver.v2.entities.data.ISFSObject
-import com.smartfoxserver.v2.entities.data.SFSObject
 
 class ConvertTokenHandler : BaseEncryptRequestHandler() {
     override val serverCommand = SFSCommand.SWAP_TOKEN_V2
 
+    // Gem swap is closed. The command stays registered so an old client gets an error it can show
+    // instead of a request that never comes back. sendExceptionError rather than throw:
+    // BaseEncryptRequestHandler catches whatever escapes this method and logs it as a decrypt failure
+    // without replying to the client.
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
-        try {
-            val response = SFSObject()
-            val balance = data.getFloat("balance")
-            val networkType = data.getInt("network_type")
-            val tokenType = data.getInt("token_type")
-            val swapToken = controller.svServices.get<ISwapTokenRealtimeManager>()
-            val result = swapToken.tokenConvert(
-                controller.userId,
-                controller,
-                balance,
-                ISwapTokenRealtimeManager.NetworkType.from(networkType),
-                tokenType
-            )
-            controller.logger.log("[ConvertTokenHandler:handleExtensionRequest] result: $result")
-
-            response.putFloat("data", result)
-            return sendSuccess(controller, requestId, response)
-        } catch (ex: Exception) {
-            return sendExceptionError(controller, requestId, ex)
-        }
+        sendExceptionError(
+            controller,
+            requestId,
+            CustomException("Gem swap is no longer available", ErrorCode.NOT_SUPPORTED)
+        )
     }
 }

@@ -2,7 +2,8 @@ package com.senspark.game.manager.pvp
 
 import com.senspark.common.cache.IMessengerService
 import com.senspark.common.pvp.IRoomExtension
-import com.senspark.game.constant.StreamKeys
+import com.senspark.game.constant.ChannelKeys
+import com.senspark.game.constant.PvpBusTypes
 import com.senspark.game.pvp.utility.JsonUtility
 import com.smartfoxserver.v2.entities.Zone
 import com.smartfoxserver.v2.entities.data.SFSArray
@@ -15,7 +16,8 @@ import kotlinx.serialization.encodeToString
  */
 class MatchInfoUpdatedBroadcaster(
     private val _messenger: IMessengerService,
-    private val _zone: Zone
+    private val _zone: Zone,
+    private val _serverId: String,
 ) {
     private var _prevMessage = ""
     
@@ -23,6 +25,8 @@ class MatchInfoUpdatedBroadcaster(
         val rooms = _zone.roomList
         val json = JsonUtility.json
         val response = SFSObject().apply {
+            // Each pvp server sends only its own rooms; the receiver keys them by server.
+            putUtfString("server_id", _serverId)
             putSFSArray("rooms", SFSArray().apply {
                 rooms.forEach {
                     val extension = it.extension as IRoomExtension
@@ -52,6 +56,6 @@ class MatchInfoUpdatedBroadcaster(
             return
         }
         _prevMessage = message
-        _messenger.send(StreamKeys.SV_PVP_MATCH_UPDATED_STR, message)
+        _messenger.publishBus(ChannelKeys.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_UPDATED, message)
     }
 }

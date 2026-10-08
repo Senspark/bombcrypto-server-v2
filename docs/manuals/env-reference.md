@@ -63,6 +63,7 @@ This document maps all the environment variables needed across the different ser
 | `POSTGRES_CONNECTION_STRING` / `POSTGRES_USERNAME` / `POSTGRES_PASSWORD` | JDBC connection details for the bombcrypto PostgreSQL database. |
 | `POSTGRES_MAX_ACTIVE_CONNECTIONS` | Connection pool size. |
 | `SCHEDULER_THREAD_SIZE` | Thread pool size for scheduled game loops. |
+| `TREASURE_EVENTS_BATCH_MS` | Treasure mode: events are queued per user and pushed to the client once per this many ms. Default `100`; `0` pushes each one immediately. |
 | `USE_STREAM_LISTENER` | Stream listener toggle. |
 | `SAVE_CLIENT_LOG_PATH` | Path to save unity client error logs. |
 | `HASH_ID_KEY` | Key for hashing IDs. |

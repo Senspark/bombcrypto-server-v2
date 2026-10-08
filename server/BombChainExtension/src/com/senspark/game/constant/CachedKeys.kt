@@ -44,6 +44,30 @@ class CachedKeys {
 }
 
 /**
+ * Kênh Redis Pub/Sub: không lưu vào dataset, subscriber offline thì message mất.
+ */
+class ChannelKeys {
+    companion object {
+        const val SV_TH_MODE_RACE_CHANNEL = "SV_TH_MODE_RACE_CHANNEL" // server game -> api th-mode-server
+        const val SV_PVP_CHANNEL = "SV_PVP_CHANNEL" // server game, server pvp, api pvp-matching; message types in PvpBusTypes
+
+        // map-service -> server game: server-driven treasure mode event batches (keep in sync with map-service
+        // ChannelKeys; see docs/treasure_server_driven.md).
+        const val AP_MAP_TREASURE_EVENT_CHANNEL = "AP_MAP_TREASURE_EVENT_CHANNEL"
+    }
+}
+
+class PvpBusTypes {
+    companion object {
+        const val PVP_JOIN_QUEUE = "PVP_JOIN_QUEUE" // server game -> api pvp-matching
+        const val PVP_LEAVE_QUEUE = "PVP_LEAVE_QUEUE" // server game -> api pvp-matching
+        const val PVP_MATCH_FOUND = "PVP_MATCH_FOUND" // api pvp-matching -> server game
+        const val PVP_MATCH_UPDATED = "PVP_MATCH_UPDATED" // server pvp -> api pvp-matching
+        const val PVP_MATCH_FINISHED = "PVP_MATCH_FINISHED" // server pvp -> server game, api pvp-matching
+    }
+}
+
+/**
  * Tên được đặt theo nguồn phát event này:
  * - AP: Api backend
  * - SV: Server Smartfox
@@ -52,14 +76,6 @@ class StreamKeys {
     companion object {
         const val AP_BL_HERO_STAKE_STR = "AP_BL_HERO_STAKE_STR"
 
-        const val SV_GAME_JOIN_PVP_STR = "SV_GAME_JOIN_PVP_STR" // server game -> api pvp-matching
-        const val SV_GAME_LEAVE_PVP_STR = "SV_GAME_LEAVE_PVP_STR" // server game -> api pvp-matching
-
-        const val AP_PVP_MATCH_FOUND_STR = "AP_PVP_MATCH_FOUND_STR" // api pvp-matching -> server game
-
-        const val SV_PVP_MATCH_STARTED_STR = "SV_PVP_MATCH_STARTED_STR"
-        const val SV_PVP_MATCH_UPDATED_STR = "SV_PVP_MATCH_UPDATED_STR" // server pvp -> api analytic
-        const val SV_PVP_MATCH_FINISHED_STR = "SV_PVP_MATCH_FINISHED_STR" // server pvp -> server game, api pvp-matching
         const val AP_TON_TRANSACTION = "AP:TON:MERCHANT:TRANSACTION"  //api deposit -> server game.
         const val AP_CREATE_CLUB = "AP_CREATE_CLUB"  //api telegram bot -> server game
         const val AP_JOIN_CLUB = "AP_JOIN_CLUB"  //api telegram bot -> server game
@@ -70,7 +86,6 @@ class StreamKeys {
         const val AP_BAS_TRANSACTION = "AP:BAS:MERCHANT:TRANSACTION"//api deposit bas -> server game.
         const val AP_VIC_TRANSACTION = "AP:VIC:MERCHANT:TRANSACTION"//api deposit vic -> server game.
 
-        const val SV_TH_MODE_RACE = "SV_TH_MODE_RACE"
         const val SV_KICK_USER = "SV_KICK_USER"
         const val SV_ADMIN_COMMAND = "SV:ADMIN_COMMAND"
         
@@ -91,9 +106,5 @@ class StreamKeys {
         // Native (BNB / POL) deposit + withdraw — server game <-> ap-deposit-native.
         const val SV_DEPNATIVE_REQUEST_STR = "SV_DEPNATIVE_REQUEST_STR"   // server -> signer: counters read / withdraw-sign
         const val AP_DEPNATIVE_RESULT_STR = "AP_DEPNATIVE_RESULT_STR"     // signer -> server: result, by correlationId
-
-        // map-service -> server: server-driven treasure mode event batches (keep in sync with map-service
-        // StreamKeys; see docs/treasure_server_driven.md).
-        const val AP_MAP_TREASURE_EVENT_STR = "AP_MAP_TREASURE_EVENT_STR"
     }
 }

@@ -23,7 +23,11 @@ export default class MessengerService implements IMessengerService {
 
   async send(streamKey: string, message: any): Promise<boolean> {
     try {
-      const res = await this._redis.xAdd(streamKey, '*', {data: JSON.stringify(message)});
+      // Readers keep an in-memory cursor and never read history, so a short tail is enough.
+      // `~` trims whole stream nodes: the length floats between 100 and ~200.
+      const res = await this._redis.xAdd(streamKey, '*', {data: JSON.stringify(message)}, {
+        TRIM: {strategy: 'MAXLEN', strategyModifier: '~', threshold: 100},
+      });
       return res !== null;
     } catch (e) {
       this.#logger.error(e);

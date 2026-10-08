@@ -24,6 +24,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
     private val _activated: Boolean
     private var _type: UserType
     private var _isOriginallyFi: Boolean = false
+    private var _originalDataType: DataType? = null
     private var _mode: UserMode
     private var _miningMode: TokenType
     private val _newUser: Boolean
@@ -53,6 +54,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
         }
     override val newUser get() = _newUser
     override val isOriginallyFi get() = _isOriginallyFi
+    override val originalDataType get() = _originalDataType
     override val privilege: UserPrivilege
 
     override val lastLogout: Instant? get() = _lastLogout
@@ -119,6 +121,7 @@ class UserInfo(obj: ISFSObject) : IUserInfo {
         // Ghi nhớ account GỐC là FI TRƯỚC khi ghi đè type -> permission gate FI-only (chợ V3) vẫn
         // phân biệt được phiên này với TR/guest thật (xem isOriginallyFi). Chỉ FI mới đi vào đây.
         _isOriginallyFi = true
+        _originalDataType = _dataType
         // Bypass setter guard có chủ đích: setter chặn FI->TR, nhưng adventure là phiên TR thật.
         // Set thẳng field. Bỏ walletAddress để phiên này hành xử như TR user thuần (không sync hero FI,
         // không chạy cross-network cleanup theo ví).

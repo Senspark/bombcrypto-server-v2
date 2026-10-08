@@ -16,8 +16,8 @@ open class NullUserAdventureModeManager : IUserAdventureModeManager {
 
     override val matchManager get() = throw CustomException("Feature not support")
 
-    override fun enterDoor(): Triple<String, SFSArray, Boolean> {
-        return Triple("", SFSArray(), false)
+    override fun enterDoor(): EnterDoorResult {
+        return EnterDoorResult("", SFSArray(), isBossLevel = false, isFirstClear = false)
     }
 
     override fun endGameAndSaveData(

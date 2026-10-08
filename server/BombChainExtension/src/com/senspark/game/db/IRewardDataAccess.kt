@@ -94,13 +94,6 @@ interface IRewardDataAccess : IGlobalService {
     fun subUserReward(uid: Int, rewardType: BLOCK_REWARD_TYPE, value: Float, dataType: DataType, reason: String)
     fun checkBillTokenExist(billToken: String): Boolean
 
-    // --- Cross-chain deposit bridge (see cross-chain-balance-impl-plan.md §D). ---
-    // Under Option 2 (server-submitted withdraw) all fn_bridge_* mutations live in ap-deposit-bridge;
-    // SmartFox only reads open pendings (to reflect a resume). reward_type = BCOIN_BRIDGE|SEN_BRIDGE.
-
-    /** Open pending withdraws for a user (reward_type, chain, gross, before_value as wei strings). */
-    fun loadCrosschainDepositBridgeOpenPendings(uid: Int): List<BridgeOpenPending>
-
     // --- Native (BNB / POL) deposit. --- Wei row is the sole money authority; user_block_reward
     // doubles are its projection. Caller reads on-chain counters first, these run the row-locked merge.
 
@@ -129,10 +122,3 @@ interface IRewardDataAccess : IGlobalService {
     fun loadNativePendingAccounts(windowSeconds: Int, limit: Int): List<NativePendingAccount>
 }
 
-/** An open cross-chain bridge withdraw pending as raw DB strings (wei as integer strings). */
-data class BridgeOpenPending(
-    val rewardType: String,
-    val chain: String,
-    val grossWei: String,
-    val beforeWei: String,
-)

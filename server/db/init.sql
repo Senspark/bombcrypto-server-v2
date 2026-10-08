@@ -835,6 +835,10 @@ COPY public.config_hero_upgrade_power (rare, datas) FROM stdin;
 3	[0,1,2,3,5]
 4	[0,1,2,3,5]
 5	[0,1,2,3,5]
+6	[0,1,2,3,5]
+7	[0,1,2,3,5]
+8	[0,1,2,3,5]
+9	[0,1,2,3,5]
 \.
 
 
@@ -1912,6 +1916,9 @@ url_config_tasks	https://game.bombcrypto.io/tasks_data/data/data_v42.json	2024-0
 daily_task_config_url	https://game.bombcrypto.io/daily_tasks_data/data/data_v2.json	2025-03-28 09:12:55
 coin_ranking_season_day	27	2025-07-04 03:09:01
 pvp_ranking_season_day	27	2025-07-04 03:41:49
+native_rate_update_minutes	15	2026-09-04 12:00:00
+native_rate_max_change_percent	20	2026-09-04 12:00:00
+hero_cage_rate	0.0025	2026-09-29 12:00:00
 \.
 
 

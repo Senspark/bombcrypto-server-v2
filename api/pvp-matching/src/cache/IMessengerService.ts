@@ -1,5 +1,8 @@
 export default interface IMessengerService {
-    send(streamKey: string, message: any): Promise<boolean>;
+    /**
+     * Redis Pub/Sub bus: one channel carries several message types, told apart by `type`.
+     */
+    publishBus(channel: string, type: string, message: any): Promise<boolean>;
 
-    listen(streamKey: string, callback: (message: any) => void): void;
+    onBus(channel: string, type: string, callback: (message: any) => void): void;
 }

@@ -175,22 +175,6 @@ class RewardDataAccessPostgreSql(
         }
     }
 
-    override fun loadCrosschainDepositBridgeOpenPendings(uid: Int): List<BridgeOpenPending> {
-        val statement = "SELECT reward_type, chain, gross, before_value FROM cross_chain_bridge_pending WHERE uid = ?;"
-        val result = mutableListOf<BridgeOpenPending>()
-        executeQueryAndThrowException(statement, arrayOf(uid)) {
-            result.add(
-                BridgeOpenPending(
-                    rewardType = it.getString("reward_type"),
-                    chain = it.getString("chain"),
-                    grossWei = it.getBigDecimal("gross").toBigInteger().toString(),
-                    beforeWei = it.getBigDecimal("before_value").toBigInteger().toString(),
-                )
-            )
-        }
-        return result
-    }
-
     override fun syncNativeDeposit(
         uid: Int,
         network: String,

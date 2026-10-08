@@ -1,6 +1,7 @@
 package com.senspark.game.manager.treasureHuntV2
 
 import com.senspark.common.cache.IMessengerService
+import com.senspark.common.service.IScheduler
 import com.senspark.common.utils.ILogger
 import com.senspark.common.utils.toSFSArray
 import com.senspark.game.controller.IUserController
@@ -20,10 +21,11 @@ class TreasureHuntV2Manager(
     private val _thModeDataAccess: ITHModeDataAccess,
     logger: ILogger,
     messengerService: IMessengerService,
+    scheduler: IScheduler,
     private val _heroStakeManager: IHeroStakeManager,
     extension: SFSExtension?,
 ) : ITreasureHuntV2Manager {
-    private val _thModeRaceBroadcaster: THModeRaceBroadcaster = THModeRaceBroadcaster(messengerService)
+    private val _thModeRaceBroadcaster = THModeRaceBroadcaster(messengerService, scheduler, logger)
     override var period = 60
 
     private var treasureHuntV2Config: Map<BLOCK_REWARD_TYPE, TreasureHuntV2Config>
@@ -64,6 +66,7 @@ class TreasureHuntV2Manager(
     }
 
     override fun initialize() {
+        _thModeRaceBroadcaster.start()
     }
 
     override fun reloadConfigs() {

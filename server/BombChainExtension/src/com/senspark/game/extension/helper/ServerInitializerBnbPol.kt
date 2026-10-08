@@ -4,6 +4,8 @@ import com.senspark.common.cache.IMessengerService
 import com.senspark.common.constant.PVPInternalCommand
 import com.senspark.game.api.GameInternalMessageHandler
 import com.senspark.game.api.IVerifyAdApiManager
+import com.senspark.game.constant.ChannelKeys
+import com.senspark.game.constant.PvpBusTypes
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.data.manager.IMasterDataManager
 import com.senspark.game.declare.SFSCommand
@@ -90,13 +92,11 @@ class ServerInitializerBnbPol(
                 gameConfig
             )
 
-            messenger.listen(StreamKeys.AP_PVP_MATCH_FOUND_STR) { data ->
-                internalMessageHandler.handle(PVPInternalCommand.PVP_FOUND_MATCH, data.value)
-                false
+            messenger.onBus(ChannelKeys.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_FOUND) { data ->
+                internalMessageHandler.handle(PVPInternalCommand.PVP_FOUND_MATCH, data)
             }
-            messenger.listen(StreamKeys.SV_PVP_MATCH_FINISHED_STR) { data ->
-                internalMessageHandler.handle(PVPInternalCommand.PVP_END_MATCH, data.value)
-                false
+            messenger.onBus(ChannelKeys.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_FINISHED) { data ->
+                internalMessageHandler.handle(PVPInternalCommand.PVP_END_MATCH, data)
             }
             messenger.listen(StreamKeys.AP_BL_HERO_STAKE_STR) { data ->
                 heroes.processHeroStake(data.value)

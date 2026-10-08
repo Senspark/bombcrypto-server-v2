@@ -108,7 +108,7 @@ object PvpZoneExtensionModules {
                 }
             },
             EpochTimeManager(),
-            MatchInfoUpdatedBroadcaster(messenger, parentZone),
+            MatchInfoUpdatedBroadcaster(messenger, parentZone, envManager.serverId),
             envManager,
             logger,
             messenger,

@@ -9,7 +9,8 @@ import com.senspark.game.api.IPvpResultInfo
 import com.senspark.game.api.PvpReportApi
 import com.senspark.game.api.PvpResultInfo
 import com.senspark.game.constant.CachedKeys
-import com.senspark.game.constant.StreamKeys.Companion.SV_PVP_MATCH_FINISHED_STR
+import com.senspark.game.constant.ChannelKeys
+import com.senspark.game.constant.PvpBusTypes
 import com.senspark.game.extension.PvpRoomExtension
 import com.senspark.game.manager.IPvpEnvManager
 import com.senspark.game.pvp.config.ConstantMapConfig
@@ -192,7 +193,7 @@ class PvpMatchManager(
         _logger.log("[Pvp][PvpMatchManager:finish] id=${resultInfo.id}")
 
         // Send result to redis, not send directly to the original server.
-        _messengerService.send(SV_PVP_MATCH_FINISHED_STR, PvpResultInfo.parse(resultInfo))
+        _messengerService.publishBus(ChannelKeys.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_FINISHED, PvpResultInfo.parse(resultInfo))
         // Send result to original servers.
         //_resultApi.send(resultInfo)
 

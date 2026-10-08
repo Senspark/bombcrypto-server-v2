@@ -21,6 +21,7 @@ import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.IUsersManager
 import com.senspark.game.manager.dailyTask.DailyTaskManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.schema.TableUserBooster
 import com.senspark.game.service.IPvpDataAccess
 import com.senspark.game.user.IGachaChestManager
@@ -41,22 +42,28 @@ class PvpResultManager(
     private val _missionManager: IMissionManager,
     private val _usersManager: IUsersManager,
     private val _trGameplayManger: ITrGameplayManager,
-    private val _pvpRankingManger: IPvpRankingManager
+    private val _pvpRankingManger: IPvpRankingManager,
+    private val _heroCageRewardManager: IHeroCageRewardManager,
 ) : IPvpResultManager {
     
+    companion object {
+        private const val CLAIM_TIMEOUT_MS = 10_000L
+    }
+
     private class MatchReward(
         override val rewardId: String,
         override val isOutOfChestSlot: Boolean,
+        override val hasHeroCage: Boolean = false,
     ) : IPvpMatchReward
 
     // Save on memory.
-    private val _userRewards = mutableMapOf<Int, IPvpMatchReward>()
+    private val _userRewards = PendingRewards()
 
     override fun initialize() {
     }
 
-    override fun claimReward(userId: Int): IPvpMatchReward? {
-        return _userRewards.remove(userId)
+    override suspend fun claimReward(userId: Int): IPvpMatchReward? {
+        return _userRewards.take(userId, CLAIM_TIMEOUT_MS)
     }
 
     override fun handleResult(info: IPvpResultInfo) {
@@ -161,16 +168,24 @@ class PvpResultManager(
                 controller?.apply {
                     masterUserManager.userBonusRewardManager.addRewardsAds(rewardId)
                 }
+                // The client has never received the draw rewardId; keep "" until that is decided.
+                _userRewards.put(userInfo.userId, MatchReward("", false))
             } else {
                 // Update to the correct value. al
                 isOutOfChestSlot = saveRewardsAndGetGachaSlotStatus(controller, rewards, userInfo.userId, rewardId)
-                _userRewards[userInfo.userId] = MatchReward(rewardId, isOutOfChestSlot)
+                val hasHeroCage = userInfo.teamId == info.winningTeam &&
+                        controller != null && _heroCageRewardManager.roll(controller.userInfo)
+                _userRewards.put(userInfo.userId, MatchReward(rewardId, isOutOfChestSlot, hasHeroCage))
             }
         }
     }
 
     private fun handleTournamentResult(info: IPvpResultInfo) {
         _userDataAccess.updateTournamentResult(info)
+        // No reward, but the client still claims: answer it right away instead of letting it wait out the timeout.
+        info.info
+            .filter { !it.isBot && it.serverId == _envManager.serverId }
+            .forEach { _userRewards.put(it.userId, MatchReward("", false)) }
     }
 
     private fun saveUsedBoosters(controller: IUserController?, usedBoosters: Map<Int, Int>, userId: Int) {

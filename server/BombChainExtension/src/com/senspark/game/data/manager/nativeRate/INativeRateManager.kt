@@ -6,6 +6,9 @@ import com.senspark.game.declare.EnumConstants.DataType
 /**
  * Native coin charged per 1 BCOIN of list price, per network — display side only, fn_native_price in
  * SQL is the authority for what is actually charged.
+ *
+ * The rate tracks the market: the price scheduler rewrites config_native_rate every few minutes and
+ * calls [setConfig] with what it read back, so this cache and the SQL charge stay the same number.
  */
 interface INativeRateManager : IGlobalService {
     fun setConfig(rates: Map<DataType, Double>)

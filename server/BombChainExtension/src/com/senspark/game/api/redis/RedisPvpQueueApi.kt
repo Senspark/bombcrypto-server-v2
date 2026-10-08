@@ -1,7 +1,8 @@
 package com.senspark.game.api.redis
 
 import com.senspark.common.cache.IMessengerService
-import com.senspark.game.constant.StreamKeys
+import com.senspark.game.constant.ChannelKeys
+import com.senspark.game.constant.PvpBusTypes
 import com.senspark.game.pvp.utility.JsonUtility
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -64,14 +65,15 @@ class RedisPvpQueueApi(messengerService: IMessengerService) : IRedisPvpQueueApi 
     override fun joinQueue(info: PvpData) {
         _queue.add(info.userName)
         val requestJson = _json.encodeToString(info)
-        _messengerService.send(StreamKeys.SV_GAME_JOIN_PVP_STR, requestJson)
+        _messengerService.publishBus(ChannelKeys.SV_PVP_CHANNEL, PvpBusTypes.PVP_JOIN_QUEUE, requestJson)
     }
 
     override fun leaveQueue(username: String): Boolean {
         if (_queue.contains(username)) {
             _queue.remove(username)
-            _messengerService.send(
-                StreamKeys.SV_GAME_LEAVE_PVP_STR,
+            _messengerService.publishBus(
+                ChannelKeys.SV_PVP_CHANNEL,
+                PvpBusTypes.PVP_LEAVE_QUEUE,
                 _json.encodeToString(mapOf("userName" to username))
             )
         }

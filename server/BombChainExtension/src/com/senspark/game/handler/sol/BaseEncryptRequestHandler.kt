@@ -4,6 +4,7 @@ import com.senspark.common.service.IScheduler
 import com.senspark.common.utils.AppStage
 import com.senspark.game.controller.IUserController
 import com.senspark.game.declare.ErrorCode
+import com.senspark.game.declare.SFSCommand
 import com.senspark.game.declare.SFSField
 import com.senspark.game.exception.CustomException
 import com.senspark.game.extension.coroutines.ICoroutineScope
@@ -118,7 +119,7 @@ abstract class BaseEncryptRequestHandler : MainGameExtensionBaseRequestHandler()
     }
 
     private fun log(controller: IUserController, send: Boolean, msg: String) {
-        if (serverCommand == "PING_PONG") return
+        if (serverCommand in SILENT_COMMANDS) return
         val prefix = if (send) "[OUT]" else "[IN]"
         // dt + landing + session id: 2 tab cùng account có userId-userName y hệt (vd treasure-BSC vs
         // adventure-TR cùng username, hoặc 2 phiên cùng (uid,dt,landing) khi reconnect) -> thiếu các field
@@ -149,6 +150,13 @@ abstract class BaseEncryptRequestHandler : MainGameExtensionBaseRequestHandler()
             sb.append(exceptionMsg).append("\r\n")
         }
         controller.logger.error(sb.toString())
+    }
+
+    private companion object {
+        // Heartbeat and per-bomb gameplay traffic: logging both sides of these buries every other
+        // handler in smartfox.log. START_EXPLODE_V5 is muted in HandlerLogger's allowlist too, but that
+        // list only covers BaseGameRequestHandler — this handler moved onto the encrypted base class.
+        val SILENT_COMMANDS = setOf(SFSCommand.PING_PONG, SFSCommand.START_EXPLODE_V5)
     }
 }
 

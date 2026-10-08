@@ -30,6 +30,8 @@ import com.senspark.game.extension.coroutines.ICoroutineScope
 import com.senspark.game.manager.*
 import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
 import com.senspark.game.manager.blockMap.mapservice.MapTreasureEventRouter
+import com.senspark.game.manager.heroCage.HeroCageRewardManager
+import com.senspark.game.manager.heroCage.IHeroCageRewardManager
 import com.senspark.game.manager.online.IUserOnlineManager
 import com.senspark.game.manager.online.UserOnlineManager
 import com.senspark.game.service.*
@@ -62,8 +64,8 @@ object MainGameExtensionModules {
         val sqlLogger = MySqlLogger(logger, enableLogDb)
         val scheduler = SmartFoxScheduler(envManager.schedulerThreadSize, logger)
         val (cache, messenger) = RedisServices.create(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
-        // Fast-poll listener for hot streams (map-service explode results).
-        val fastStreamRedis = RedisServices.createFastStreamRedis(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
+        // Pub/Sub listener for hot channels (map-service treasure events).
+        val fastStreamRedis = RedisServices.createFastStreamRedis(envManager.redisConnectionString, logger)
         val gameConfigManager = GameConfigManager(logger)
 
         val database = DefaultDatabase(DatabaseUtils.create(envManager), sqlLogger)
@@ -147,6 +149,9 @@ object MainGameExtensionModules {
         g.register(INativeRateManager::class) { NativeRateManager(g.get<IShopDataAccess>(), g.get<IGlobalLogger>()) }
         g.register(ITreasureHuntConfigManager::class) { TreasureHuntConfigManager(g.get<ITHModeDataAccess>()) }
         g.register(IUserOnlineManager::class) { UserOnlineManager(g.get<ICacheService>(), g.get<IGlobalLogger>()) }
+        g.register(IHeroCageRewardManager::class) {
+            HeroCageRewardManager(g.get<IGameConfigManager>(), g.get<IRewardDataAccess>(), g.get<IGlobalLogger>())
+        }
 
         val svServices = ServerServicesInitializer.createServices(g, extension)
         

@@ -1,6 +1,6 @@
 import IDependencies from "../services/IDependencies";
 import ILogger from "../services/ILogger";
-import {StreamKeys} from "../cache/CachedKeys";
+import {Channels, PvpBusTypes} from "../cache/CachedKeys";
 import {
     IPvpRoomInfo,
     IPvpTournamentMatchInfo,
@@ -13,13 +13,14 @@ import {Request, Response} from "express";
 
 export default class PvpMatchInfoHandlers {
     readonly _logger: ILogger;
-    _roomsInfo: IPvpRoomInfo[] = [];
+    // Every pvp server sends only its own rooms, so keep one list per server.
+    readonly _roomsByServer = new Map<string, IPvpRoomInfo[]>();
     readonly _tournamentMatchManager: TournamentMatchManager;
 
     constructor(private readonly _deps: IDependencies) {
         this._logger = _deps.logger.clone('[MATCH_INFO]');
         this._tournamentMatchManager = new TournamentMatchManager(_deps);
-        _deps.messenger.listen(StreamKeys.SV_PVP_MATCH_UPDATED_STR, this.onMatchInfoUpdated.bind(this));
+        _deps.messenger.onBus(Channels.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_UPDATED, this.onMatchInfoUpdated.bind(this));
     }
 
     async getTournamentMatchesInfo(req: Request, res: Response) {
@@ -96,13 +97,13 @@ export default class PvpMatchInfoHandlers {
 
     }
 
+    private get _roomsInfo(): IPvpRoomInfo[] {
+        return [...this._roomsByServer.values()].flat();
+    }
+
     private onMatchInfoUpdated(data: any) {
         try {
-            this._roomsInfo = [];
-            const roomInfo: IPvpRoomInfo[] = data.rooms;
-            if (roomInfo) {
-                this._roomsInfo = roomInfo;
-            }
+            this._roomsByServer.set(data.server_id, data.rooms ?? []);
         } catch (e) {
             this._logger.error(e)
         }

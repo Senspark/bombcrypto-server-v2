@@ -1,6 +1,6 @@
 import {IMatch} from "../consts/PvpData";
 import IDependencies from "../services/IDependencies";
-import {StreamKeys} from "../cache/CachedKeys";
+import {Channels, PvpBusTypes} from "../cache/CachedKeys";
 import ILogger from "../services/ILogger";
 
 export default interface IMessenger {
@@ -22,7 +22,7 @@ export class Messenger implements IMessenger {
             try {
                 // Send both types of variables to support old client
                 //const matchReturn = IMatchToIMatchReturn(match);
-                await this._dep.messenger.send(StreamKeys.AP_PVP_MATCH_FOUND_STR, match);
+                await this._dep.messenger.publishBus(Channels.SV_PVP_CHANNEL, PvpBusTypes.PVP_MATCH_FOUND, match);
                 // Save the meeting history of the two users to redis
                 //await this._userMatchManager.addMatchToRedis(match.users[0].id, match.users[1].id);
                 this._logger.info(`Match ${match.id} registered`);

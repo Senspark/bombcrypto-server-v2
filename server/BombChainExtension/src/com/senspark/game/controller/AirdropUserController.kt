@@ -152,23 +152,27 @@ class AirdropUserController(
             _serviceLocator.provide(masterUserManager.userInventoryManager)
             _serviceLocator.provide(_userPermissions)
 
-            setPvP(_gameDataAccess.queryPvP(userId))
-            setPvPRank(
-                _pvpRankingManager.getRanking(
-                    _userInfo.displayName,
-                    _userInfo.id,
-                    _userInfo.dataType
+            // PvP chỉ chạy cho airdrop network có ví kiểu ETH (RON/BAS/VIC); SOL/TON đăng ký
+            // Null cho các service PvP nên gọi vào sẽ throw và chặn cả login.
+            if (_userInfo.dataType.isEthereumAirdropUser()) {
+                setPvP(_gameDataAccess.queryPvP(userId))
+                setPvPRank(
+                    _pvpRankingManager.getRanking(
+                        _userInfo.displayName,
+                        _userInfo.id,
+                        _userInfo.dataType
+                    )
                 )
-            )
-            masterUserManager.userSubscriptionManager.takeSubscriptionRewards()
-            leavePvPQueue()
+                leavePvPQueue()
 
-            _pvpUserController = PvpUserController(
-                _userInfo,
-                _envManager,
-                _configItemManager,
-                masterUserManager.userInventoryManager
-            )
+                _pvpUserController = PvpUserController(
+                    _userInfo,
+                    _envManager,
+                    _configItemManager,
+                    masterUserManager.userInventoryManager
+                )
+            }
+            masterUserManager.userSubscriptionManager.takeSubscriptionRewards()
 
             setActive(true)
             _inGame = true

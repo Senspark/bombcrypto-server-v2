@@ -319,6 +319,7 @@ object SFSCommand {
     const val GET_PVP_RANKING_V2: String = "GET_PVP_RANKING_V2"
     const val GET_PVP_SERVER_CONFIGS_V2: String = "GET_PVP_SERVER_CONFIGS_V2"
     const val GET_RANK_INFO_V2: String = "GET_RANK_INFO_V2"
+    const val CLAIM_HERO_CAGE: String = "CLAIM_HERO_CAGE"
     const val GET_USER_PVP_BOOSTERS_V2: String = "GET_USER_PVP_BOOSTERS_V2"
     const val JOIN_PVP_QUEUE_V2: String = "JOIN_PVP_QUEUE_V2"
     const val KEEP_JOINING_PVP_QUEUE_V2: String = "KEEP_JOINING_PVP_QUEUE_V2"

@@ -9,9 +9,6 @@ version = "unspecified"
 var koinVersion = "4.0.0-RC1"
 
 sourceSets {
-    main {
-        java.srcDir("src")
-    }
     test {
         java.srcDir("src_test")
     }
@@ -44,6 +41,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10")
+    implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
     implementation(files("libs/commons-lang-2.4.jar"))
     implementation(files("libs/jdom.jar"))
     implementation(files("libs/netty-3.2.2.Final.jar"))

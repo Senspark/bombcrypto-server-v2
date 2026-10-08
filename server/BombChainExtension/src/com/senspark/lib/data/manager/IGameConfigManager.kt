@@ -60,6 +60,7 @@ interface IGameConfigManager : IGlobalService {
     // Cross-chain deposit bridge kill-switch (§J). Default ON; flipped live via SV:ADMIN_COMMAND.
     val bridgeDepositEnabled: Boolean
     val bridgeWithdrawEnabled: Boolean
+    val heroCageRate: Float
 
     // ----------------- Custom -----------------
     fun getString(key: String, default: String = ""): String

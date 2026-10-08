@@ -2,6 +2,7 @@ package com.senspark.game.extension.helper
 
 import com.senspark.common.cache.IFastStreamRedis
 import com.senspark.common.cache.IMessengerService
+import com.senspark.game.constant.ChannelKeys
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.declare.SFSCommand
 import com.senspark.game.extension.GlobalServices
@@ -78,6 +79,7 @@ import com.senspark.game.handler.onBoarding.GetOnBoardingConfigHandler
 import com.senspark.game.handler.onBoarding.UpdateUserOnBoardingHandler
 import com.senspark.game.handler.pvp.*
 import com.senspark.game.handler.request.ApproveClaimHandlerV4
+import com.senspark.game.handler.request.ClaimHeroCageHandler
 import com.senspark.game.handler.request.CrosschainDepositBridgeWithdrawHandler
 import com.senspark.game.handler.request.CrosschainDepositBridgeNotifyHandler
 import com.senspark.game.handler.request.WithdrawNativeHandler
@@ -152,6 +154,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.GET_BONUS_REWARD_PVP_V3, GetBonusRewardPvpHandler::class.java)
         helper.addRequestHandler(SFSCommand.KEEP_JOINING_PVP_QUEUE_V2, PvpKeepJoiningQueueHandler::class.java)
         helper.addRequestHandler(SFSCommand.CLAIM_PVP_MATCH_REWARD_V2, ClaimPvpMatchRewardHandler::class.java)
+        helper.addRequestHandler(SFSCommand.CLAIM_HERO_CAGE, ClaimHeroCageHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_RANK_INFO_V2, GetRankInfoHandler::class.java)
 
         // hero tr
@@ -295,11 +298,11 @@ class ServerInitializerAll(
         }
 
         // Server-driven treasure mode: MapService's MOVE/PLANT/EXPLODE/... batches -> owning manager
-        // (FastStreamRedis for low latency).
+        // (Redis Pub/Sub: every server gets every batch, the router drops the ones it does not own).
         val mapTreasureEventRouter = _services.get<IMapTreasureEventRouter>()
         val fastStreamRedis = _services.get<IFastStreamRedis>()
-        fastStreamRedis.listen(StreamKeys.AP_MAP_TREASURE_EVENT_STR) { message ->
-            mapTreasureEventRouter.handle(message.value)
+        fastStreamRedis.listen(ChannelKeys.AP_MAP_TREASURE_EVENT_CHANNEL) { message ->
+            mapTreasureEventRouter.handle(message)
         }
     }
 

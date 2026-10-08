@@ -23,6 +23,7 @@ import com.senspark.game.declare.SFSCommand
 import com.senspark.game.declare.SFSField
 import com.senspark.game.exception.CustomException
 import com.senspark.game.extension.coroutines.ICoroutineScope
+import com.senspark.game.manager.IEnvManager
 import com.senspark.game.manager.blockMap.mapservice.IMapServiceClient
 import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventRouter
 import com.senspark.game.manager.blockMap.mapservice.MsAutoHeroDto
@@ -60,7 +61,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 // Treasure-mode map manager: MapService plays the game, results come back via
-// AP_MAP_TREASURE_EVENT_STR into [onTreasureEvents].
+// AP_MAP_TREASURE_EVENT_CHANNEL into [onTreasureEvents].
 class UserBlockMapManagerV2(
     private val _mediator: UserControllerMediator,
     private val _blockRewardManager: IUserBlockRewardManager,
@@ -300,6 +301,7 @@ class UserBlockMapManagerV2(
             _treasureActive = false
             _scheduler.clear(_treasureKeepaliveKey)
         }
+        _scheduler.clear(_treasureFlushKey)
         if (!_sessionEverInitialized) return
         _coroutineScope.scope.launch(Dispatchers.IO) {
             try {
@@ -478,6 +480,34 @@ class UserBlockMapManagerV2(
     private val _treasureRoster = LinkedHashMap<Int, MsAutoHeroDto>()
     private val _treasureKeepaliveKey get() = "treasure-keepalive-$_sessionKey"
 
+    // Events waiting for the next TREASURE_EVENTS push, one push per TREASURE_EVENTS_BATCH_MS (guarded by locker).
+    private val _treasureBatchMs by lazy { _mediator.services.get<IEnvManager>().treasureEventsBatchMs }
+    private var _treasureOutbox = SFSArray()
+    private var _treasureFlushScheduled = false
+    private val _treasureFlushKey get() = "treasure-flush-$_sessionKey"
+
+    // Caller holds locker and has added to _treasureOutbox.
+    private fun scheduleTreasureFlush() {
+        if (_treasureBatchMs <= 0) return flushTreasureEvents()
+        if (_treasureFlushScheduled || _treasureOutbox.size() == 0) return
+        _treasureFlushScheduled = true
+        _scheduler.scheduleOnce(_treasureFlushKey, _treasureBatchMs) {
+            synchronized(locker) {
+                _treasureFlushScheduled = false
+                flushTreasureEvents()
+            }
+        }
+    }
+
+    // Caller holds locker. Sends everything queued, in order, as one push.
+    private fun flushTreasureEvents() {
+        if (_treasureOutbox.size() == 0) return
+        val payload = SFSObject()
+        payload.putSFSArray("events", _treasureOutbox)
+        _treasureOutbox = SFSArray()
+        _mediator.sendDataEncryption(HandlerCommand.TreasureEvents, payload, false)
+    }
+
     override fun startTreasureMode(paused: Boolean): ISFSObject = _treasureSync.withLock {
         _treasurePaused = paused
         synchronized(locker) {
@@ -598,11 +628,9 @@ class UserBlockMapManagerV2(
                 resync.putUtfString("reason", reason)
                 resync.putLong("seq", snapshot.seq)
                 resync.putLong("at", snapshot.serverTimeMs)
-                val events = SFSArray()
-                events.addSFSObject(resync)
-                val payload = SFSObject()
-                payload.putSFSArray("events", events)
-                _mediator.sendDataEncryption(HandlerCommand.TreasureEvents, payload, false)
+                // Not delayed, but still behind anything already queued.
+                _treasureOutbox.addSFSObject(resync)
+                flushTreasureEvents()
                 if (snapshot.awaitingNewMap) createNewMap(pushLegacyNewMap = false)
             }
             _mediator.logger.log("[TREASURE] resync reason=$reason seq=${snapshot.seq}")
@@ -709,7 +737,6 @@ class UserBlockMapManagerV2(
         var rosterMayChange = false
         synchronized(locker) {
             var needNewMap = false
-            val out = SFSArray()
             for (e in batch.events) {
                 val obj = when (e.type) {
                     MsTreasureEventType.MOVE -> treasureMove(e)
@@ -728,13 +755,9 @@ class UserBlockMapManagerV2(
                 obj.putLong("seq", e.seq)
                 obj.putUtfString("type", e.type)
                 obj.putLong("at", e.atMs)
-                out.addSFSObject(obj)
+                _treasureOutbox.addSFSObject(obj)
             }
-            if (out.size() > 0) {
-                val payload = SFSObject()
-                payload.putSFSArray("events", out)
-                _mediator.sendDataEncryption(HandlerCommand.TreasureEvents, payload, false)
-            }
+            scheduleTreasureFlush()
             if (needNewMap && _treasureActive) createNewMap(pushLegacyNewMap = false)
             if (rosterMayChange) rosterMayChange = _treasureRoster.keys != desiredTreasureHeroIds()
         }
@@ -758,6 +781,8 @@ class UserBlockMapManagerV2(
         }
         obj.putSFSArray("path", path)
         obj.putLong("step_ms", e.stepMs ?: 0)
+        // Client roams the hero itself: 0 = open-ended, else back on (i, j) by this time.
+        e.roamUntilMs?.let { obj.putLong("roam_until", it) }
         return obj
     }
 

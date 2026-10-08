@@ -27,8 +27,8 @@ client              game server (SmartFox)                    map-service       
   |                          |-- POST /sessions/{k}/auto/start -->| spawn heroes, start runner    |
   |<-- map, heroes, seq -----|<-- snapshot (blocks, heroes, seq) -|                               |
   |                          |                                    | loop: walk / plant / explode  |
-  |                          |                                    |-- XADD AP_MAP_TREASURE_EVENT_STR -->|
-  |                          |<-- FastStreamRedis (XREAD) ----------------------------------------|
+  |                          |                                    |-- PUBLISH AP_MAP_TREASURE_EVENT_CHANNEL -->|
+  |                          |<-- FastStreamRedis (SUBSCRIBE) ------------------------------------|
   |                          | MapTreasureEventRouter -> UserBlockMapManagerV2.onTreasureEvents   |
   |                          |   MOVE/PLANT/JOIN/LEAVE: forward                                   |
   |                          |   EXPLODE: mirror map, energy, rewards, pools, dangerous           |
@@ -107,8 +107,8 @@ keepalive resyncs.
 | `POST /sessions/{k}/auto/keepalive` | → `{running, seq, paused}`; `404` if the session is gone |
 | `GET /sessions/{k}/auto` | → snapshot (debugging) |
 
-Stream `AP_MAP_TREASURE_EVENT_STR`, entry `{data: TreasureEventBatch}`; unowned entries expire after
-about 20 s (MINID trim + 20 s PEXPIRE). DTOs: map-service `model/AutoDtos.kt` ↔ server
+Pub/Sub channel `AP_MAP_TREASURE_EVENT_CHANNEL`, message = `TreasureEventBatch` JSON; nothing is stored,
+every game server receives every batch and ignores sessions it does not own. DTOs: map-service `model/AutoDtos.kt` ↔ server
 `mapservice/MapServiceDtos.kt` (keep in sync).
 
 ## Simulation rules (`map-service/auto/AutoPlay.kt`)

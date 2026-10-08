@@ -61,6 +61,12 @@ class CheckUserAlive(logger: ILogger, timeOut: Long) {
         return _timeOutUserIds.contains(Pair(userId, SessionKey(dataType, landing)))
     }
 
+    // Slot còn trong _usersIds mà không có bản ghi ở đây là phiên mồ côi: checkKeepAlive không
+    // thấy nên nó không bao giờ timeout được.
+    fun hasKeepAlive(userId: Int, dataType: EnumConstants.DataType, landing: EnumConstants.Landing): Boolean {
+        return _lastKeepAliveTime[userId]?.containsKey(SessionKey(dataType, landing)) == true
+    }
+
     // Snapshot các phiên đã timeout (uid, dataType, landing) để manager evict ghost chủ động khỏi _usersIds.
     fun getTimedOutSessions(): List<Triple<Int, EnumConstants.DataType, EnumConstants.Landing>> {
         return _timeOutUserIds.map { (userId, key) -> Triple(userId, key.dataType, key.landing) }

@@ -147,6 +147,7 @@ data class MsTreasureEventDto(
     val j: Int? = null,
     val path: List<MsCellDto>? = null,
     val stepMs: Long? = null,
+    val roamUntilMs: Long? = null,
     val bombNo: Int? = null,
     val plantedAtMs: Long? = null,
     val explodeAtMs: Long? = null,
@@ -158,7 +159,7 @@ data class MsTreasureEventDto(
     val reason: String? = null,
 )
 
-// One AP_MAP_TREASURE_EVENT_STR entry.
+// One AP_MAP_TREASURE_EVENT_CHANNEL message.
 @Serializable
 data class MsTreasureEventBatch(
     val sessionKey: String,

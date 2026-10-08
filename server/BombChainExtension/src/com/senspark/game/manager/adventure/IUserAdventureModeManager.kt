@@ -13,7 +13,7 @@ import java.util.*
 interface IUserAdventureModeManager {
     val matchManager: IUserAdventureMatchManager
     val userAdventureMode: UserAdventureMode
-    fun enterDoor(): Triple<String, SFSArray, Boolean>
+    fun enterDoor(): EnterDoorResult
     fun getMap(version: Int, heroId: Int, stage: Int, level: Int, boosters: Set<Booster>): SFSObject
     fun takeItem(i: Int, j: Int): ISFSObject
     fun useBooster(booster: Booster)
@@ -31,3 +31,10 @@ interface IUserAdventureModeManager {
     fun getReviveHeroCost(): ISFSObject?
     suspend fun reviveHero(adsToken: String?): MutableMap<String, Float>
 }
+
+class EnterDoorResult(
+    val rewardId: String,
+    val rewards: SFSArray,
+    val isBossLevel: Boolean,
+    val isFirstClear: Boolean,
+)

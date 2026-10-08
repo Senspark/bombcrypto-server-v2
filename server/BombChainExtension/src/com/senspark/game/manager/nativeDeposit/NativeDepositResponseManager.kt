@@ -97,7 +97,8 @@ class NativeDepositResponseManager(
                 put("uid", uid)
                 fields()
             }
-            _messenger.send(StreamKeys.SV_DEPNATIVE_REQUEST_STR, payload.toString())
+            // A request is useless after _requestTimeoutMs, so the stream only needs a short tail.
+            _messenger.send(StreamKeys.SV_DEPNATIVE_REQUEST_STR, payload.toString(), maxLen = 100)
 
             val result = try {
                 withTimeout(_requestTimeoutMs) { state.resultDeferred.await() }

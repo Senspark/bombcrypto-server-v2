@@ -16,6 +16,7 @@ class ChangeRewardReason {
         const val SWAP_TOKEN = "Swap token"
         const val BONUS_REWARD_PVP = "Bonus reward pvp"
         const val REWARD_PVP = "Reward pvp"
+        const val HERO_CAGE = "HERO_CAGE"
         const val BUY_HOUSE_TON = "Buy house TON"
         const val BUY_HERO_TON = "Buy hero TON"
         const val BUY_HERO_SOL = "Buy hero SOL"

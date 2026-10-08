@@ -288,12 +288,16 @@ open class UserAdventureModeManager(
         return itemMap
     }
 
-    override fun enterDoor(): Triple<String, SFSArray, Boolean> {
+    override fun enterDoor(): EnterDoorResult {
         val rewardId = UUID.randomUUID().toString()
         userBonusRewardManager.addRewardsAds(rewardId)
         val isBossLevel = matchManager.isBossLevel()
+        // Read before endGameAndSaveData raises the max. Only max+1 is selectable, so this is the level's first win.
+        val isFirstClear = isHigherLevel(
+            userAdventureMode.maxStage, userAdventureMode.maxLevel, matchManager.stage, matchManager.level
+        )
         val sfsArray = endGameAndSaveData(matchManager.enterDoor(), MatchResult.WIN)
-        return Triple(rewardId, sfsArray, isBossLevel)
+        return EnterDoorResult(rewardId, sfsArray, isBossLevel, isFirstClear)
     }
 
     override fun endGameAndSaveData(
