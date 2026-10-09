@@ -58,4 +58,7 @@ object HandlerCommand {
     const val UpgradeShieldLevelResponse = "UPGRADE_SHIELD_LEVEL_RESPONSE"
 
     const val BheroStakePush = "BHERO_STAKE_PUSH"
+
+    // Server-driven treasure mode: ordered MOVE/PLANT/EXPLODE/... events (see server/docs/treasure_server_driven.md).
+    const val TreasureEvents = "TREASURE_EVENTS"
 }

@@ -1,0 +1,31 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- No file here before: Logback fell back to its DEBUG-root default, which made Lettuce log
+         every single Redis command/response. Under load that swamped the one Netty event-loop
+         thread owning MapService's Redis connection (shared ReentrantLock in the console appender),
+         collapsing fuse-explode throughput; see the 500-user stress test finding. -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+
+    <!-- Session/auto-play request logging; set MAP_SERVICE_TRACE_LOG=WARN to mute under load. -->
+    <appender name="TRACE_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+    <logger name="com.senspark.mapservice.trace" level="${MAP_SERVICE_TRACE_LOG:-INFO}" additivity="false">
+        <appender-ref ref="TRACE_STDOUT" />
+    </logger>
+
+    <logger name="io.netty" level="WARN" />
+    <logger name="io.lettuce" level="WARN" />
+    <!-- RedisConnector logs disconnect/reconnect itself; this one dumps a stack trace per failed reconnect. -->
+    <logger name="io.lettuce.core.protocol.ConnectionWatchdog" level="ERROR" />
+    <logger name="reactor" level="WARN" />
+</configuration>

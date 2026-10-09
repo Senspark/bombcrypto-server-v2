@@ -36,6 +36,7 @@ class GoSleepV2Handler : BaseEncryptRequestHandler() {
 
         bbmController.setSleep(bbm)
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return sendSuccess(controller, requestId, bbm)
     }
 

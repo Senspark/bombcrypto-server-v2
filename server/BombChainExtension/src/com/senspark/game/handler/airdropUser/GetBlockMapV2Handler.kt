@@ -11,9 +11,9 @@ class GetBlockMapV2Handler : BaseEncryptRequestHandler() {
 
     override fun handleGameClientRequest(controller: IUserController, requestId: Int, data: ISFSObject) {
         try {
-            val manager = controller.masterUserManager.userBlockMapManager
+            val manager = controller.masterUserManager.userBlockMapManagerV2
             synchronized(manager.locker) {
-                val blockMap = controller.masterUserManager.userBlockMapManager.getBlockMap()
+                val blockMap = manager.getBlockMap()
                 sendSuccess(controller, requestId, blockMap)
             }
         } catch (e: CustomException) {

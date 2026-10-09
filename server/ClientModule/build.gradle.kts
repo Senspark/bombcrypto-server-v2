@@ -8,6 +8,12 @@ group = "com.senspark"
 version = "unspecified"
 var koinVersion = "4.0.0-RC1"
 
+sourceSets {
+    test {
+        java.srcDir("src_test")
+    }
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(11))
@@ -26,10 +32,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation(project(":BombChainExtension"))
     implementation(project(":Common"))
+    // BombChainExtension declares these compileOnly, so tests need them directly on the classpath.
+    implementation(project(":SmartFoxLibs"))
 
-    
     testImplementation(kotlin("test"))
-    testImplementation("io.mockk:mockk:1.12.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.9.0")
+    testImplementation("io.mockk:mockk:1.13.10")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

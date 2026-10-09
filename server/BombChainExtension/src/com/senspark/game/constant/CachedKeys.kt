@@ -50,6 +50,10 @@ class ChannelKeys {
     companion object {
         const val SV_TH_MODE_RACE_CHANNEL = "SV_TH_MODE_RACE_CHANNEL" // server game -> api th-mode-server
         const val SV_PVP_CHANNEL = "SV_PVP_CHANNEL" // server game, server pvp, api pvp-matching; message types in PvpBusTypes
+
+        // map-service -> server game: server-driven treasure mode event batches (keep in sync with map-service
+        // ChannelKeys; see docs/treasure_server_driven.md).
+        const val AP_MAP_TREASURE_EVENT_CHANNEL = "AP_MAP_TREASURE_EVENT_CHANNEL"
     }
 }
 

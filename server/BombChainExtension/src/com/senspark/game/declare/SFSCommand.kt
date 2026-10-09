@@ -213,6 +213,12 @@ object SFSCommand {
     const val GET_COIN_RANKING_V2: String = "GET_COIN_RANKING_V2"
     const val GET_ALL_SEASON_COIN_RANKING_V2: String = "GET_ALL_SEASON_COIN_RANKING_V2"
     const val START_EXPLODE_V5: String = "START_EXPLODE_V5"
+    // Server-driven treasure mode: the server plays; client only re-enacts TREASURE_EVENTS (docs/treasure_server_driven.md).
+    const val START_TREASURE_MODE: String = "START_TREASURE_MODE"
+    const val STOP_TREASURE_MODE: String = "STOP_TREASURE_MODE"
+    const val PAUSE_TREASURE_MODE: String = "PAUSE_TREASURE_MODE"
+    const val RESUME_TREASURE_MODE: String = "RESUME_TREASURE_MODE"
+    const val SET_TREASURE_AUTO_MINE: String = "SET_TREASURE_AUTO_MINE"
     const val GET_COIN_LEADERBOARD_CONFIG_V2: String = "GET_COIN_LEADERBOARD_CONFIG_V2"
 
     const val GET_INVOICE_DEPOSIT_TON_V2: String = "GET_INVOICE_DEPOSIT_TON_V2"

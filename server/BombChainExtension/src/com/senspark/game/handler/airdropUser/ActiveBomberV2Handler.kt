@@ -70,6 +70,7 @@ class ActiveBomberV2Handler : BaseEncryptRequestHandler() {
             hero.energy
         )
 
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return responseToClient(controller, requestId, hero)
     }
 

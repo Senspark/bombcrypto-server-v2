@@ -25,6 +25,7 @@ class MessengerService(
     companion object {
         const val STREAM_CONSUMER_GROUP = "sv-smartfox"
         const val SCHEDULER_TIME = 1000
+        const val BUS_PING_INTERVAL = 60_000
     }
 
     private val _listeners = mutableMapOf<String, MutableList<(Message) -> Boolean>>()
@@ -55,6 +56,18 @@ class MessengerService(
 
     override fun initialize() {
         _scheduler.schedule("Messengers", 0, SCHEDULER_TIME, ::listenToStreams)
+        // A subscribed connection can sit idle for weeks; proxies, firewalls and NATs drop idle TCP silently,
+        // leaving a subscriber that never hears another message. Regular traffic keeps the path open.
+        _scheduler.schedule("MessengerBusPing", BUS_PING_INTERVAL, BUS_PING_INTERVAL, ::pingBus)
+    }
+
+    private fun pingBus() {
+        if (_busChannels.isEmpty()) return
+        try {
+            _busConnection.sync().ping()
+        } catch (ex: Exception) {
+            _logger.error("[MessengerService] bus ping failed", ex)
+        }
     }
 
     override fun send(key: String, message: String, maxLen: Long?) {
@@ -125,7 +138,7 @@ class MessengerService(
         }
         _listeners[key]?.add(callback)
     }
-    
+
     override fun delete(key: String, id: String) {
         try {
             val cmd = _connection.sync()

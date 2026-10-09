@@ -20,6 +20,11 @@ class RedisServices(connectionString: String) : IRedisServices {
             return MessengerService(r, scheduler, logger)
         }
 
+        fun createFastStreamRedis(connectionString: String, logger: ILogger): IFastStreamRedis {
+            val r = RedisServices(connectionString)
+            return FastStreamRedis(r, logger)
+        }
+
         fun create(
             connectionString: String,
             scheduler: IScheduler,

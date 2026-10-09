@@ -1,0 +1,16 @@
+networks:
+  base_default:
+    external: true
+
+name: bombcrypto
+services:
+  map-service:
+    build: .
+    image: mapservice
+    container_name: map-service
+    env_file: .env
+    ports:
+      - "8091:80"
+    networks:
+      - base_default
+    restart: unless-stopped

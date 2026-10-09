@@ -6,6 +6,7 @@ interface IGameConfigManager : IGlobalService {
     val maintenanceTimestamp: Long
     val isKickWhenHack: Int
     val timeBombExplode: Int
+
     val nextTimeCanClaimReward: Int
     val minPve2Reward: Float
     val maxPve2Reward: Float

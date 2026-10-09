@@ -20,6 +20,7 @@ import com.senspark.game.declare.GameConstants.MAP_MAX_COL
 import com.senspark.game.declare.GameConstants.MAP_MAX_ROW
 import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.blockReward.IUserBlockRewardManager
+import com.senspark.game.manager.hero.IUserHeroFiManager
 import com.senspark.game.manager.stake.IHeroStakeManager
 import com.senspark.game.manager.treasureHuntV2.ITreasureHuntV2Manager
 import com.senspark.game.manager.treasureHuntV2.UserId
@@ -32,11 +33,11 @@ import com.smartfoxserver.v2.entities.data.SFSArray
 import com.smartfoxserver.v2.entities.data.SFSObject
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 class UserBlockMapManagerImpl(
     private val _mediator: UserControllerMediator,
     private val _blockRewardManager: IUserBlockRewardManager,
+    private val _heroFiManager: IUserHeroFiManager,
 ) : IUserBlockMapManager {
 
     private val _blockConfigManager = _mediator.services.get<IBlockConfigManager>()
@@ -44,7 +45,7 @@ class UserBlockMapManagerImpl(
     private val _blockDropRateManager = _mediator.services.get<IBlockDropByDayManager>()
     private val _blockRewardDataManager = _mediator.services.get<IBlockRewardDataManager>()
     private val _gameConfigManager = _mediator.services.get<IGameConfigManager>()
-    
+
     private val _treasureHuntV2Manager = _mediator.svServices.get<ITreasureHuntV2Manager>()
     private val _heroStakeManager = _mediator.svServices.get<IHeroStakeManager>()
 

@@ -48,6 +48,9 @@ class ChangeBomberManStageV3Handler : BaseEncryptRequestHandler() {
                         bbmController.setWork(bbm)
                         val result =
                             controller.masterUserManager.userBlockMapManager.getBombermanDangerousStatus(bbm)
+                        // Struck by thunder with no shield: it rests right away instead of working.
+                        controller.masterUserManager.userBlockMapManagerV2.restExhaustedHero(bbm)
+                        result.putInt(SFSField.STAGE, bbm.stage)
                         heroType =  bbm.type.value
                         changeStageWorkHeroes.addSFSObject(result)
                     }
@@ -62,6 +65,7 @@ class ChangeBomberManStageV3Handler : BaseEncryptRequestHandler() {
             }
         }
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         if (changeStageWorkHeroes.size() > 0) {
             results.putSFSArray(SFSField.Datas, changeStageWorkHeroes)
             results.putInt(SFSField.HeroType, heroType)
