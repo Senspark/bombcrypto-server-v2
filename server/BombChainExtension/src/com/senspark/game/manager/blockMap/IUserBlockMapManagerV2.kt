@@ -1,5 +1,6 @@
 package com.senspark.game.manager.blockMap
 
+import com.senspark.game.data.model.nft.Hero
 import com.senspark.game.declare.EnumConstants.SAVE
 import com.senspark.game.exception.CustomException
 import com.senspark.game.manager.blockMap.mapservice.IMapTreasureEventListener
@@ -31,4 +32,10 @@ interface IUserBlockMapManagerV2 : IMapTreasureEventListener {
 
     // Call after any hero stage/active change; adds/removes heroes from the running game. No-op when stopped.
     fun syncTreasureHeroes()
+
+    // Client's auto mine switch: an exhausted hero goes home when on and a house has room, else it sleeps.
+    fun setTreasureAutoMine(enabled: Boolean)
+
+    // A working hero with no energy left is rested here, not by the client. True when its stage changed.
+    fun restExhaustedHero(bbm: Hero): Boolean
 }

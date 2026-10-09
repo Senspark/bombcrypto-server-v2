@@ -2,6 +2,7 @@ package com.senspark.game.extension.helper
 
 import com.senspark.common.cache.IFastStreamRedis
 import com.senspark.common.cache.IMessengerService
+import com.senspark.game.constant.ChannelKeys
 import com.senspark.game.constant.StreamKeys
 import com.senspark.game.declare.SFSCommand
 import com.senspark.game.extension.GlobalServices
@@ -138,6 +139,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.STOP_TREASURE_MODE, StopTreasureModeHandler::class.java)
         helper.addRequestHandler(SFSCommand.PAUSE_TREASURE_MODE, PauseTreasureModeHandler::class.java)
         helper.addRequestHandler(SFSCommand.RESUME_TREASURE_MODE, ResumeTreasureModeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.SET_TREASURE_AUTO_MINE, SetTreasureAutoMineHandler::class.java)
         helper.addRequestHandler(SFSCommand.SEND_CLIENT_LOG, SendClientLogHandler::class.java)
 
         // pvp
@@ -297,11 +299,11 @@ class ServerInitializerAll(
         }
 
         // Server-driven treasure mode: MapService's MOVE/PLANT/EXPLODE/... batches -> owning manager
-        // (FastStreamRedis for low latency).
+        // (Redis Pub/Sub: every server gets every batch, the router drops the ones it does not own).
         val mapTreasureEventRouter = _services.get<IMapTreasureEventRouter>()
         val fastStreamRedis = _services.get<IFastStreamRedis>()
-        fastStreamRedis.listen(StreamKeys.AP_MAP_TREASURE_EVENT_STR) { message ->
-            mapTreasureEventRouter.handle(message.value)
+        fastStreamRedis.listen(ChannelKeys.AP_MAP_TREASURE_EVENT_CHANNEL) { message ->
+            mapTreasureEventRouter.handle(message)
         }
     }
 

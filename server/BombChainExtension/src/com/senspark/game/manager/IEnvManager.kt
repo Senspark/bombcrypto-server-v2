@@ -62,6 +62,8 @@ interface IEnvManager : IGlobalService {
     val avatarClubUrl: String
 
     val mapServicePath: String
+    // Treasure events are pushed to a client once per this many ms; 0 = push each one immediately.
+    val treasureEventsBatchMs: Int
 
     //referral 
     val apReferralPath: String

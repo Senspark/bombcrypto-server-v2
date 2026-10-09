@@ -63,6 +63,9 @@ class UserAutoMineManager(
             return m.startTime <= now && m.endTime >= now
         }
 
+    // A bought package is running now.
+    val isActive: Boolean get() = canStartAutoMating
+
     override fun startAutoMine(): ISFSObject {
         if (!canStartAutoMating) {
             throw CustomException("Please buy auto mine package first", ErrorCode.INVALID_PARAMETER)

@@ -12,18 +12,18 @@ interface IMapTreasureEventListener {
     fun onTreasureEvents(batch: MsTreasureEventBatch)
 }
 
-// Routes AP_MAP_TREASURE_EVENT_STR batches to the manager owning the session key.
+// Routes AP_MAP_TREASURE_EVENT_CHANNEL batches to the manager owning the session key.
 interface IMapTreasureEventRouter : IGlobalService {
     // Latest registration wins (re-login replaces the old manager).
     fun register(sessionKey: String, listener: IMapTreasureEventListener)
 
     fun unregister(sessionKey: String, listener: IMapTreasureEventListener)
 
-    // True if this instance owns the session (entry gets deleted); false leaves it for other servers.
+    // True if this instance owns the session; false means another server owns it.
     fun handle(rawMessage: String): Boolean
 }
 
-// One session's batches run in stream order on one stripe; different users run in parallel.
+// One session's batches run in arrival order on one stripe; different users run in parallel.
 class MapTreasureEventRouter(
     private val _logger: ILogger,
     private val _executorFor: (String) -> Executor = stripedExecutors(4),
@@ -56,7 +56,7 @@ class MapTreasureEventRouter(
         val batch = try {
             deserialize<MsTreasureEventBatch>(rawMessage)
         } catch (e: Exception) {
-            _logger.error("[MAP_TREASURE_EVENT] unparseable entry: $rawMessage", e)
+            _logger.error("[MAP_TREASURE_EVENT] unparseable message: $rawMessage", e)
             return true
         }
         val listener = _listeners[batch.sessionKey] ?: return false

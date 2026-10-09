@@ -145,6 +145,7 @@ class TreasureTestBed(
     val blockDropByDayManager: IBlockDropByDayManager = mockk(relaxed = true)
     val blockConfigManager: IBlockConfigManager = mockk(relaxed = true)
     val scheduler: IScheduler = mockk(relaxed = true)
+    val envManager: IEnvManager = mockk(relaxed = true)
     val logger: IServerLogger = mockk(relaxed = true)
     val controller: IUserController = mockk(relaxed = true)
     val heroFiManager: IUserHeroFiManager = mockk(relaxed = true)
@@ -182,6 +183,8 @@ class TreasureTestBed(
         globalServices.register(IBlockRewardDataManager::class) { blockRewardDataManager }
         globalServices.register(IGameConfigManager::class) { gameConfig }
         globalServices.register(IScheduler::class) { scheduler }
+        // Relaxed mock: treasureEventsBatchMs = 0, so pushes are immediate unless a test sets it.
+        globalServices.register(IEnvManager::class) { envManager }
         val coroutineScope: ICoroutineScope = mockk(relaxed = true)
         every { coroutineScope.scope } returns kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
         globalServices.register(ICoroutineScope::class) { coroutineScope }

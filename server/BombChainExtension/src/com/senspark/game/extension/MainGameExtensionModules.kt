@@ -64,8 +64,8 @@ object MainGameExtensionModules {
         val sqlLogger = MySqlLogger(logger, enableLogDb)
         val scheduler = SmartFoxScheduler(envManager.schedulerThreadSize, logger)
         val (cache, messenger) = RedisServices.create(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
-        // Fast-poll listener for hot streams (map-service explode results).
-        val fastStreamRedis = RedisServices.createFastStreamRedis(envManager.redisConnectionString, SmartFoxScheduler(1, logger), logger)
+        // Pub/Sub listener for hot channels (map-service treasure events).
+        val fastStreamRedis = RedisServices.createFastStreamRedis(envManager.redisConnectionString, logger)
         val gameConfigManager = GameConfigManager(logger)
 
         val database = DefaultDatabase(DatabaseUtils.create(envManager), sqlLogger)

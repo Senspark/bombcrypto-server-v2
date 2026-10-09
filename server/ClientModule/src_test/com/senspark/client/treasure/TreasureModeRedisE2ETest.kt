@@ -1,8 +1,7 @@
 package com.senspark.client.treasure
 
 import com.senspark.common.cache.RedisServices
-import com.senspark.common.service.SimpleScheduler
-import com.senspark.game.constant.StreamKeys
+import com.senspark.game.constant.ChannelKeys
 import com.senspark.game.declare.SFSField
 import com.senspark.game.manager.blockMap.mapservice.MapServiceClient
 import com.senspark.game.manager.blockMap.mapservice.MapTreasureEventRouter
@@ -25,9 +24,9 @@ class TreasureModeRedisE2ETest {
         assumeTrue(!mapServiceUrl.isNullOrBlank(), "MAP_SERVICE_E2E_URL not set")
         val redisUrl = System.getenv("REDIS_CONNECTION_STRING") ?: "redis://localhost:6379"
 
-        val fastStreamRedis = RedisServices.createFastStreamRedis(redisUrl, SimpleScheduler(), mockk(relaxed = true))
+        val fastStreamRedis = RedisServices.createFastStreamRedis(redisUrl, mockk(relaxed = true))
         val router = MapTreasureEventRouter(mockk(relaxed = true))
-        fastStreamRedis.listen(StreamKeys.AP_MAP_TREASURE_EVENT_STR) { router.handle(it.value) }
+        fastStreamRedis.listen(ChannelKeys.AP_MAP_TREASURE_EVENT_CHANNEL) { router.handle(it) }
         fastStreamRedis.initialize()
         try {
             val bed = TreasureTestBed(

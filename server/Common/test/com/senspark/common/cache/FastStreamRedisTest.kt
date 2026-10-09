@@ -1,6 +1,5 @@
 package com.senspark.common.cache
 
-import com.senspark.common.service.SimpleScheduler
 import com.senspark.common.utils.ColorCode
 import com.senspark.common.utils.ILogger
 import io.lettuce.core.RedisClient
@@ -43,17 +42,13 @@ class FastStreamRedisTest {
 
     @AfterTest
     fun cleanup() {
-        if (fastStreamRedis == null) return
-        val client = RedisClient.create(redisUrl)
-        client.connect().use { c -> keys.forEach { c.sync().del(it) } }
-        client.shutdown()
         fastStreamRedis?.destroy()
     }
 
     @Test
-    fun `delivers promptly on any of many listened streams, deletes confirmed entries, isolates a throwing listener`() {
+    fun `delivers promptly on any of many listened channels, isolates a throwing listener`() {
         if (!redisReachable()) return
-        val m = FastStreamRedis(RedisServices(redisUrl), SimpleScheduler(), logger)
+        val m = FastStreamRedis(RedisServices(redisUrl), logger)
         fastStreamRedis = m
 
         val throwingKey = keys[0]
@@ -62,14 +57,11 @@ class FastStreamRedisTest {
         val received = CountDownLatch(1)
         var value: String? = null
         m.listen(target) { message ->
-            value = message.value
+            value = message
             received.countDown()
-            true
         }
         m.initialize()
 
-        // Warm up the read loop before measuring.
-        Thread.sleep(300)
         m.send(throwingKey, "first a message whose listener throws")
         val sentAt = System.nanoTime()
         m.send(target, "payload")
@@ -78,17 +70,5 @@ class FastStreamRedisTest {
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - sentAt)
         assertEquals("payload", value)
         assertTrue(latencyMs < 500, "delivery took ${latencyMs}ms")
-
-        val client = RedisClient.create(redisUrl)
-        try {
-            client.connect().use { c ->
-                val deadline = System.currentTimeMillis() + 1000
-                while (c.sync().xlen(target) != 0L && System.currentTimeMillis() < deadline) Thread.sleep(20)
-                assertEquals(0L, c.sync().xlen(target), "a listener returning true deletes the entry")
-                assertEquals(1L, c.sync().xlen(throwingKey), "a listener returning/throwing false keeps it")
-            }
-        } finally {
-            client.shutdown()
-        }
     }
 }

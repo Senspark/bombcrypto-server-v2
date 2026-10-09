@@ -3,13 +3,12 @@ package com.senspark.common.cache
 import com.senspark.common.service.IGlobalService
 import com.senspark.common.service.IService
 
-// Low-latency [IMessengerService] for a few hot streams (e.g. AP_MAP_TREASURE_EVENT_STR).
+// Low-latency Redis Pub/Sub for a few hot channels (e.g. AP_MAP_TREASURE_EVENT_CHANNEL).
 interface IFastStreamRedis : IService, IGlobalService {
     fun send(key: String, message: String)
 
     /**
-     * Callback mà return true thì sẽ tự động xoá message
+     * Callback chạy trên một thread riêng, tuần tự theo thứ tự message đến
      */
-    fun listen(key: String, callback: (Message) -> Boolean)
-    fun delete(key: String, id: String)
+    fun listen(key: String, callback: (String) -> Unit)
 }

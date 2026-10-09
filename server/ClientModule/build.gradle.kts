@@ -9,9 +9,6 @@ version = "unspecified"
 var koinVersion = "4.0.0-RC1"
 
 sourceSets {
-    main {
-        java.srcDir("src")
-    }
     test {
         java.srcDir("src_test")
     }
