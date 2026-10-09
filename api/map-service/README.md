@@ -191,7 +191,7 @@ The number of simulated concurrent users is the one flag you'll change most: `--
 Other options (see `--help`, or run with no args for the default 10 users / 60s):
 
 ```
---base-url <url>            MapService base URL (default http://192.168.1.102:8318, i.e.
+--base-url <url>            MapService base URL (default http://localhost:8091, i.e.
                               DEFAULT_BASE_URL in StressTestConfig.kt, or $MAP_SERVICE_URL)
 --redis-url <url>            Redis MapService publishes treasure events to -- must be the same
                               Redis MapService itself was started with (default

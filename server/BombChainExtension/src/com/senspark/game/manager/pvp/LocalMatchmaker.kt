@@ -61,7 +61,7 @@ class LocalMatchmaker : IMatchmaker {
         if (_testInfoMap.size == 2) {
             val pvpMapUserDataListJson = _testInfoMap.map { it.value.info }.toList().serialize()
             val matchToken = UUID.randomUUID().toString()
-            val testServer = "192.168.1.104"
+            val testServer = "localhost"
             _testInfoMap.forEach {
                 onMatchFound(it.key, matchToken, testServer, pvpMapUserDataListJson, true)
             }

@@ -3,7 +3,7 @@ package com.senspark.mapservice.stresstest
 import kotlin.system.exitProcess
 
 // Target MapService: edit this, or override per run with $MAP_SERVICE_URL or --base-url.
-const val DEFAULT_BASE_URL = "http://192.168.1.102:8318"
+const val DEFAULT_BASE_URL = "http://localhost:8091"
 
 data class StressTestConfig(
     val baseUrl: String = System.getenv("MAP_SERVICE_URL") ?: DEFAULT_BASE_URL,
