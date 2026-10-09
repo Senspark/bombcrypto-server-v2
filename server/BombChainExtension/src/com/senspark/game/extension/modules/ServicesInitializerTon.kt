@@ -152,6 +152,7 @@ class ServicesInitializerTon(
         n.register(IHeroStakeManager::class) { NullHeroStakeManager() }
         n.register(IAllHeroesFiManager::class) { NullAllHeroesFiManager() }
         n.register(IHeroUpgradePowerManager::class) { NullHeroUpgradePowerManager() }
+        n.register(IHeroUpgradeStaminaManager::class) { NullHeroUpgradeStaminaManager() }
         n.register(IConfigHeroTraditionalManager::class) { NullConfigHeroTraditionalManager() }
         n.register(IPvpQueueManager::class) { NullPvpQueueManager() }
         n.register(IGachaChestManager::class) { NullGachaChestManager() }
@@ -196,6 +197,7 @@ class ServicesInitializerTon(
                 n.get<IHeroStakeManager>(),
                 g.get<IHeroAbilityConfigManager>(),
                 n.get<IHeroUpgradePowerManager>(),
+                n.get<IHeroUpgradeStaminaManager>(),
                 n.get<IHeroUpgradeShieldManager>()
             )
         }
