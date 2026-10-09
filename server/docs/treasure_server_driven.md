@@ -46,6 +46,7 @@ client checks `seq` and resyncs on a gap.
 |---|---|---|
 | `START_TREASURE_MODE` | request | `StartTreasureModeHandler` — `START_PVE_V2`'s work (hash check, `getBombermanDangerous`, `joinRoom`) + `startTreasureMode()`. Calling again = resync |
 | `STOP_TREASURE_MODE` | request | `StopTreasureModeHandler` — heroes stop, live bombs still explode and are credited |
+| `SET_TREASURE_AUTO_MINE` | request | `SetTreasureAutoMineHandler` → `setTreasureAutoMine` — `{auto_mine}`, the client's auto mine switch (also START's optional `auto_mine`); only counts while a package is active. A working hero left with no energy (last bomb, thunder at START / go-work) is rested by the server via `restExhaustedHero`: home when the switch is on and a house has room, else sleep. The new `stage` rides on that `EXPLODE`, on START's `dangerous[]` entries and on the change-stage reply — the client must not send `GO_SLEEP` for it |
 | `PAUSE_TREASURE_MODE` / `RESUME_TREASURE_MODE` | request | `Pause/ResumeTreasureModeHandler` → `setTreasurePaused` — client paused: heroes halt at their next tile until resumed, live bombs still explode. The flag rides on every `auto/start` (START's optional `paused`, resyncs), keepalive re-sends it if MapService disagrees, STOP clears it |
 | `TREASURE_EVENTS` | push | `{events: [...]}`, see the client guide for every field |
 

@@ -346,18 +346,9 @@ class UserBlockMapManagerV2(
         val row = event.j!!
 
         val bbm = _heroFiManager.getHero(heroId, _mediator.dataType)
-        if (bbm == null || bbm.details.dataType != _mediator.dataType) {
-            _mediator.logger.log("[EXPLODE_V2] explodeResult SKIP hero=$heroId bombNo=$bombNo reason=bomberman_null")
-            return null
-        }
-        if (!bbm.isActive) {
-            _mediator.logger.log("[EXPLODE_V2] explodeResult SKIP hero=$heroId bombNo=$bombNo reason=active_invalid")
-            return null
-        }
-        if (bbm.stage != GameConstants.BOMBER_STAGE.WORK) {
-            _mediator.logger.log("[EXPLODE_V2] explodeResult SKIP hero=$heroId bombNo=$bombNo reason=not_working stage=${bbm.stage}")
-            return null
-        }
+        if (bbm == null || bbm.details.dataType != _mediator.dataType) return null
+        if (!bbm.isActive) return null
+        if (bbm.stage != GameConstants.BOMBER_STAGE.WORK) return null
 
         if (bbm.energy <= 0) {
             val resultData: ISFSObject = SFSObject()
@@ -369,6 +360,8 @@ class UserBlockMapManagerV2(
             resultData.putSFSArray(SFSField.Blocks, SFSArray())
             resultData.putIntArray("attend_pools", listOf<Int>())
             resultData.putInt(SFSField.HeroType, bbm.type.value)
+            restExhaustedHero(bbm)
+            resultData.putInt(SFSField.STAGE, bbm.stage)
             return resultData
         }
 
@@ -446,11 +439,9 @@ class UserBlockMapManagerV2(
             resultData.putBool("is_trial", false)
         }
 
+        restExhaustedHero(bbm)
+        resultData.putInt(SFSField.STAGE, bbm.stage)
         _mediator.saveLater(SAVE.HERO_STATUS)
-        _mediator.logger.log(
-            "[EXPLODE_V2] explodeResult OK hero=$heroId bombNo=$bombNo pos=$col,$row energy=${bbm.energy} " +
-                "fuseLatencyMs=${System.currentTimeMillis() - (event.plantedAtMs ?: 0)}"
-        )
         return resultData
     }
 
@@ -475,6 +466,9 @@ class UserBlockMapManagerV2(
     // Client's pause state; sent on every auto/start so a resync keeps it.
     @Volatile
     private var _treasurePaused = false
+
+    @Volatile
+    private var _treasureAutoMine = false
 
     // What MapService is currently playing, as last sent (guarded by locker).
     private val _treasureRoster = LinkedHashMap<Int, MsAutoHeroDto>()
@@ -551,6 +545,21 @@ class UserBlockMapManagerV2(
     override fun setTreasurePaused(paused: Boolean) = _treasureSync.withLock {
         _treasurePaused = paused
         if (_treasureActive) sendTreasurePause()
+    }
+
+    override fun setTreasureAutoMine(enabled: Boolean) {
+        _treasureAutoMine = enabled
+    }
+
+    override fun restExhaustedHero(bbm: Hero): Boolean {
+        if (bbm.details.dataType != _mediator.dataType || !bbm.isActive) return false
+        if (bbm.stage != GameConstants.BOMBER_STAGE.WORK || bbm.energy > 0) return false
+        if (!_treasureAutoMine || _heroFiManager.setGoHouse(bbm) == null) {
+            _heroFiManager.setSleep(bbm)
+        }
+        _mediator.saveLater(SAVE.HERO_STATUS)
+        _mediator.logger.log("[TREASURE] exhausted hero=${bbm.heroId} stage=${bbm.stage}")
+        return true
     }
 
     // Caller holds _treasureSync.

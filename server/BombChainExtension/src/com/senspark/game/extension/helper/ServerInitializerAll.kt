@@ -139,6 +139,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.STOP_TREASURE_MODE, StopTreasureModeHandler::class.java)
         helper.addRequestHandler(SFSCommand.PAUSE_TREASURE_MODE, PauseTreasureModeHandler::class.java)
         helper.addRequestHandler(SFSCommand.RESUME_TREASURE_MODE, ResumeTreasureModeHandler::class.java)
+        helper.addRequestHandler(SFSCommand.SET_TREASURE_AUTO_MINE, SetTreasureAutoMineHandler::class.java)
         helper.addRequestHandler(SFSCommand.SEND_CLIENT_LOG, SendClientLogHandler::class.java)
 
         // pvp
