@@ -162,13 +162,41 @@ class AutoPlayTest {
     }
 
     @Test
-    fun `a lone hero on the last brick stays on its cell instead of walking around the brick`() {
+    fun `a lone hero on the last brick stays on its cell when no other side is reachable before its bomb explodes`() {
+        // The other sides of (4,0) are 6 tiles away: 1200 ms, longer than the 1000 ms fuse.
         val bed = Bed(session(block(4, 0, hp = 9999)), spawns = listOf(0 to 0), fuseMs = 1000)
         bed.start(listOf(hero(1, speed = 5, bombs = 3)))
         bed.runUntil(10_000)
         assertEquals(1, bed.walks().size)
         assertTrue(bed.of(TreasureEventType.PLANT).all { it.i == 3 && it.j == 0 })
         assertEquals(10, bed.of(TreasureEventType.PLANT).size)
+    }
+
+    @Test
+    fun `a lone hero with spare bombs on the last brick plants on its other sides instead of waiting`() {
+        // Same brick with the real 3000 ms fuse: the other sides (1200 ms away) are reached before the bomb explodes.
+        val bed = Bed(session(block(4, 0, hp = 9999)), spawns = listOf(0 to 0), fuseMs = 3000)
+        val heroes = listOf(hero(1, speed = 5, bombs = 3))
+        val snapshot = bed.start(heroes)
+        bed.runUntil(20_000)
+
+        val plants = bed.of(TreasureEventType.PLANT)
+        assertTrue(plants.map { it.i to it.j }.distinct().size > 1, "uses more than one side of the brick")
+        // Camping would plant at 600 ms and then once per fuse: 7 bombs by 20 s.
+        assertTrue(plants.size > 7, "more bombs than camping, got ${plants.size}")
+        assertTrue(plants.all { p -> plants.count { it.atMs <= p.atMs && it.explodeAtMs!! > p.atMs } <= 3 }, "never over capacity")
+        val replay = TreasureReplay(snapshot, capacity = heroes.associate { it.hero.heroId to it.bombCount })
+        replay.apply(bed.events)
+        assertEquals(emptyList(), replay.errors)
+    }
+
+    @Test
+    fun `a lone hero with a single bomb on the last brick still stays and re-plants`() {
+        val bed = Bed(session(block(4, 0, hp = 9999)), spawns = listOf(0 to 0), fuseMs = 3000)
+        bed.start(listOf(hero(1, speed = 5, bombs = 1)))
+        bed.runUntil(20_000)
+        assertEquals(1, bed.walks().size)
+        assertTrue(bed.of(TreasureEventType.PLANT).all { it.i == 3 && it.j == 0 })
     }
 
     @Test
