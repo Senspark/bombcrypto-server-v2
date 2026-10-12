@@ -336,6 +336,9 @@ class UserHouseManager(
 
     override fun heroRestInHouse(heroId: Int): House? {
         val house = findHouseRest() ?: return null
+        // hero có thể đã rời nhà thuê qua đường khác (deactive, đổi nhà active) mà dòng thuê chưa được trả
+        _heroHouseRent.remove(heroId)
+        gameDataAccess.releaseHeroesFromHouseRent(_dataType, listOf(heroId))
         if (activeHouse != null && house.houseId == activeHouse!!.houseId){
             return house
         }
@@ -368,7 +371,9 @@ class UserHouseManager(
         // đưa về map với key là house, value là list hero
         val heroInHouseActive =
             heroManager.housingHeroes.filter { !_heroHouseRent.keys.contains(it.heroId) }.map { it.heroId }
-        val heroInHouse = _heroHouseRent.entries.groupBy({ it.value }, { it.key }).toMutableMap()
+        val housingIds = heroManager.housingHeroes.map { it.heroId }.toSet()
+        val heroInHouse = _heroHouseRent.entries.filter { it.key in housingIds }
+            .groupBy({ it.value }, { it.key }).toMutableMap()
         heroInHouse[activeHouse!!.houseId] = heroInHouseActive
         return heroInHouse.toSFSArray { entry ->
             SFSObject().apply {
@@ -389,7 +394,10 @@ class UserHouseManager(
         }
         val listHouseRent =
             getItems().values.filter { (it.endTimeRent != 0L && it.endTimeRent > System.currentTimeMillis()) }
-        houseCanRest.addAll(listHouseRent.filter { houseRent -> _heroHouseRent.values.count { it == houseRent.houseId } < houseRent.capacity })
+        val housingIds = heroManager.housingHeroes.map { it.heroId }.toSet()
+        houseCanRest.addAll(listHouseRent.filter { houseRent ->
+            _heroHouseRent.count { it.value == houseRent.houseId && it.key in housingIds } < houseRent.capacity
+        })
 
         if (houseCanRest.isEmpty()) {
             return null

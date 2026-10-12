@@ -583,11 +583,15 @@ class GameDataAccessPostgreSql(
                 SELECT house_id
                 FROM user_house
                 WHERE uid = ? AND type = ?
+            ) AND hero_id IN (
+                SELECT bomber_id
+                FROM user_bomber
+                WHERE uid = ? AND data_type = ? AND type = ${HeroType.FI.value} AND stage = ${GameConstants.BOMBER_STAGE.HOUSE}
             );
             """.trimIndent()
 
         val mapHouse: MutableMap<Int, Int> = HashMap()
-        val params = arrayOf<Any?>(dataType.name, uid, dataType.name)
+        val params = arrayOf<Any?>(dataType.name, uid, dataType.name, uid, dataType.name)
         executeQuery(statement, params) {
             mapHouse[it.getInt("hero_id")] = it.getInt("house_id")
         }
@@ -673,7 +677,7 @@ class GameDataAccessPostgreSql(
 
     override fun insertNewHouse(dataType: DataType, uid: Int, house: House): Boolean {
         val statement = """
-            WITH _prev AS (SELECT uid
+            WITH _prev AS (SELECT uid, active
                            FROM user_house
                            WHERE house_id = ? AND type = ? AND uid <> ?),
                  _released AS (DELETE
@@ -683,14 +687,22 @@ class GameDataAccessPostgreSql(
                                RETURNING r.hero_id, r.is_rest, _prev.uid AS prev_uid),
                  _slept AS (UPDATE user_bomber ub
                             SET stage     = ${GameConstants.BOMBER_STAGE.SLEEP},
-                                time_rest = NOW() AT TIME ZONE 'utc'
-                            FROM _released
-                            WHERE _released.is_rest
-                              AND ub.uid = _released.prev_uid
-                              AND ub.bomber_id = _released.hero_id
+                                time_rest = ?
+                            FROM _prev
+                            WHERE ub.uid = _prev.uid
                               AND ub.data_type = ?
                               AND ub.type = ${HeroType.FI.value}
-                              AND ub.stage = ${GameConstants.BOMBER_STAGE.HOUSE})
+                              AND ub.stage = ${GameConstants.BOMBER_STAGE.HOUSE}
+                              AND (ub.bomber_id IN (SELECT hero_id FROM _released WHERE is_rest)
+                                  -- hero trong nhà active không có dòng thuê: mọi hero đang ở nhà trừ người ở nhà thuê khác
+                                  OR (_prev.active = 1 AND ub.bomber_id NOT IN (SELECT r.hero_id
+                                                                               FROM user_hero_house_rent r
+                                                                                        JOIN user_house h
+                                                                                             ON h.house_id = r.house_id AND h.type = r.type
+                                                                               WHERE r.is_rest
+                                                                                 AND r.type = ?
+                                                                                 AND h.uid = _prev.uid
+                                                                                 AND r.house_id <> ?))))
             INSERT INTO user_house(uid,
                                    gen_house_id,
                                    house_id,
@@ -723,7 +735,7 @@ class GameDataAccessPostgreSql(
         val params = arrayOf<Any?>(
             house.houseId, dataType.name, uid,
             house.houseId, dataType.name,
-            dataType.name,
+            timeSync, dataType.name, dataType.name, house.houseId,
             uid,
             house.details.details,
             house.houseId,

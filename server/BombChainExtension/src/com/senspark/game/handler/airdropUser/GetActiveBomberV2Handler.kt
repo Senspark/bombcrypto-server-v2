@@ -4,6 +4,7 @@ import com.senspark.game.controller.IUserHouseManager
 import com.senspark.game.controller.IUserController
 import com.senspark.game.data.model.nft.Hero
 import com.senspark.game.data.model.nft.House
+import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.GameConstants.BOMBER_STAGE
 import com.senspark.game.declare.KickReason
 import com.senspark.game.declare.SFSCommand
@@ -27,6 +28,21 @@ class GetActiveBomberV2Handler : BaseEncryptRequestHandler() {
         val bbmController: IUserHeroFiManager = controller.masterUserManager.heroFiManager
         val bbmsActive: List<Hero> = bbmController.activeHeroes
         val uHouseController: IUserHouseManager = controller.masterUserManager.houseManager
+
+        // Nhà thuê hết hạn thì cho hero đi ngủ, tính giấc ngủ từ lúc hết hạn
+        val now = System.currentTimeMillis()
+        var released = false
+        for (hero in bbmsActive) {
+            if (hero.stage != BOMBER_STAGE.HOUSE) continue
+            val house = uHouseController.getHouseHeroRest(hero) ?: continue
+            if (house.isActive || house.endTimeRent == 0L || house.endTimeRent > now) continue
+            bbmController.setSleep(hero)
+            hero.timeRest = house.endTimeRent
+            released = true
+        }
+        if (released) {
+            controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
+        }
 
         val data = SFSObject()
         val bombersArr = SFSArray()
