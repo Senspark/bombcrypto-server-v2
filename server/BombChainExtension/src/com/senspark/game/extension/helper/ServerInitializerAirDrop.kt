@@ -15,8 +15,6 @@ class ServerInitializerAirDrop : IServerInitializer {
         helper.addRequestHandler(SFSCommand.BUY_HERO_SERVER, BuyHeroServerHandler::class.java)
         helper.addRequestHandler(SFSCommand.FUSION_HERO_SERVER, FusionHeroServerHandler::class.java)
         helper.addRequestHandler(SFSCommand.MULTI_FUSION_HERO_SERVER, MultiFusionHeroServerHandler::class.java)
-        helper.addRequestHandler(SFSCommand.GET_RENT_HOUSE_PACKAGE_CONFIG, GetRentHousePackageConfigHandler::class.java)
-        helper.addRequestHandler(SFSCommand.RENT_HOUSE, UserRentHouseHandler::class.java)
         helper.addRequestHandler(
             SFSCommand.GET_COIN_LEADERBOARD_CONFIG_V2,
             GetCoinLeaderboardConfigV2Handler::class.java

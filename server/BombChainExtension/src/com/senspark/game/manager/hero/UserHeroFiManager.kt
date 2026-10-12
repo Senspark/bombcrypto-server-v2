@@ -261,6 +261,8 @@ class UserHeroFiManager(
             val minuteRest = getMinuteRest(bbm)
             energyRecovery = getEnergyIncrease(bbm, minuteRest.toLong(), uHouse)
             energyRecovery = addEnergy(bbm, energyRecovery)
+            // trả lại slot nhà thuê, nếu không hero vẫn bị tính là đang ở trong đó
+            _houseManager.heroGoWorkFromHouseRent(bbm.heroId)
         }
         this.setHerroStageSleep(bbm)
         return energyRecovery
@@ -290,21 +292,10 @@ class UserHeroFiManager(
     }
 
     override fun setWork(bbm: Hero): Int {
-        var minuteRest = getMinuteRest(bbm)
+        val minuteRest = getMinuteRest(bbm)
         var uHouse: House? = null
         if (bbm.stage == GameConstants.BOMBER_STAGE.HOUSE) {
-            val houseRent = _houseManager.heroGoWorkFromHouseRent(bbm.heroId)
-            if (houseRent != null) {
-                uHouse = houseRent
-                if (houseRent.endTimeRent < Instant.now().toEpochMilli()) {
-                    val maxTimeRest = houseRent.endTimeRent - bbm.timeRest
-                    if (minuteRest > maxTimeRest) {
-                        minuteRest = maxTimeRest.toInt()
-                    }
-                }
-            } else {
-                uHouse = _houseManager.activeHouse
-            }
+            uHouse = _houseManager.heroGoWorkFromHouseRent(bbm.heroId) ?: _houseManager.activeHouse
         }
         var energyRecovery = getEnergyIncrease(bbm, minuteRest.toLong(), uHouse)
         // nếu hết energy và energy chưa hồi thì ko cho work nữa
@@ -343,6 +334,12 @@ class UserHeroFiManager(
     }
 
     override fun getEnergyIncrease(bbm: Hero, minutes: Long, uHouse: House?): Int {
+        var minutes = minutes
+        // nhà thuê chỉ hồi năng lượng tới lúc hết hạn
+        if (uHouse != null && !uHouse.isActive && uHouse.endTimeRent != 0L) {
+            val minutesRented = TimeUnit.MILLISECONDS.toMinutes(uHouse.endTimeRent - bbm.timeRest)
+            minutes = minutes.coerceAtMost(minutesRented.coerceAtLeast(0))
+        }
         //kiem tra xem đang ngủ bụi hay trong nhà để tính năng lượng
         var energyIncreasePerMinute = uHouse?.recovery?.toFloat() ?: 0.5f
 

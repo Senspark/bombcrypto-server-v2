@@ -243,7 +243,8 @@ class AdminCommandController(
 
     fun hotReloadConfigPackageHouseRent() {
         val shopDataAccess = _dataAccessManager.shopDataAccess
-        _netServices.get(ServerType.TON).get<IHouseManager>().setConfig(shopDataAccess.loadHouseRentPackageConfig())
+        val config = shopDataAccess.loadHouseRentPackageConfig()
+        _netServices.filter(IHouseManager::class).forEach { it.setConfig(config) }
     }
     
     fun hotReloadDailyTask(taskIds: List<Int>) {

@@ -14,6 +14,8 @@ import com.senspark.game.data.model.nft.House
 import com.senspark.game.data.model.user.UserBlockReward
 import com.senspark.game.db.helper.QueryHelper
 import com.senspark.game.declare.EnumConstants.*
+import com.senspark.game.declare.GameConstants
+import com.senspark.game.declare.customEnum.ChangeRewardReason
 import com.senspark.game.schema.TableUserItemStatus
 import com.senspark.game.utils.Extractor
 import com.senspark.game.utils.Utils
@@ -577,7 +579,7 @@ class GameDataAccessPostgreSql(
         val statement = """
             SELECT * 
             FROM "user_hero_house_rent"
-            WHERE is_rest = true AND house_id IN (
+            WHERE is_rest = true AND type = ? AND house_id IN (
                 SELECT house_id
                 FROM user_house
                 WHERE uid = ? AND type = ?
@@ -585,7 +587,7 @@ class GameDataAccessPostgreSql(
             """.trimIndent()
 
         val mapHouse: MutableMap<Int, Int> = HashMap()
-        val params = arrayOf<Any?>(uid, dataType.name)
+        val params = arrayOf<Any?>(dataType.name, uid, dataType.name)
         executeQuery(statement, params) {
             mapHouse[it.getInt("hero_id")] = it.getInt("house_id")
         }
@@ -671,6 +673,24 @@ class GameDataAccessPostgreSql(
 
     override fun insertNewHouse(dataType: DataType, uid: Int, house: House): Boolean {
         val statement = """
+            WITH _prev AS (SELECT uid
+                           FROM user_house
+                           WHERE house_id = ? AND type = ? AND uid <> ?),
+                 _released AS (DELETE
+                               FROM user_hero_house_rent r
+                                   USING _prev
+                               WHERE r.house_id = ? AND r.type = ?
+                               RETURNING r.hero_id, r.is_rest, _prev.uid AS prev_uid),
+                 _slept AS (UPDATE user_bomber ub
+                            SET stage     = ${GameConstants.BOMBER_STAGE.SLEEP},
+                                time_rest = NOW() AT TIME ZONE 'utc'
+                            FROM _released
+                            WHERE _released.is_rest
+                              AND ub.uid = _released.prev_uid
+                              AND ub.bomber_id = _released.hero_id
+                              AND ub.data_type = ?
+                              AND ub.type = ${HeroType.FI.value}
+                              AND ub.stage = ${GameConstants.BOMBER_STAGE.HOUSE})
             INSERT INTO user_house(uid,
                                    gen_house_id,
                                    house_id,
@@ -694,10 +714,16 @@ class GameDataAccessPostgreSql(
                                                      rarity = excluded.rarity,
                                                      recovery = excluded.recovery,
                                                      active = excluded.active,
-                                                     max_bomber = excluded.max_bomber;
+                                                     max_bomber = excluded.max_bomber,
+                                                     end_time_rent = CASE
+                                                                         WHEN user_house.uid = excluded.uid
+                                                                             THEN user_house.end_time_rent END;
         """.trimIndent()
         val timeSync = Timestamp(System.currentTimeMillis())
         val params = arrayOf<Any?>(
+            house.houseId, dataType.name, uid,
+            house.houseId, dataType.name,
+            dataType.name,
             uid,
             house.details.details,
             house.houseId,
@@ -1109,6 +1135,29 @@ class GameDataAccessPostgreSql(
         executeUpdate(statement, params)
     }
 
+    override fun rentHouseWithNative(
+        uid: Int,
+        houseId: Int,
+        dataType: DataType,
+        rewardType: BLOCK_REWARD_TYPE,
+        bcoinPrice: Double,
+        endTime: Instant
+    ) {
+        // fn_sub_user_reward raises when short, so the rent is only written if the charge went through
+        val statement = """
+            WITH _charge AS (SELECT fn_sub_user_reward(?, ?, fn_native_price(?, ?), ?, ?))
+            UPDATE user_house
+            SET end_time_rent = ?
+            FROM _charge
+            WHERE uid = ? AND house_id = ? AND type = ?
+        """.trimIndent()
+        val params = arrayOf<Any?>(
+            uid, dataType.name, dataType.name, bcoinPrice, rewardType.name, ChangeRewardReason.RENT_HOUSE,
+            Timestamp.from(endTime), uid, houseId, dataType.name
+        )
+        executeUpdateThrowException(statement, params)
+    }
+
     override fun getUserQuantityHeroes(uid: Int, heroType: HeroType, dataType: DataType): Int {
         val statement = """
             SELECT count(*) as quantity
@@ -1126,23 +1175,35 @@ class GameDataAccessPostgreSql(
         return 0
     }
 
-    override fun heroRestHouseRent(heroId: Int, houseId: Int) {
+    override fun heroRestHouseRent(heroId: Int, houseId: Int, dataType: DataType) {
         val statement = """
-            INSERT INTO user_hero_house_rent (hero_id, house_id, is_rest)
-            VALUES (?, ?, true)
-            ON CONFLICT(hero_id, house_id) DO UPDATE SET is_rest = true;
+            INSERT INTO user_hero_house_rent (hero_id, house_id, is_rest, type)
+            VALUES (?, ?, true, ?)
+            ON CONFLICT(house_id, hero_id, type) DO UPDATE SET is_rest = true;
         """.trimIndent()
-        val params = arrayOf<Any?>(heroId, houseId)
+        val params = arrayOf<Any?>(heroId, houseId, dataType.name)
         executeUpdate(statement, params)
     }
 
-    override fun heroGoWorkFromHouseRent(heroId: Int, houseId: Int) {
+    override fun heroGoWorkFromHouseRent(heroId: Int, houseId: Int, dataType: DataType) {
         val statement = """
             UPDATE user_hero_house_rent
             SET is_rest = false
-            WHERE hero_id = ? AND house_id = ?;
+            WHERE hero_id = ? AND house_id = ? AND type = ?;
         """.trimIndent()
-        val params = arrayOf<Any?>(heroId, houseId)
+        val params = arrayOf<Any?>(heroId, houseId, dataType.name)
         executeUpdate(statement, params)
+    }
+
+    override fun releaseHeroesFromHouseRent(dataType: DataType, heroIds: List<Int>) {
+        if (heroIds.isEmpty()) {
+            return
+        }
+        val statement = """
+            UPDATE user_hero_house_rent
+            SET is_rest = false
+            WHERE type = ? AND hero_id IN (${heroIds.joinToString(",")});
+        """.trimIndent()
+        executeUpdate(statement, arrayOf(dataType.name))
     }
 }

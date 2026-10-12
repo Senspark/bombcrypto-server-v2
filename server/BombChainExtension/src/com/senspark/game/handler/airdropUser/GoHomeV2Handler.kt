@@ -3,7 +3,6 @@ package com.senspark.game.handler.airdropUser
 import com.senspark.game.controller.IUserHouseManager
 import com.senspark.game.controller.IUserController
 import com.senspark.game.data.model.nft.Hero
-import com.senspark.game.data.model.nft.House
 import com.senspark.game.declare.EnumConstants
 import com.senspark.game.declare.ErrorCode
 import com.senspark.game.declare.GameConstants.BOMBER_STAGE
@@ -35,17 +34,13 @@ class GoHomeV2Handler : BaseEncryptRequestHandler() {
         }
 
         val uHouseController: IUserHouseManager = controller.masterUserManager.houseManager
-        if (!controller.isAirdropUser()) {
-            val uHouse: House = uHouseController.activeHouse
-                ?: return sendError(controller, requestId, ErrorCode.HOUSE_NOT_EXIST, null)
-
-            val heroes = controller.masterUserManager.heroFiManager.housingHeroes
-            if (heroes.size >= uHouse.capacity) {
-                return sendError(controller, requestId, ErrorCode.HOUSE_LIMIT_REACH, null)
-            }
+        if (!controller.isAirdropUser() && uHouseController.activeHouse == null) {
+            return sendError(controller, requestId, ErrorCode.HOUSE_NOT_EXIST, null)
         }
 
+        // null = neither the active house nor a rented one has a free slot
         bbmController.setGoHouse(bbm)
+            ?: return sendError(controller, requestId, ErrorCode.HOUSE_LIMIT_REACH, null)
         controller.setNeedSave(EnumConstants.SAVE.HERO_STATUS)
         controller.masterUserManager.userBlockMapManagerV2.syncTreasureHeroes()
         return sendSuccess(controller, requestId, bbm)

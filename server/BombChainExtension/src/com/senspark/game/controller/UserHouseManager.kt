@@ -300,11 +300,21 @@ class UserHouseManager(
 
     override fun rentHouse(houseId: Int, numDay: Int): Long {
         val house = getItems()[houseId] ?: throw Exception("You don't have this house")
+        if (house.isActive) {
+            throw CustomException("The active house is free, no need to rent it")
+        }
         val housePackage: HouseRentPackage =
             _packageHouseRent.firstOrNull { it.rarity == house.rarity && it.numDays == numDay} ?: throw Exception("Package isn't exist")
 
         val endTime =
             LocalDateTime.now(ZoneOffset.UTC).plusDays(housePackage.numDays.toLong()).toInstant(ZoneOffset.UTC)
+
+        val nativeType = _dataType.convertToNativeDepositType()
+        if (nativeType != null) {
+            gameDataAccess.rentHouseWithNative(_userId, houseId, _dataType, nativeType, housePackage.price.toDouble(), endTime)
+            house.endTimeRent = endTime.toEpochMilli()
+            return house.endTimeRent
+        }
 
         val rewardType = if (_dataType == EnumConstants.DataType.RON)
             EnumConstants.BLOCK_REWARD_TYPE.RON_DEPOSITED
@@ -330,14 +340,14 @@ class UserHouseManager(
             return house
         }
         _heroHouseRent[heroId] = house.houseId
-        gameDataAccess.heroRestHouseRent(heroId, house.houseId)
+        gameDataAccess.heroRestHouseRent(heroId, house.houseId, _dataType)
         return house
     }
 
     override fun heroGoWorkFromHouseRent(heroId: Int): House? {
         val houseId = _heroHouseRent[heroId] ?: return null
         _heroHouseRent.remove(heroId)
-        gameDataAccess.heroGoWorkFromHouseRent(heroId, houseId)
+        gameDataAccess.heroGoWorkFromHouseRent(heroId, houseId, _dataType)
         return getItems()[houseId]
     }
 

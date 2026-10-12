@@ -42,11 +42,13 @@ class SyncHouseV4Handler : BaseEncryptRequestHandler() {
             val objData = SFSObject()
             objData.putUtfString(SFSField.House_Gen_Id, house.details.details)
             objData.putInt(SFSField.Active, if (house.isActive) 1 else 0)
+            if (house.endTimeRent != 0L) objData.putLong("end_time_rent", house.endTimeRent)
             sfsHouses.addSFSObject(objData)
         }
         val dataToSend = SFSObject()
         dataToSend.putSFSArray(SFSField.Houses, sfsHouses)
         dataToSend.putSFSArray(SFSField.NewHouses, SFSArray())
+        dataToSend.putSFSArray("hero_in_house", houseController.getHeroInHouse())
 
         sendSuccess(controller, requestId, dataToSend)
     }

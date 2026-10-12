@@ -278,6 +278,8 @@ class ServerInitializerAll(
         // new handler not wait api response
         helper.addRequestHandler(SFSCommand.SYNC_HOUSE_V3, SyncHouseV3Handler::class.java)
         helper.addRequestHandler(SFSCommand.SYNC_HOUSE_V4, SyncHouseV4Handler::class.java)
+        helper.addRequestHandler(SFSCommand.GET_RENT_HOUSE_PACKAGE_CONFIG, GetRentHousePackageConfigHandler::class.java)
+        helper.addRequestHandler(SFSCommand.RENT_HOUSE, UserRentHouseHandler::class.java)
     }
 
     override fun initStreamListeners() {

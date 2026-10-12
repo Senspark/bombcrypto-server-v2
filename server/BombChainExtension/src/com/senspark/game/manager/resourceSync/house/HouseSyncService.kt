@@ -47,15 +47,13 @@ class HouseSyncService(
             }
         }
 
-        // Kiểm tra nhà active mà đổi nhà nếu nhà active cũ bị xoá
-        val currentActiveHouse: House? = houseController.activeHouse
-
-        // Nếu nhà đang active nằm trong danh sách nhà bị xoá thì cho rest toàn bộ hero trong nhà
-        if (currentActiveHouse != null && houseIds.any { it == currentActiveHouse.houseId }) {
-            val bombermanRest: List<Hero> = userController.masterUserManager.heroFiManager.housingHeroes.map {
-                userController.masterUserManager.heroFiManager.setSleep(it)
-                it
-            }
+        // Hero đang nghỉ trong nhà bị xoá (nhà active hoặc nhà thuê) thì cho đi ngủ
+        val heroManager = userController.masterUserManager.heroFiManager
+        val bombermanRest: List<Hero> = heroManager.housingHeroes.filter {
+            houseController.getHouseHeroRest(it)?.houseId in houseIds
+        }
+        if (bombermanRest.isNotEmpty()) {
+            bombermanRest.forEach { heroManager.setSleep(it) }
 
             // Cập nhật vào db
             dataAccessManager.gameDataAccess.updateBomberEnergyAndStage(
@@ -114,12 +112,18 @@ class HouseSyncService(
             }
         }
 
-        //B4: Kiểm tra nhà bị xoá có phải là nhà đang active ko, nếu phải thì set sleep all hero trong đó
+        //B4: Hero đang nghỉ trong nhà bị xoá (nhà active hoặc nhà thuê) thì set sleep
         val currentActiveHouse: House? = houseInDb.values.firstOrNull { it.isActive }
-        if (currentActiveHouse != null && houseNeedDelete.any { it == currentActiveHouse.houseId }) {
-            // Load tất cả hero của user này trong nhà để set trạng thái sang sleep
-            val allHero = heroBuilder.getFiHeroes(uid, dataType, 1000000, 0).values.toList()
-            val bombermanRest = allHero.filter { it.stage == GameConstants.BOMBER_STAGE.HOUSE }
+        val activeHouseRemoved = currentActiveHouse != null && currentActiveHouse.houseId in houseNeedDelete
+        val bombermanRest = if (houseNeedDelete.isEmpty()) emptyList() else {
+            val heroInHouseRent = gameDataAccess.loadHeroInHouseRent(dataType, uid)
+            heroBuilder.getFiHeroes(uid, dataType, 1000000, 0).values.filter {
+                if (it.stage != GameConstants.BOMBER_STAGE.HOUSE) return@filter false
+                val rentHouseId = heroInHouseRent[it.heroId]
+                if (rentHouseId != null) rentHouseId in houseNeedDelete else activeHouseRemoved
+            }
+        }
+        if (bombermanRest.isNotEmpty()) {
             bombermanRest.forEach {
                 it.stage = GameConstants.BOMBER_STAGE.SLEEP
                 it.timeRest = System.currentTimeMillis()
@@ -131,6 +135,7 @@ class HouseSyncService(
                 dataType,
                 bombermanRest
             )
+            dataAccessManager.gameDataAccess.releaseHeroesFromHouseRent(dataType, bombermanRest.map { it.heroId })
         }
 
         //B5: Update nhà đã bị xoá trên blockchain vô db
@@ -177,6 +182,7 @@ class HouseSyncService(
             val objData = SFSObject()
             objData.putUtfString(SFSField.House_Gen_Id, house.details.details)
             objData.putInt(SFSField.Active, if (house.isActive) 1 else 0)
+            if (house.endTimeRent != 0L) objData.putLong("end_time_rent", house.endTimeRent)
             sfsHouses.addSFSObject(objData)
         }
         val sfsArrNewHouse = SFSArray()
@@ -185,6 +191,7 @@ class HouseSyncService(
         }
         data.putSFSArray(SFSField.Houses, sfsHouses)
         data.putSFSArray(SFSField.NewHouses, sfsArrNewHouse)
+        data.putSFSArray("hero_in_house", houseController.getHeroInHouse())
 
         return data
     }

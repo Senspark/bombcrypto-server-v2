@@ -11156,7 +11156,8 @@ ALTER SEQUENCE public.user_hash_user_id_seq OWNED BY public.user_hash.user_id;
 CREATE TABLE public.user_hero_house_rent (
     hero_id integer NOT NULL,
     house_id integer NOT NULL,
-    is_rest boolean
+    is_rest boolean,
+    type character varying(20) NOT NULL
 );
 
 
@@ -12811,7 +12812,7 @@ ALTER TABLE ONLY public.user_hash
 --
 
 ALTER TABLE ONLY public.user_hero_house_rent
-    ADD CONSTRAINT user_hero_house_rent_pk PRIMARY KEY (house_id, hero_id);
+    ADD CONSTRAINT user_hero_house_rent_pk PRIMARY KEY (house_id, hero_id, type);
 
 
 --

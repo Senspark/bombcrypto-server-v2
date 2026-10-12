@@ -95,6 +95,7 @@ interface IGameDataAccess : IGlobalService {
     fun updateBombermanStage(uid: Int, bombermanList: List<Hero>, energiesRecovery: Map<Int, Int>): Boolean
     fun updateBombermanName(name: String, bomberId: Int, userId: Int): Boolean
     fun deleteHouseNotExist(dataType: DataType, uid: Int, houseIds: List<Int>)
+    /** A house that changes owner loses its rent, and the previous owner's heroes resting in it go to sleep. */
     fun insertNewHouse(dataType: DataType, uid: Int, house: House): Boolean
 
     @Throws(SQLException::class)
@@ -172,7 +173,18 @@ interface IGameDataAccess : IGlobalService {
     fun getHouseOldSeason(uid: Int, houseId: Int, dataType: DataType): House?
     fun reactiveHouseOldSeason(uid: Int, houseId: Int, dataType: DataType)
     fun rentHouse(uid: Int, houseId: Int, dataType: DataType, endTime: Instant)
+
+    /** Charges [bcoinPrice] converted by fn_native_price and sets the rent in one statement. */
+    fun rentHouseWithNative(
+        uid: Int,
+        houseId: Int,
+        dataType: DataType,
+        rewardType: BLOCK_REWARD_TYPE,
+        bcoinPrice: Double,
+        endTime: Instant
+    )
     fun getUserQuantityHeroes(uid: Int, heroType: HeroType, dataType: DataType): Int
-    fun heroRestHouseRent(heroId: Int, houseId: Int)
-    fun heroGoWorkFromHouseRent(heroId: Int, houseId: Int)
+    fun heroRestHouseRent(heroId: Int, houseId: Int, dataType: DataType)
+    fun heroGoWorkFromHouseRent(heroId: Int, houseId: Int, dataType: DataType)
+    fun releaseHeroesFromHouseRent(dataType: DataType, heroIds: List<Int>)
 }
