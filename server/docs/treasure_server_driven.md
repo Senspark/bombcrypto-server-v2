@@ -124,8 +124,11 @@ At every tile centre, in the client's `BotManager.OnUpdate` order:
    (`targetAfterPlant`): a free cell — no bomb, not another hero's target
    (`Session.pickFreeAutoTarget`). If there is none, or only one brick is left
    (`BotManager.SpawnBomb`'s `NumberOfBlock == 1`), the hero **stays** and re-plants on the same
-   tile the instant its bomb explodes. So on the last bricks the heroes next to them stay put and
-   everyone else stands still with no target.
+   tile the instant its bomb explodes. On the last brick, a hero with a bomb to spare first looks for
+   another free side of it — no bomb, not another hero's target — that it can walk to before the fuse
+   runs out (`otherSideOfLastBrick`), and plants there instead of waiting. So on the last bricks the
+   heroes next to them stay put (or circle the brick with their spare bombs) and everyone else stands
+   still with no target.
 3. Else walk: keep the current route while every remaining tile is still passable, otherwise BFS
    again (bombs and walls block; bricks block unless block-pass). A re-plan or stop emits `MOVE`.
 4. No route → wait 250 ms and retry; unreachable for 3 s (`UnreachableRejectDelay`) → reject the

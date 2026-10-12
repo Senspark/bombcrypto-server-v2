@@ -300,10 +300,12 @@ class AutoPlay(
                 // May be a tile mid-path that just became the target: stop here first.
                 if (hero.path.isNotEmpty()) halt(hero, t)
                 plant(hero, t)
-                // Like BotManager.SpawnBomb: only on the last brick the hero stays and re-plants here.
+                // Like BotManager.SpawnBomb: only on the last brick the hero stays and re-plants here,
+                // unless a spare bomb can go on another side of it before this one explodes.
                 if (session.map.blocks.size == 1) {
-                    hero.target = hero.pos
-                    session.holdAutoTarget(hero.heroId, hero.pos)
+                    val next = otherSideOfLastBrick(hero, occupied) ?: hero.pos
+                    hero.target = next
+                    session.holdAutoTarget(hero.heroId, next)
                 }
                 continue
             }
@@ -341,6 +343,31 @@ class AutoPlay(
         fun distance(c: Cell) = (c.first - hero.pos.first).let { it * it } + (c.second - hero.pos.second).let { it * it }
         val nearest = pool.minOf { distance(it) }
         return pool.filter { distance(it) == nearest }.random(random)
+    }
+
+    // A hero with a bomb to spare on the last brick: the closest other free side of it that it reaches before
+    // the fuse runs out, so it plants there instead of waiting for its bomb. Null = stay and re-plant here.
+    private fun otherSideOfLastBrick(hero: AutoHero, occupied: Set<Cell>): Cell? {
+        if (bombs.count { it.heroId == hero.heroId } >= hero.bombCapacity) return null
+        val map = session.map
+        val brick = map.blockGrid()
+        val bombCells = bombs.mapTo(HashSet()) { it.cell }
+        val taken = heroes.values.filter { it !== hero }.mapNotNullTo(HashSet()) { it.target }
+        val passable = passableFor(hero)
+        val maxSteps = (config.fuseMs - 1) / hero.stepMs
+        var best: Cell? = null
+        var bestSteps = Int.MAX_VALUE
+        for (i in 0 until GameConstants.MAP_MAX_COL) for (j in 0 until GameConstants.MAP_MAX_ROW) {
+            val cell = i to j
+            if (cell == hero.pos || map.isWall(i, j) || brick[i][j] || cell in bombCells || cell in occupied || cell in taken) continue
+            if (!map.hasBlockAround(i, j)) continue
+            val steps = Pathfinder.shortestPath(passable, hero.pos, cell)?.size ?: continue
+            if (steps <= maxSteps && steps < bestSteps) {
+                best = cell
+                bestSteps = steps
+            }
+        }
+        return best
     }
 
     private fun isLegalTarget(cell: Cell) =
