@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Forward ports.
 EXPOSE 8080 8443 9933/tcp 9933/udp 9898
