@@ -153,6 +153,7 @@ class ServicesInitializerBnbPol(
         }
         n.register(IAllHeroesFiManager::class) { AllHeroesFiManager(logger, g.get<IGameDataAccess>()) }
         n.register(IHeroUpgradePowerManager::class) { HeroUpgradePowerManager(g.get<IShopDataAccess>(), logger) }
+        n.register(IHeroUpgradeStaminaManager::class) { HeroUpgradeStaminaManager(g.get<IShopDataAccess>(), logger) }
         n.register(IConfigHeroTraditionalManager::class) {
             ConfigHeroTraditionalManager(
                 g.get<IShopDataAccess>(),
@@ -325,6 +326,7 @@ class ServicesInitializerBnbPol(
                 n.get<IHeroStakeManager>(),
                 g.get<IHeroAbilityConfigManager>(),
                 n.get<IHeroUpgradePowerManager>(),
+                n.get<IHeroUpgradeStaminaManager>(),
                 n.get<IHeroUpgradeShieldManager>()
             )
         }

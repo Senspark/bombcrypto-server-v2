@@ -352,7 +352,7 @@ class UserHeroFiManager(
         }
         //làm tròn xuống
         val totalEnergyRecovery = floor((energyIncreasePerMinute * minutes).toDouble()).toInt()
-        return min(totalEnergyRecovery, bbm.stamina * 50 - bbm.energy)
+        return min(totalEnergyRecovery, bbm.maxEnergy - bbm.energy)
     }
 
     // Obsolete: sẽ bỏ trong tương lai

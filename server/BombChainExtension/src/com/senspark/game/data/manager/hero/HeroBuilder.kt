@@ -17,6 +17,7 @@ class HeroBuilder(
     heroStakeManager: IHeroStakeManager,
     heroAbilityConfigManager: IHeroAbilityConfigManager,
     heroUpgradePowerManager: IHeroUpgradePowerManager,
+    heroUpgradeStaminaManager: IHeroUpgradeStaminaManager,
     heroUpgradeShieldManager: IHeroUpgradeShieldManager
 ) : IHeroBuilder {
 
@@ -28,6 +29,7 @@ class HeroBuilder(
         heroStakeManager,
         heroAbilityConfigManager,
         heroUpgradePowerManager,
+        heroUpgradeStaminaManager,
         _heroShieldBuilder
     )
 
@@ -154,7 +156,7 @@ class HeroBuilder(
             details,
             false,
             0,
-            details.stamina * 50,
+            _helper.getMaxEnergy(details.rarity, details.level, details.stamina),
             Instant.now().toEpochMilli(),
             _heroShieldBuilder.create(details),
             0.0,

@@ -60,7 +60,7 @@ class CalculateRewardOffline {
                 }
                 val info = CalculateInfo(
                     // hồi 70% năng lượng là bắt đầu work
-                    (hero.stamina * 50 * 0.7).toInt(),
+                    (hero.maxEnergy * 0.7).toInt(),
                     damage,
                     energyUsed,
                     energyRecoverPerMinute,

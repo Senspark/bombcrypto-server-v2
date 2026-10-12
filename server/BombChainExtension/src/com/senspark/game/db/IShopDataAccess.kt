@@ -35,6 +35,7 @@ interface IShopDataAccess : IGlobalService {
     fun loadGachaChestSlots(): Map<Int, GachaChestSlot>
     fun loadBomberAbility(): Map<Int, HeroAbilityConfig>
     fun loadHeroUpgradePower(): Map<Int, HeroUpgradePower>
+    fun loadHeroUpgradeStamina(): Map<Int, HeroUpgradeStamina>
     fun loadStakeVipRewards(): Map<Int, List<StakeVipReward>>
     fun loadResetShieldBomber(): Map<Int, ResetShieldBomber>
     fun loadRankingSeason(): MutableMap<Int, Season>

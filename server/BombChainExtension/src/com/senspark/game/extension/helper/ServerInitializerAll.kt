@@ -42,6 +42,7 @@ import com.senspark.game.handler.gacha.OpenGachaChestHandler
 import com.senspark.game.handler.gacha.StartOpeningGachaChestHandler
 import com.senspark.game.handler.heroTR.ActiveHeroTRHandler
 import com.senspark.game.handler.heroTR.GetHeroUpgradePowerHandler
+import com.senspark.game.handler.heroTR.GetHeroUpgradeStaminaHandler
 import com.senspark.game.handler.heroTR.GetHeroesTraditionalHandler
 import com.senspark.game.handler.heroTR.GetUpgradeConfigHandler
 import com.senspark.game.handler.iapshop.BuyGoldHandler
@@ -162,6 +163,7 @@ class ServerInitializerAll(
         helper.addRequestHandler(SFSCommand.ACTIVE_HERO_TR_V2, ActiveHeroTRHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_HEROES_TRADITIONAL_V3, GetHeroesTraditionalHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_HERO_UPGRADE_POWER_V2, GetHeroUpgradePowerHandler::class.java)
+        helper.addRequestHandler(SFSCommand.GET_HERO_UPGRADE_STAMINA_V2, GetHeroUpgradeStaminaHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_UPGRADE_CONFIG_V2, GetUpgradeConfigHandler::class.java)
         helper.addRequestHandler(SFSCommand.GET_CRYSTALS_V2, GetCrystalHandler::class.java)
         helper.addRequestHandler(SFSCommand.GRIND_HEROES_V2, GrindHeroHandler::class.java)
