@@ -268,6 +268,24 @@ class UserHeroFiManager(
         return energyRecovery
     }
 
+    // Hero trong nhà thuê đã hết hạn thì cho đi ngủ, tính giấc ngủ từ lúc hết hạn
+    override fun releaseExpiredRentHeroes() {
+        val now = System.currentTimeMillis()
+        val released = mutableListOf<Hero>()
+        for (hero in activeHeroes) {
+            if (hero.stage != GameConstants.BOMBER_STAGE.HOUSE) continue
+            val house = _houseManager.getHouseHeroRest(hero) ?: continue
+            if (house.isActive || house.endTimeRent == 0L || house.endTimeRent > now) continue
+            setSleep(hero)
+            hero.timeRest = house.endTimeRent
+            released.add(hero)
+        }
+        // ghi ngay vì sync V4 đọc hero từ DB
+        if (released.isNotEmpty()) {
+            _gameDataAccess.updateBomberEnergyAndStage(_mediator.userId, _mediator.dataType, released)
+        }
+    }
+
     private fun setHerroStageHouse(bbm: Hero) {
         bbm.stage = GameConstants.BOMBER_STAGE.HOUSE
         bbm.timeRest = System.currentTimeMillis()
@@ -421,6 +439,7 @@ class UserHeroFiManager(
             _mediator.logger.log("[SYNC_BOMBERMAN_V4] call api with result = $ok forceFresh=$forceFresh")
         }
 
+        releaseExpiredRentHeroes()
         val heroesMap = _heroBuilder.getFiHeroes(_mediator.userId, _mediator.dataType, 1000000, 0)
         val data: ISFSObject = SFSObject()
         val heroes = heroesMap.values.filter { it.type == HeroType.FI }

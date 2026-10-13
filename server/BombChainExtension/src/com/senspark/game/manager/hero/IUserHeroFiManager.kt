@@ -46,6 +46,7 @@ interface IUserHeroFiManager {
      * @return energyRecovery
      */
     fun setSleep(bbm: Hero): Int
+    fun releaseExpiredRentHeroes()
     fun setGoHouse(bbm: Hero): Int?
     fun setWork(bbm: Hero): Int
     fun getMinuteRest(bbm: Hero): Int
